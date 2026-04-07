@@ -1,24 +1,31 @@
-"""Main dashboard view with summary cards, chart, and transaction table."""
+"""Main dashboard view with summary cards, chart, transaction table, alerts, and adjustments."""
 
 from typing import Optional
 
 import flet as ft
 
 from src.auth.session_manager import SessionManager
+from src.data.cache import DataCache
+from src.data.cached_client import CachedMonarchClient
+from src.data.credit_cards import estimate_cc_payments
 from src.data.monarch_client import MonarchClient
 from src.forecast.engine import build_forecast
-from src.forecast.models import ForecastResult, RecurringItem
+from src.forecast.models import ForecastResult, ForecastTransaction, RecurringItem
+from src.views.adjustments import AdjustmentsPanel
+from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart
 from src.views.transactions_table import build_transactions_table
 
 
 class DashboardView(ft.Column):
-    """Main dashboard showing forecast summary, chart, and transactions."""
+    """Main dashboard showing forecast summary, chart, transactions, alerts, and adjustments."""
 
     def __init__(self, session_manager: SessionManager, on_logout: callable) -> None:
         super().__init__()
         self.session_manager = session_manager
-        self.monarch = MonarchClient(session_manager.client)
+        self._raw_client = MonarchClient(session_manager.client)
+        self._cache = DataCache()
+        self.monarch = CachedMonarchClient(self._raw_client, self._cache)
         self.on_logout = on_logout
 
         self.expand = True
@@ -26,6 +33,7 @@ class DashboardView(ft.Column):
 
         # State
         self._checking_accounts: list[dict] = []
+        self._cc_accounts: list[dict] = []
         self._selected_account_id: Optional[str] = None
         self._recurring_items: list[RecurringItem] = []
         self._forecast: Optional[ForecastResult] = None
@@ -64,9 +72,15 @@ class DashboardView(ft.Column):
             on_click=lambda _: self.on_logout(),
         )
         self.loading = ft.ProgressRing(visible=False, width=24, height=24)
+        self.alerts_container = ft.Container()
         self.summary_row = ft.Row(spacing=16, wrap=True)
         self.chart_container = ft.Container(expand=True)
         self.table_container = ft.Container()
+        self.adjustments_panel = AdjustmentsPanel(
+            recurring_items=[],
+            on_change=lambda: self.page.run_task(self._on_adjustment_change),
+        )
+        self.cc_info_container = ft.Container()
 
         self.controls = [
             # Top bar
@@ -96,9 +110,13 @@ class DashboardView(ft.Column):
                 wrap=True,
             ),
             ft.Container(height=8),
+            # Alerts
+            self.alerts_container,
             # Summary cards
             self.summary_row,
             ft.Container(height=8),
+            # Credit card info
+            self.cc_info_container,
             # Chart
             ft.Text("Balance Projection", size=18, weight=ft.FontWeight.W_600),
             self.chart_container,
@@ -106,17 +124,30 @@ class DashboardView(ft.Column):
             # Transactions
             ft.Text("Upcoming Transactions", size=18, weight=ft.FontWeight.W_600),
             self.table_container,
+            ft.Container(height=16),
+            # Adjustments
+            self.adjustments_panel,
             ft.Container(height=24),
         ]
 
-    async def load_data(self) -> None:
+    async def load_data(self, force_refresh: bool = False) -> None:
         """Initial data load after login."""
         self.loading.visible = True
         self.loading.update()
 
         try:
-            self._checking_accounts = await self.monarch.get_checking_accounts()
-            self._recurring_items = await self.monarch.get_recurring_items()
+            self._checking_accounts = await self.monarch.get_checking_accounts(
+                force_refresh=force_refresh
+            )
+            self._cc_accounts = await self.monarch.get_credit_card_accounts(
+                force_refresh=force_refresh
+            )
+            self._recurring_items = await self.monarch.get_recurring_items(
+                force_refresh=force_refresh
+            )
+
+            # Update adjustments panel with fresh recurring items
+            self.adjustments_panel.update_recurring_items(self._recurring_items)
 
             # Populate account dropdown
             self.account_dropdown.options = [
@@ -145,6 +176,11 @@ class DashboardView(ft.Column):
                 self.chart_container.update()
                 self.table_container.content = None
                 self.table_container.update()
+                self.alerts_container.content = None
+                self.alerts_container.update()
+
+            # Update CC info
+            self._update_cc_info()
 
         except Exception as ex:
             self._forecast = None
@@ -156,6 +192,8 @@ class DashboardView(ft.Column):
             self.chart_container.update()
             self.table_container.content = None
             self.table_container.update()
+            self.alerts_container.content = None
+            self.alerts_container.update()
 
         finally:
             self.loading.visible = False
@@ -173,16 +211,76 @@ class DashboardView(ft.Column):
         if not account:
             return
 
+        # Get adjusted recurring items (with any overrides from the panel)
+        recurring = self.adjustments_panel.adjusted_recurring_items
+        if not recurring:
+            recurring = self._recurring_items
+
+        # Get one-off transactions from the adjustments panel
+        one_offs = list(self.adjustments_panel.one_off_transactions)
+
+        # Add estimated credit card payments
+        cc_payments = estimate_cc_payments(
+            self._cc_accounts, recurring, self._days_out
+        )
+        one_offs.extend(cc_payments)
+
         self._forecast = build_forecast(
             starting_balance=account["balance"],
-            recurring_items=self._recurring_items,
+            recurring_items=recurring,
+            one_off_transactions=one_offs if one_offs else None,
             days_out=self._days_out,
             safety_threshold=self._safety_threshold,
         )
 
+        self._update_alerts()
         self._update_summary(account)
         self._update_chart()
         self._update_table()
+
+    def _update_alerts(self) -> None:
+        """Generate and display alerts based on forecast."""
+        if not self._forecast:
+            self.alerts_container.content = None
+            self.alerts_container.update()
+            return
+
+        alerts = generate_alerts(self._forecast, self._safety_threshold)
+        banner = build_alerts_banner(alerts)
+        self.alerts_container.content = banner
+        self.alerts_container.update()
+
+    def _update_cc_info(self) -> None:
+        """Show credit card balance summary."""
+        if not self._cc_accounts:
+            self.cc_info_container.content = None
+            self.cc_info_container.update()
+            return
+
+        chips = []
+        for cc in self._cc_accounts:
+            balance = cc.get("balance", 0.0)
+            name = cc.get("name", "Card")
+            owed = abs(balance) if balance < 0 else 0
+            chips.append(
+                ft.Chip(
+                    label=ft.Text(f"{name}: ${owed:,.2f} owed"),
+                    leading=ft.Icon(ft.Icons.CREDIT_CARD, size=18),
+                    bgcolor=ft.Colors.RED_50 if owed > 0 else ft.Colors.GREEN_50,
+                )
+            )
+
+        self.cc_info_container.content = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text("Credit Cards", size=14, weight=ft.FontWeight.W_500),
+                    ft.Row(chips, wrap=True, spacing=8),
+                ],
+                spacing=4,
+            ),
+            padding=ft.padding.only(bottom=12),
+        )
+        self.cc_info_container.update()
 
     def _update_summary(self, account: dict) -> None:
         """Update summary cards."""
@@ -303,10 +401,14 @@ class DashboardView(ft.Column):
             self._safety_threshold = 0.0
         await self._run_forecast()
 
+    async def _on_adjustment_change(self) -> None:
+        """Called when the adjustments panel changes."""
+        await self._run_forecast()
+
     async def _on_refresh(self, e: ft.ControlEvent) -> None:
         self.loading.visible = True
         self.loading.update()
-        await self.monarch.refresh_accounts()
-        await self.load_data()
+        await self._raw_client.refresh_accounts()
+        await self.load_data(force_refresh=True)
         self.loading.visible = False
         self.loading.update()
