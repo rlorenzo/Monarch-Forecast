@@ -10,7 +10,7 @@ from src.data.cached_client import CachedMonarchClient
 from src.data.credit_cards import estimate_cc_payments
 from src.data.monarch_client import MonarchClient
 from src.forecast.engine import build_forecast
-from src.forecast.models import ForecastResult, ForecastTransaction, RecurringItem
+from src.forecast.models import ForecastResult, RecurringItem
 from src.views.adjustments import AdjustmentsPanel
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart
@@ -408,7 +408,7 @@ class DashboardView(ft.Column):
     async def _on_refresh(self, e: ft.ControlEvent) -> None:
         self.loading.visible = True
         self.loading.update()
-        await self._raw_client.refresh_accounts()
+        await self.monarch.refresh_accounts()
         await self.load_data(force_refresh=True)
         self.loading.visible = False
         self.loading.update()

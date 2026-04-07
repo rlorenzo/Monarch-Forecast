@@ -156,8 +156,10 @@ class AdjustmentsPanel(ft.Column):
             self._oneoff_error.update()
             return
 
-        if txn_type == "expense" and amount > 0:
-            amount = -amount
+        if txn_type == "expense":
+            amount = -abs(amount)
+        else:
+            amount = abs(amount)
 
         self._one_offs.append(
             ForecastTransaction(
