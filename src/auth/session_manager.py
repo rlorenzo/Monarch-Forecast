@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import keyring
+import keyring.errors
 from monarchmoney import MonarchMoney
 
 SERVICE_NAME = "monarch-forecast"

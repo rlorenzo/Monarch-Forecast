@@ -1,5 +1,7 @@
 """Main dashboard view with summary cards, chart, transaction table, alerts, and adjustments."""
 
+from collections.abc import Callable
+
 import flet as ft
 
 from src.auth.session_manager import SessionManager
@@ -18,7 +20,7 @@ from src.views.transactions_table import build_transactions_table
 class DashboardView(ft.Column):
     """Main dashboard showing forecast summary, chart, transactions, alerts, and adjustments."""
 
-    def __init__(self, session_manager: SessionManager, on_logout: callable) -> None:
+    def __init__(self, session_manager: SessionManager, on_logout: Callable[[], None]) -> None:
         super().__init__()
         self.session_manager = session_manager
         self._raw_client = MonarchClient(session_manager.client)

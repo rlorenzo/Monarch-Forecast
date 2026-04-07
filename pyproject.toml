@@ -54,6 +54,15 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
+[tool.ty.rules]
+# Flet's type stubs are incomplete — these rules produce only false positives
+unknown-argument = "warn"
+invalid-argument-type = "warn"
+missing-argument = "warn"
+unresolved-attribute = "warn"
+unresolved-import = "warn"
+invalid-assignment = "warn"
+
 [tool.ty.environment]
 python-version = "3.10"
 
