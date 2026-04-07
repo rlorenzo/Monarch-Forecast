@@ -69,9 +69,16 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
         return min(candidates)
 
     if frequency == "yearly":
-        candidate = base_date.replace(year=after.year)
+        try:
+            candidate = base_date.replace(year=after.year)
+        except ValueError:
+            # Feb 29 in a non-leap year: fall back to Feb 28
+            candidate = base_date.replace(year=after.year, day=28)
         if candidate < after:
-            candidate = candidate.replace(year=after.year + 1)
+            try:
+                candidate = base_date.replace(year=after.year + 1)
+            except ValueError:
+                candidate = base_date.replace(year=after.year + 1, day=28)
         return candidate
 
     return None

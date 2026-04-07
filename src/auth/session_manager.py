@@ -15,7 +15,7 @@ class SessionManager:
     """Handles login, MFA, and session token persistence."""
 
     def __init__(self) -> None:
-        SESSION_DIR.mkdir(parents=True, exist_ok=True)
+        SESSION_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._mm = MonarchMoney(session_file=str(SESSION_FILE))
         self._authenticated = False
 
@@ -60,12 +60,14 @@ class SessionManager:
         """Login with email/password. Raises RequireMFAException if MFA needed."""
         await self._mm.login(email=email, password=password)
         self._mm.save_session(str(SESSION_FILE))
+        SESSION_FILE.chmod(0o600)
         self._authenticated = True
 
     async def login_with_mfa(self, email: str, password: str, mfa_code: str) -> None:
         """Login with email/password/MFA code."""
         await self._mm.multi_factor_authenticate(email, password, mfa_code)
         self._mm.save_session(str(SESSION_FILE))
+        SESSION_FILE.chmod(0o600)
         self._authenticated = True
 
     def logout(self) -> None:

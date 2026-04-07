@@ -15,7 +15,7 @@ class DataCache:
     """Key-value cache backed by SQLite with TTL expiration."""
 
     def __init__(self, db_path: Path = CACHE_DB) -> None:
-        db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._conn = sqlite3.connect(str(db_path))
         self._conn.execute(
             """CREATE TABLE IF NOT EXISTS cache (
