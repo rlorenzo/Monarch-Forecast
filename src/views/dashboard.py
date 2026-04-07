@@ -44,7 +44,7 @@ class DashboardView(ft.Column):
             value=45,
             divisions=76,
             label="{value} days",
-            on_change=self._on_days_change,
+            on_change_end=self._on_days_change,
             width=250,
         )
         self.threshold_field = ft.TextField(
