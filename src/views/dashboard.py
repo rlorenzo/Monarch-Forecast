@@ -11,10 +11,13 @@ from src.data.credit_cards import estimate_cc_payments
 from src.data.monarch_client import MonarchClient
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult, RecurringItem
+from src.data.history import ForecastHistory
+from src.views.accuracy import build_accuracy_view
 from src.views.adjustments import AdjustmentsPanel
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart
 from src.views.transactions_table import build_transactions_table
+from src.views.update_banner import check_update_async, build_update_banner
 
 
 def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
@@ -36,6 +39,7 @@ class DashboardView(ft.Column):
         self._raw_client = MonarchClient(session_manager.client)
         self._cache = DataCache()
         self.monarch = CachedMonarchClient(self._raw_client, self._cache)
+        self._history = ForecastHistory()
         self.on_logout = on_logout
 
         self.expand = True
@@ -91,8 +95,12 @@ class DashboardView(ft.Column):
             on_change=lambda: self.page.run_task(self._on_adjustment_change),
         )
         self.cc_info_container = ft.Container()
+        self.update_banner_container = ft.Container()
+        self.accuracy_container = ft.Container()
 
         self.controls = [
+            # Update banner (if available)
+            self.update_banner_container,
             # Top bar
             ft.Row(
                 [
@@ -137,6 +145,9 @@ class DashboardView(ft.Column):
             ft.Container(height=16),
             # Adjustments
             self.adjustments_panel,
+            ft.Container(height=16),
+            # Accuracy tracking
+            self.accuracy_container,
             ft.Container(height=24),
         ]
 
@@ -144,6 +155,9 @@ class DashboardView(ft.Column):
         """Initial data load after login."""
         self.loading.visible = True
         self.loading.update()
+
+        # Check for updates in background (non-blocking)
+        await self._check_for_updates()
 
         try:
             self._checking_accounts = await self.monarch.get_checking_accounts(
@@ -256,6 +270,14 @@ class DashboardView(ft.Column):
         self._update_summary(account)
         self._update_chart()
         self._update_table()
+
+        # Record actual balance and save forecast snapshot for accuracy tracking
+        self._history.record_actual_balance(self._selected_account_id, account["balance"])
+        predictions = [
+            (day.date, day.ending_balance) for day in self._forecast.days
+        ]
+        self._history.save_forecast_snapshot(self._selected_account_id, predictions)
+        self._update_accuracy()
 
     def _update_alerts(self) -> None:
         """Generate and display alerts based on forecast."""
@@ -422,6 +444,26 @@ class DashboardView(ft.Column):
         except ValueError:
             self._safety_threshold = 0.0
         await self._run_forecast()
+
+    async def _check_for_updates(self) -> None:
+        """Check for app updates and show banner if available."""
+        try:
+            update_info = await check_update_async()
+            if update_info:
+                self.update_banner_container.content = build_update_banner(update_info)
+                self.update_banner_container.update()
+        except Exception:
+            pass  # Update check is best-effort
+
+    def _update_accuracy(self) -> None:
+        """Update the accuracy tracking section."""
+        if not self._selected_account_id:
+            return
+        accuracy_view = build_accuracy_view(
+            self._history, self._selected_account_id
+        )
+        self.accuracy_container.content = accuracy_view
+        self.accuracy_container.update()
 
     async def _on_adjustment_change(self) -> None:
         """Called when the adjustments panel changes."""
