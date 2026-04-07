@@ -38,12 +38,14 @@ jobs:
 
       - name: Build for ${{ matrix.platform }}
         run: |
+          BUILD_VERSION="${{ github.ref_name }}"
+          BUILD_VERSION="${BUILD_VERSION#v}"
           flet build ${{ matrix.platform }} \
             --project "Monarch Forecast" \
             --org "com.monarchforecast" \
             --product "Monarch Forecast" \
             --description "Financial forecasting powered by Monarch Money" \
-            --build-version "${{ github.ref_name }}"
+            --build-version "$BUILD_VERSION"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

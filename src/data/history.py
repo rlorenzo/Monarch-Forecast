@@ -121,16 +121,26 @@ class ForecastHistory:
         rows = self._conn.execute(
             """SELECT
                    a.record_date,
-                   f.predicted_balance,
+                   (
+                       SELECT fs.predicted_balance
+                       FROM forecast_snapshots fs
+                       WHERE fs.account_id = a.account_id
+                         AND fs.target_date = a.record_date
+                         AND fs.snapshot_date <= a.record_date
+                       ORDER BY fs.snapshot_date ASC
+                       LIMIT 1
+                   ) AS predicted_balance,
                    a.balance
                FROM actual_balances a
-               INNER JOIN forecast_snapshots f
-                   ON f.account_id = a.account_id
-                   AND f.target_date = a.record_date
                WHERE a.account_id = ?
                  AND a.record_date >= ?
-               GROUP BY a.record_date
-               HAVING f.snapshot_date = MIN(f.snapshot_date)
+                 AND EXISTS (
+                     SELECT 1
+                     FROM forecast_snapshots fs
+                     WHERE fs.account_id = a.account_id
+                       AND fs.target_date = a.record_date
+                       AND fs.snapshot_date <= a.record_date
+                 )
                ORDER BY a.record_date""",
             (account_id, cutoff),
         ).fetchall()

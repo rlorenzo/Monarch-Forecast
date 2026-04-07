@@ -157,7 +157,7 @@ class DashboardView(ft.Column):
         self.loading.update()
 
         # Check for updates in background (non-blocking)
-        await self._check_for_updates()
+        self.page.run_task(self._check_for_updates)
 
         try:
             self._checking_accounts = await self.monarch.get_checking_accounts(

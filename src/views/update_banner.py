@@ -14,7 +14,7 @@ async def check_update_async() -> dict | None:
     """Run the update check in a thread to avoid blocking the UI."""
     import asyncio
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(_executor, check_for_update)
 
 

@@ -22,7 +22,13 @@ def check_for_update() -> dict[str, Any] | None:
         None if current version is latest or check fails.
     """
     try:
-        req = Request(RELEASES_URL, headers={"Accept": "application/vnd.github.v3+json"})
+        req = Request(
+            RELEASES_URL,
+            headers={
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": f"Monarch-Forecast/{CURRENT_VERSION}",
+            },
+        )
         with urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
     except (URLError, json.JSONDecodeError, OSError):
