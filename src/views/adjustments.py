@@ -220,8 +220,7 @@ class AdjustmentsPanel(ft.Column):
             new_amount = float(value)
             original = self._recurring_items[index]
             # Preserve sign convention: expenses negative, income positive
-            if original.amount < 0 and new_amount > 0:
-                new_amount = -new_amount
+            new_amount = -abs(new_amount) if original.amount < 0 else abs(new_amount)
             self._overrides[index] = new_amount
         except (ValueError, IndexError):
             self._overrides.pop(index, None)

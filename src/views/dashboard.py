@@ -194,6 +194,8 @@ class DashboardView(ft.Column):
             self.table_container.update()
             self.alerts_container.content = None
             self.alerts_container.update()
+            self.cc_info_container.content = None
+            self.cc_info_container.update()
 
         finally:
             self.loading.visible = False
