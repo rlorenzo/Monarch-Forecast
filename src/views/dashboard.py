@@ -83,7 +83,7 @@ class DashboardView(ft.Column):
         )
         self.logout_button = ft.TextButton(
             "Sign Out",
-            on_click=lambda _: self.on_logout(),
+            on_click=lambda _: self._handle_logout(),
         )
         self.loading = ft.ProgressRing(visible=False, width=24, height=24)
         self.alerts_container = ft.Container()
@@ -464,6 +464,10 @@ class DashboardView(ft.Column):
     async def _on_adjustment_change(self) -> None:
         """Called when the adjustments panel changes."""
         await self._run_forecast()
+
+    def _handle_logout(self) -> None:
+        self._history.close()
+        self.on_logout()
 
     async def _on_refresh(self, e: ft.ControlEvent) -> None:
         self.loading.visible = True

@@ -21,11 +21,11 @@ async def check_update_async() -> dict | None:
 def build_update_banner(update_info: dict) -> ft.Container:
     """Build a dismissible update notification banner."""
     version = update_info["version"]
-    html_url = update_info.get("html_url", update_info.get("download_url", ""))
+    download_target = update_info.get("download_url", update_info.get("html_url", ""))
 
     def open_download(_: ft.ControlEvent) -> None:
-        if html_url:
-            webbrowser.open(html_url)
+        if download_target:
+            webbrowser.open(download_target)
 
     def dismiss(e: ft.ControlEvent) -> None:
         banner.visible = False
