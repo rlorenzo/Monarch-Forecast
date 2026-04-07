@@ -1,9 +1,9 @@
 """Login view with email/password and MFA support."""
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import flet as ft
-from monarchmoney import RequireMFAException, LoginFailedException
+from monarchmoney import LoginFailedException, RequireMFAException
 
 from src.auth.session_manager import SessionManager
 

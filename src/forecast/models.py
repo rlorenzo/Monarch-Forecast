@@ -13,6 +13,7 @@ class TransactionType(Enum):
 @dataclass
 class RecurringItem:
     """A recurring income or expense."""
+
     name: str
     amount: float  # positive = income, negative = expense
     frequency: str  # weekly, biweekly, monthly, semimonthly, yearly
@@ -29,6 +30,7 @@ class RecurringItem:
 @dataclass
 class ForecastTransaction:
     """A single projected transaction on a specific date."""
+
     date: date
     name: str
     amount: float  # positive = money in, negative = money out
@@ -39,6 +41,7 @@ class ForecastTransaction:
 @dataclass
 class ForecastDay:
     """The forecast state for a single day."""
+
     date: date
     starting_balance: float
     transactions: list[ForecastTransaction] = field(default_factory=list)
@@ -55,6 +58,7 @@ class ForecastDay:
 @dataclass
 class ForecastResult:
     """The complete forecast over a date range."""
+
     days: list[ForecastDay]
     starting_balance: float
     safety_threshold: float = 0.0
@@ -74,10 +78,7 @@ class ForecastResult:
     @property
     def shortfall_dates(self) -> list[date]:
         """Dates where the projected balance drops below the safety threshold."""
-        return [
-            day.date for day in self.days
-            if day.ending_balance < self.safety_threshold
-        ]
+        return [day.date for day in self.days if day.ending_balance < self.safety_threshold]
 
     @property
     def has_shortfall(self) -> bool:
@@ -85,15 +86,11 @@ class ForecastResult:
 
     @property
     def total_income(self) -> float:
-        return sum(
-            t.amount for day in self.days for t in day.transactions if t.amount > 0
-        )
+        return sum(t.amount for day in self.days for t in day.transactions if t.amount > 0)
 
     @property
     def total_expenses(self) -> float:
-        return sum(
-            t.amount for day in self.days for t in day.transactions if t.amount < 0
-        )
+        return sum(t.amount for day in self.days for t in day.transactions if t.amount < 0)
 
     @property
     def ending_balance(self) -> float:

@@ -40,9 +40,7 @@ def build_forecast(
     txn_by_date: dict[date, list[ForecastTransaction]] = {}
 
     for item in recurring_items:
-        for occ_date in occurrences_in_range(
-            item.base_date, item.frequency, start_date, end_date
-        ):
+        for occ_date in occurrences_in_range(item.base_date, item.frequency, start_date, end_date):
             txn = ForecastTransaction(
                 date=occ_date,
                 name=item.name,
