@@ -17,6 +17,16 @@ from src.views.chart import build_forecast_chart
 from src.views.transactions_table import build_transactions_table
 
 
+def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
+    """Check if a recurring item matches any of the given credit card names."""
+    item_text = f"{item.name} {item.category}".lower()
+    for cc_name in cc_names:
+        keywords = [w for w in cc_name.split() if len(w) > 2]
+        if keywords and sum(1 for kw in keywords if kw in item_text) >= len(keywords) / 2:
+            return True
+    return False
+
+
 class DashboardView(ft.Column):
     """Main dashboard showing forecast summary, chart, transactions, alerts, and adjustments."""
 
@@ -221,9 +231,18 @@ class DashboardView(ft.Column):
         # Get one-off transactions from the adjustments panel
         one_offs = list(self.adjustments_panel.one_off_transactions)
 
-        # Add estimated credit card payments
+        # Add estimated credit card payments, filtering out recurring CC items
+        # that would be double-counted with the balance-based estimates
         cc_payments = estimate_cc_payments(self._cc_accounts, recurring, self._days_out)
-        one_offs.extend(cc_payments)
+        if cc_payments:
+            one_offs.extend(cc_payments)
+            # Remove recurring CC payments that are replaced by balance-based estimates
+            estimated_cc_names = {
+                cc.get("name", "").lower() for cc in self._cc_accounts if cc.get("balance", 0) < 0
+            }
+            recurring = [
+                r for r in recurring if not _is_matching_cc_recurring(r, estimated_cc_names)
+            ]
 
         self._forecast = build_forecast(
             starting_balance=account["balance"],

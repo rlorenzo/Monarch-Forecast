@@ -40,15 +40,18 @@ class CachedMonarchClient:
         if not force_refresh:
             cached = self._cache.get("recurring_items")
             if cached is not None:
-                return [
-                    RecurringItem(
-                        **{
-                            **item,
-                            "base_date": date.fromisoformat(item["base_date"]),
-                        }
-                    )
-                    for item in cached
-                ]
+                try:
+                    return [
+                        RecurringItem(
+                            **{
+                                **item,
+                                "base_date": date.fromisoformat(item["base_date"]),
+                            }
+                        )
+                        for item in cached
+                    ]
+                except Exception:
+                    self._cache.clear()
 
         items = await self._client.get_recurring_items()
         serialized = [{**asdict(item), "base_date": item.base_date.isoformat()} for item in items]
