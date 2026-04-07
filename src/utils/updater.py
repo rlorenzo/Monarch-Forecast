@@ -71,11 +71,11 @@ def _find_platform_asset(assets: list[dict]) -> str:
     platform_keywords: list[str] = []
 
     if platform == "darwin":
-        platform_keywords = ["macos", "darwin", "dmg"]
+        platform_keywords = ["macos", "darwin", ".dmg"]
     elif platform == "win32":
-        platform_keywords = ["windows", "win", "msix", "exe"]
+        platform_keywords = ["windows", ".msix", ".exe"]
     elif platform.startswith("linux"):
-        platform_keywords = ["linux", "appimage", "deb"]
+        platform_keywords = ["linux", ".appimage", ".deb"]
 
     for asset in assets:
         name = asset.get("name", "").lower()
