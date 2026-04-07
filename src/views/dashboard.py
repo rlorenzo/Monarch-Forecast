@@ -136,16 +136,26 @@ class DashboardView(ft.Column):
                 self._selected_account_id = None
                 self.account_dropdown.value = None
                 self.account_dropdown.update()
+                self._forecast = None
                 self.summary_row.controls = [
                     ft.Text("No checking accounts found.", color=ft.Colors.OUTLINE)
                 ]
                 self.summary_row.update()
+                self.chart_container.content = None
+                self.chart_container.update()
+                self.table_container.content = None
+                self.table_container.update()
 
         except Exception as ex:
+            self._forecast = None
             self.summary_row.controls = [
                 ft.Text(f"Error loading data: {ex}", color=ft.Colors.RED_400)
             ]
             self.summary_row.update()
+            self.chart_container.content = None
+            self.chart_container.update()
+            self.table_container.content = None
+            self.table_container.update()
 
         finally:
             self.loading.visible = False

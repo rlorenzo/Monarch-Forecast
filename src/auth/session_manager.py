@@ -54,6 +54,12 @@ class SessionManager:
             self._authenticated = True
             return True
         except Exception:
+            self._authenticated = False
+            if SESSION_FILE.exists():
+                try:
+                    SESSION_FILE.unlink()
+                except OSError:
+                    pass
             return False
 
     async def login(self, email: str, password: str) -> None:
