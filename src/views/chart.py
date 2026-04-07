@@ -1,11 +1,8 @@
 """Balance timeline chart using matplotlib embedded in Flet."""
 
-from datetime import date
-
 import matplotlib
 matplotlib.use("agg")
 
-import flet as ft
 from matplotlib.figure import Figure
 from matplotlib.dates import DateFormatter, WeekdayLocator
 from flet.matplotlib_chart import MatplotlibChart

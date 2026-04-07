@@ -1,6 +1,5 @@
 """Login view with email/password and MFA support."""
 
-import asyncio
 from typing import Callable, Optional
 
 import flet as ft

@@ -1,11 +1,10 @@
 """Manages Monarch Money authentication and session persistence."""
 
-import asyncio
 from pathlib import Path
 from typing import Optional
 
 import keyring
-from monarchmoney import MonarchMoney, RequireMFAException, LoginFailedException
+from monarchmoney import MonarchMoney
 
 SERVICE_NAME = "monarch-forecast"
 SESSION_DIR = Path.home() / ".monarch-forecast"
