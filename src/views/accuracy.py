@@ -1,13 +1,13 @@
 """Accuracy view showing historical forecast accuracy stats and chart."""
 
 import flet as ft
-
 import matplotlib
+
 matplotlib.use("agg")
 
-from matplotlib.figure import Figure
-from matplotlib.dates import DateFormatter, WeekdayLocator
 from flet.matplotlib_chart import MatplotlibChart
+from matplotlib.dates import DateFormatter
+from matplotlib.figure import Figure
 
 from src.data.history import AccuracyRecord, ForecastHistory
 
@@ -107,7 +107,10 @@ def _stat_card(title: str, value: str, icon: str, color: str) -> ft.Card:
             content=ft.Column(
                 [
                     ft.Row(
-                        [ft.Icon(icon, color=color, size=18), ft.Text(title, size=11, color=ft.Colors.OUTLINE)],
+                        [
+                            ft.Icon(icon, color=color, size=18),
+                            ft.Text(title, size=11, color=ft.Colors.OUTLINE),
+                        ],
                         spacing=6,
                     ),
                     ft.Text(value, size=20, weight=ft.FontWeight.BOLD),
@@ -142,14 +145,23 @@ def _build_accuracy_chart(records: list[AccuracyRecord]) -> MatplotlibChart:
 
     ax.plot(dates, actual, color="#3B82F6", linewidth=2, label="Actual", marker="o", markersize=4)
     ax.plot(
-        dates, predicted, color="#F59E0B", linewidth=2, label="Predicted",
-        linestyle="--", marker="s", markersize=4,
+        dates,
+        predicted,
+        color="#F59E0B",
+        linewidth=2,
+        label="Predicted",
+        linestyle="--",
+        marker="s",
+        markersize=4,
     )
 
     # Fill the error band
     ax.fill_between(
-        dates, predicted, actual,
-        alpha=0.1, color="#EF4444",
+        dates,
+        predicted,
+        actual,
+        alpha=0.1,
+        color="#EF4444",
     )
 
     ax.set_ylabel("Balance ($)")

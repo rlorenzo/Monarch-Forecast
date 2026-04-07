@@ -8,16 +8,16 @@ from src.auth.session_manager import SessionManager
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
 from src.data.credit_cards import estimate_cc_payments
+from src.data.history import ForecastHistory
 from src.data.monarch_client import MonarchClient
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult, RecurringItem
-from src.data.history import ForecastHistory
 from src.views.accuracy import build_accuracy_view
 from src.views.adjustments import AdjustmentsPanel
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart
 from src.views.transactions_table import build_transactions_table
-from src.views.update_banner import check_update_async, build_update_banner
+from src.views.update_banner import build_update_banner, check_update_async
 
 
 def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
@@ -273,9 +273,7 @@ class DashboardView(ft.Column):
 
         # Record actual balance and save forecast snapshot for accuracy tracking
         self._history.record_actual_balance(self._selected_account_id, account["balance"])
-        predictions = [
-            (day.date, day.ending_balance) for day in self._forecast.days
-        ]
+        predictions = [(day.date, day.ending_balance) for day in self._forecast.days]
         self._history.save_forecast_snapshot(self._selected_account_id, predictions)
         self._update_accuracy()
 
@@ -459,9 +457,7 @@ class DashboardView(ft.Column):
         """Update the accuracy tracking section."""
         if not self._selected_account_id:
             return
-        accuracy_view = build_accuracy_view(
-            self._history, self._selected_account_id
-        )
+        accuracy_view = build_accuracy_view(self._history, self._selected_account_id)
         self.accuracy_container.content = accuracy_view
         self.accuracy_container.update()
 

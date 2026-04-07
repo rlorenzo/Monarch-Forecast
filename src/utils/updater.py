@@ -2,8 +2,8 @@
 
 import json
 from typing import Any
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 CURRENT_VERSION = "0.1.0"
 GITHUB_REPO = "rlorenzo/Monarch-Forecast"
@@ -23,7 +23,7 @@ def check_for_update() -> dict[str, Any] | None:
     """
     try:
         req = Request(RELEASES_URL, headers={"Accept": "application/vnd.github.v3+json"})
-        with urlopen(req, timeout=10) as resp:  # noqa: S310
+        with urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
     except (URLError, json.JSONDecodeError, OSError):
         return None

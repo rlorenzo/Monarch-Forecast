@@ -4,9 +4,8 @@ Saves daily forecast snapshots and compares them against actual balances
 to measure how accurate the forecasts have been over time.
 """
 
-import json
 import sqlite3
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -182,12 +181,8 @@ class ForecastHistory:
     def cleanup_old_data(self, keep_days: int = 90) -> None:
         """Remove snapshots and actuals older than keep_days."""
         cutoff = (date.today() - timedelta(days=keep_days)).isoformat()
-        self._conn.execute(
-            "DELETE FROM forecast_snapshots WHERE snapshot_date < ?", (cutoff,)
-        )
-        self._conn.execute(
-            "DELETE FROM actual_balances WHERE record_date < ?", (cutoff,)
-        )
+        self._conn.execute("DELETE FROM forecast_snapshots WHERE snapshot_date < ?", (cutoff,))
+        self._conn.execute("DELETE FROM actual_balances WHERE record_date < ?", (cutoff,))
         self._conn.commit()
 
     def close(self) -> None:
