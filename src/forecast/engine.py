@@ -34,7 +34,7 @@ def build_forecast(
     """
     if start_date is None:
         start_date = date.today()
-    end_date = start_date + timedelta(days=days_out)
+    end_date = start_date + timedelta(days=days_out - 1)
 
     # Build a map of date -> list of transactions
     txn_by_date: dict[date, list[ForecastTransaction]] = {}

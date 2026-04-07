@@ -1,14 +1,11 @@
 """Main dashboard view with summary cards, chart, and transaction table."""
 
-import asyncio
-from datetime import date
 from typing import Optional
 
 import flet as ft
 
 from src.auth.session_manager import SessionManager
 from src.data.monarch_client import MonarchClient
-from src.data.recurring import group_by_type, monthly_total
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult, RecurringItem
 from src.views.chart import build_forecast_chart
@@ -135,6 +132,14 @@ class DashboardView(ft.Column):
                 self.account_dropdown.value = self._selected_account_id
                 self.account_dropdown.update()
                 await self._run_forecast()
+            else:
+                self._selected_account_id = None
+                self.account_dropdown.value = None
+                self.account_dropdown.update()
+                self.summary_row.controls = [
+                    ft.Text("No checking accounts found.", color=ft.Colors.OUTLINE)
+                ]
+                self.summary_row.update()
 
         except Exception as ex:
             self.summary_row.controls = [

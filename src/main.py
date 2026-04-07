@@ -21,11 +21,15 @@ async def main(page: ft.Page) -> None:
 
     session_manager = SessionManager()
 
+    async def do_logout() -> None:
+        session_manager.logout()
+        await show_login()
+
     async def show_dashboard() -> None:
         page.controls.clear()
         dashboard = DashboardView(
             session_manager=session_manager,
-            on_logout=lambda: page.run_task(show_login),
+            on_logout=lambda: page.run_task(do_logout),
         )
         page.controls.append(dashboard)
         page.update()

@@ -51,9 +51,12 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
         return candidate
 
     if frequency == "semimonthly":
-        # 1st and 15th, or base_date.day and base_date.day+15 capped at 28
-        day1 = min(base_date.day, 14)
-        day2 = day1 + 15 if day1 + 15 <= 28 else 28
+        # Two payments per month: on base_date.day and 15 days later (capped at 28)
+        day1 = min(base_date.day, 28)
+        day2 = min(day1 + 15, 28)
+        if day1 == day2:
+            day1 = 1  # fallback to 1st and 16th if both land on 28
+            day2 = 16
         candidates = []
         for d in (day1, day2):
             c = after.replace(day=d)

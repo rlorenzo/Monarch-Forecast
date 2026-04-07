@@ -2,17 +2,15 @@
 
 from datetime import date
 
-import flet as ft
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.dates import DateFormatter, DayLocator, WeekdayLocator
 import matplotlib
+matplotlib.use("agg")
+
+import flet as ft
+from matplotlib.figure import Figure
+from matplotlib.dates import DateFormatter, WeekdayLocator
 from flet.matplotlib_chart import MatplotlibChart
 
 from src.forecast.models import ForecastResult
-
-# Use non-interactive backend
-matplotlib.use("agg")
 
 
 def build_forecast_chart(
@@ -80,7 +78,8 @@ def build_forecast_chart(
     ax.xaxis.set_major_locator(WeekdayLocator(byweekday=0))  # Mondays
     fig.autofmt_xdate(rotation=45)
     ax.grid(True, alpha=0.3)
-    ax.legend(loc="upper right", fontsize=8)
+    if ax.get_legend_handles_labels()[1]:
+        ax.legend(loc="upper right", fontsize=8)
     fig.tight_layout()
 
     return MatplotlibChart(fig, expand=True)

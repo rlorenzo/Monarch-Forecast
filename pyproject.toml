@@ -16,4 +16,4 @@ dependencies = [
 ]
 
 [project.scripts]
-monarch-forecast = "src.main:main"
+monarch-forecast = "src.main:run"
