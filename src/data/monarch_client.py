@@ -73,7 +73,7 @@ class MonarchClient:
     async def get_recurring_items(self) -> list[RecurringItem]:
         """Fetch recurring transactions and convert to RecurringItem models."""
         today = date.today()
-        end = today + timedelta(days=60)
+        end = today + timedelta(days=90)
         data = await self._mm.get_recurring_transactions(
             start_date=today.isoformat(), end_date=end.isoformat()
         )
