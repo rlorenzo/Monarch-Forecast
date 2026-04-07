@@ -1,7 +1,5 @@
 """Main dashboard view with summary cards, chart, transaction table, alerts, and adjustments."""
 
-from typing import Optional
-
 import flet as ft
 
 from src.auth.session_manager import SessionManager
@@ -34,9 +32,9 @@ class DashboardView(ft.Column):
         # State
         self._checking_accounts: list[dict] = []
         self._cc_accounts: list[dict] = []
-        self._selected_account_id: Optional[str] = None
+        self._selected_account_id: str | None = None
         self._recurring_items: list[RecurringItem] = []
-        self._forecast: Optional[ForecastResult] = None
+        self._forecast: ForecastResult | None = None
         self._days_out = 45
         self._safety_threshold = 0.0
 
@@ -220,9 +218,7 @@ class DashboardView(ft.Column):
         one_offs = list(self.adjustments_panel.one_off_transactions)
 
         # Add estimated credit card payments
-        cc_payments = estimate_cc_payments(
-            self._cc_accounts, recurring, self._days_out
-        )
+        cc_payments = estimate_cc_payments(self._cc_accounts, recurring, self._days_out)
         one_offs.extend(cc_payments)
 
         self._forecast = build_forecast(
@@ -348,7 +344,10 @@ class DashboardView(ft.Column):
     ) -> ft.Card:
         content_controls = [
             ft.Row(
-                [ft.Icon(icon, color=color, size=20), ft.Text(title, size=12, color=ft.Colors.OUTLINE)],
+                [
+                    ft.Icon(icon, color=color, size=20),
+                    ft.Text(title, size=12, color=ft.Colors.OUTLINE),
+                ],
                 spacing=8,
             ),
             ft.Text(value, size=22, weight=ft.FontWeight.BOLD),

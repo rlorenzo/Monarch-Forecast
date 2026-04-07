@@ -4,7 +4,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 CACHE_DIR = Path.home() / ".monarch-forecast"
 CACHE_DB = CACHE_DIR / "cache.db"
@@ -26,7 +26,7 @@ class DataCache:
         )
         self._conn.commit()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         row = self._conn.execute(
             "SELECT value, expires_at FROM cache WHERE key = ?", (key,)
         ).fetchone()

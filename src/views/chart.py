@@ -1,11 +1,12 @@
 """Balance timeline chart using matplotlib embedded in Flet."""
 
 import matplotlib
+
 matplotlib.use("agg")
 
-from matplotlib.figure import Figure
-from matplotlib.dates import DateFormatter, WeekdayLocator
 from flet.matplotlib_chart import MatplotlibChart
+from matplotlib.dates import DateFormatter, WeekdayLocator
+from matplotlib.figure import Figure
 
 from src.forecast.models import ForecastResult
 
@@ -53,7 +54,9 @@ def build_forecast_chart(
 
     # Fill below zero in red
     ax.fill_between(
-        dates, balances, 0,
+        dates,
+        balances,
+        0,
         where=[b < 0 for b in balances],
         alpha=0.15,
         color="#EF4444",

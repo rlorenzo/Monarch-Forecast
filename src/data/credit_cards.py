@@ -74,6 +74,7 @@ def _find_recurring_cc_date(
         # Match by card name or credit card payment flag
         if _names_match(cc_lower, item_lower):
             from src.utils.date_helpers import next_occurrence
+
             occ = next_occurrence(item.base_date, item.frequency, start)
             if occ is not None and occ <= end:
                 return occ

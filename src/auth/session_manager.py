@@ -1,7 +1,6 @@
 """Manages Monarch Money authentication and session persistence."""
 
 from pathlib import Path
-from typing import Optional
 
 import keyring
 from monarchmoney import MonarchMoney
@@ -31,7 +30,7 @@ class SessionManager:
         keyring.set_password(SERVICE_NAME, "email", email)
         keyring.set_password(SERVICE_NAME, "password", password)
 
-    def load_credentials(self) -> tuple[Optional[str], Optional[str]]:
+    def load_credentials(self) -> tuple[str | None, str | None]:
         email = keyring.get_password(SERVICE_NAME, "email")
         password = keyring.get_password(SERVICE_NAME, "password")
         return email, password

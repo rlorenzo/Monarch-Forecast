@@ -1,7 +1,7 @@
 """Date calculation utilities for forecasting."""
 
+from collections.abc import Generator
 from datetime import date, timedelta
-from typing import Generator
 
 
 def date_range(start: date, end: date) -> Generator[date, None, None]:
@@ -84,9 +84,7 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
     return None
 
 
-def occurrences_in_range(
-    base_date: date, frequency: str, start: date, end: date
-) -> list[date]:
+def occurrences_in_range(base_date: date, frequency: str, start: date, end: date) -> list[date]:
     """Return all occurrences of a recurring event within [start, end]."""
     dates: list[date] = []
     current = next_occurrence(base_date, frequency, start)

@@ -1,7 +1,7 @@
 """What-if adjustments panel for adding one-off transactions and overriding recurring amounts."""
 
+from collections.abc import Callable
 from datetime import date, timedelta
-from typing import Callable
 
 import flet as ft
 
@@ -121,6 +121,7 @@ class AdjustmentsPanel(ft.Column):
         for i, item in enumerate(self._recurring_items):
             if i in self._overrides:
                 from dataclasses import replace
+
                 adjusted.append(replace(item, amount=self._overrides[i]))
             else:
                 adjusted.append(item)
@@ -156,10 +157,7 @@ class AdjustmentsPanel(ft.Column):
             self._oneoff_error.update()
             return
 
-        if txn_type == "expense":
-            amount = -abs(amount)
-        else:
-            amount = abs(amount)
+        amount = -abs(amount) if txn_type == "expense" else abs(amount)
 
         self._one_offs.append(
             ForecastTransaction(

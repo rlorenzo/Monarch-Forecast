@@ -51,10 +51,7 @@ class CachedMonarchClient:
                 ]
 
         items = await self._client.get_recurring_items()
-        serialized = [
-            {**asdict(item), "base_date": item.base_date.isoformat()}
-            for item in items
-        ]
+        serialized = [{**asdict(item), "base_date": item.base_date.isoformat()} for item in items]
         self._cache.set("recurring_items", serialized, ttl_minutes=30)
         return items
 

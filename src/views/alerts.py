@@ -11,6 +11,7 @@ from src.forecast.models import ForecastResult
 @dataclass
 class Alert:
     """A single forecast alert."""
+
     severity: str  # "critical", "warning", "info"
     title: str
     message: str
@@ -43,10 +44,7 @@ def generate_alerts(
 
     # Warning: balance drops below safety threshold (but stays positive)
     if safety_threshold > 0:
-        below_threshold = [
-            d for d in forecast.days
-            if 0 <= d.ending_balance < safety_threshold
-        ]
+        below_threshold = [d for d in forecast.days if 0 <= d.ending_balance < safety_threshold]
         if below_threshold:
             first = below_threshold[0]
             alerts.append(
