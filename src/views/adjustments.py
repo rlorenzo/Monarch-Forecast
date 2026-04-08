@@ -61,7 +61,7 @@ class AdjustmentsPanel(ft.Column):
             ft.Container(
                 content=ft.Column(
                     [
-                        ft.Text("Add One-Off Transaction", size=14, weight=ft.FontWeight.W_500),
+                        ft.Text("Add One-Off Transaction", size=18, weight=ft.FontWeight.W_600),
                         ft.Row(
                             [
                                 self._oneoff_name,
@@ -92,8 +92,8 @@ class AdjustmentsPanel(ft.Column):
                     [
                         ft.Text(
                             "Recurring Transactions",
-                            size=14,
-                            weight=ft.FontWeight.W_500,
+                            size=18,
+                            weight=ft.FontWeight.W_600,
                         ),
                         ft.Text(
                             "Uncheck items to exclude from forecast. Override amounts for this period only.",
@@ -237,7 +237,8 @@ class AdjustmentsPanel(ft.Column):
         self._rebuild_override_rows()
         self._on_change()
 
-    def _on_exclude_toggle(self, name: str, included: bool) -> None:
+    def _on_exclude_toggle(self, e: ft.ControlEvent, name: str) -> None:
+        included = e.control.value
         self._prefs.set_recurring_excluded(name, excluded=not included)
         self._rebuild_override_rows()
         self._on_change()
@@ -257,7 +258,7 @@ class AdjustmentsPanel(ft.Column):
                     [
                         ft.Checkbox(
                             value=not is_excluded,
-                            on_change=lambda e, n=name: self._on_exclude_toggle(n, e.control.value),
+                            on_change=lambda e, n=name: self._on_exclude_toggle(e, n),
                             tooltip="Include in forecast",
                         ),
                         ft.Text(
