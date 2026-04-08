@@ -59,3 +59,20 @@ class Preferences:
     def set_selected_account_id(self, account_id: str) -> None:
         self._data["selected_account_id"] = account_id
         self._save()
+
+    @property
+    def amount_overrides(self) -> dict[str, float]:
+        """Recurring item name → overridden amount."""
+        return dict(self._data.get("amount_overrides", {}))
+
+    def set_amount_override(self, name: str, amount: float) -> None:
+        overrides = dict(self._data.get("amount_overrides", {}))
+        overrides[name] = amount
+        self._data["amount_overrides"] = overrides
+        self._save()
+
+    def clear_amount_override(self, name: str) -> None:
+        overrides = dict(self._data.get("amount_overrides", {}))
+        overrides.pop(name, None)
+        self._data["amount_overrides"] = overrides
+        self._save()

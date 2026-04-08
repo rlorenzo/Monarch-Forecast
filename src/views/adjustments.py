@@ -24,7 +24,6 @@ class AdjustmentsPanel(ft.Column):
         self._prefs = preferences or Preferences()
         self._selected_account_id = ""
         self._one_offs: list[ForecastTransaction] = []
-        self._overrides: dict[int, float] = {}  # index in recurring_items -> new amount
 
         self.spacing = 12
 
@@ -132,14 +131,15 @@ class AdjustmentsPanel(ft.Column):
     @property
     def adjusted_recurring_items(self) -> list[RecurringItem]:
         """Return recurring items with overrides applied and excluded items removed."""
+        overrides = self._prefs.amount_overrides
         adjusted = []
-        for i, item in enumerate(self._recurring_items):
+        for item in self._recurring_items:
             if not self._is_item_included(item):
                 continue
-            if i in self._overrides:
+            if item.name in overrides:
                 from dataclasses import replace
 
-                adjusted.append(replace(item, amount=self._overrides[i]))
+                adjusted.append(replace(item, amount=overrides[item.name]))
             else:
                 adjusted.append(item)
         return adjusted
@@ -147,7 +147,6 @@ class AdjustmentsPanel(ft.Column):
     def update_recurring_items(self, items: list[RecurringItem], account_id: str = "") -> None:
         self._recurring_items = items
         self._selected_account_id = account_id
-        self._overrides.clear()
         self._rebuild_override_rows()
 
     def _add_one_off(self, e: ft.ControlEvent) -> None:
@@ -233,19 +232,18 @@ class AdjustmentsPanel(ft.Column):
         self._oneoff_list.controls = rows
         self._oneoff_list.update()
 
-    def _on_override_change(self, index: int, value: str) -> None:
+    def _on_override_change(self, name: str, original_amount: float, value: str) -> None:
         try:
             new_amount = float(value)
-            original = self._recurring_items[index]
             # Preserve sign convention: expenses negative, income positive
-            new_amount = -abs(new_amount) if original.amount < 0 else abs(new_amount)
-            self._overrides[index] = new_amount
-        except (ValueError, IndexError):
-            self._overrides.pop(index, None)
+            new_amount = -abs(new_amount) if original_amount < 0 else abs(new_amount)
+            self._prefs.set_amount_override(name, new_amount)
+        except ValueError:
+            self._prefs.clear_amount_override(name)
         self._on_change()
 
-    def _reset_override(self, index: int) -> None:
-        self._overrides.pop(index, None)
+    def _reset_override(self, name: str) -> None:
+        self._prefs.clear_amount_override(name)
         self._rebuild_override_rows()
         self._on_change()
 
@@ -270,12 +268,12 @@ class AdjustmentsPanel(ft.Column):
             else:
                 matching.append((i, item))
 
+        overrides = self._prefs.amount_overrides
         rows = []
-        for i, item in matching:
+        for _i, item in matching:
             is_excluded = item.name in excluded
-            is_overridden = i in self._overrides
-            current_amount = self._overrides.get(i, item.amount)
-            idx = i
+            is_overridden = item.name in overrides
+            current_amount = overrides.get(item.name, item.amount)
             name = item.name
 
             rows.append(
@@ -305,14 +303,16 @@ class AdjustmentsPanel(ft.Column):
                             label="Amount",
                             keyboard_type=ft.KeyboardType.NUMBER,
                             dense=True,
-                            on_submit=lambda e, i=idx: self._on_override_change(i, e.control.value),
+                            on_submit=lambda e, n=name, a=item.amount: self._on_override_change(
+                                n, a, e.control.value
+                            ),
                             visible=not is_excluded,
                         ),
                         ft.IconButton(
                             icon=ft.Icons.RESTORE,
                             icon_size=18,
                             tooltip="Reset to original",
-                            on_click=lambda _, i=idx: self._reset_override(i),
+                            on_click=lambda _, n=name: self._reset_override(n),
                             visible=is_overridden and not is_excluded,
                         ),
                     ],
