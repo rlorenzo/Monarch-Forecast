@@ -65,21 +65,87 @@ class LoginView(ft.Column):
 
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
         self.alignment = ft.MainAxisAlignment.CENTER
-        self.spacing = 16
+        self.spacing = 0
         self.controls = [
-            ft.Container(height=40),
-            ft.Icon(ft.Icons.ACCOUNT_BALANCE, size=64, color=ft.Colors.PRIMARY),
-            ft.Text("Monarch Forecast", size=28, weight=ft.FontWeight.BOLD),
-            ft.Text("Sign in with your Monarch Money account", size=14, color=ft.Colors.OUTLINE),
-            ft.Container(height=8),
-            self.email_field,
-            self.password_field,
-            self.mfa_field,
-            self.remember_me,
-            self.status_text,
-            ft.Row(
-                [self.login_button, self.progress],
-                alignment=ft.MainAxisAlignment.CENTER,
+            # Header with gradient background
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Icon(ft.Icons.ACCOUNT_BALANCE, size=56, color=ft.Colors.WHITE),
+                        ft.Text(
+                            "Monarch Forecast",
+                            size=28,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
+                        ft.Text(
+                            "See where your money is headed",
+                            size=14,
+                            color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE),
+                        ),
+                        ft.Container(height=4),
+                        ft.Text(
+                            "Project your checking account balance day-by-day using\n"
+                            "your Monarch Money data. Spot shortfalls before they happen.",
+                            size=12,
+                            color=ft.Colors.with_opacity(0.7, ft.Colors.WHITE),
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=6,
+                ),
+                padding=ft.padding.symmetric(vertical=40, horizontal=24),
+                gradient=ft.LinearGradient(
+                    begin=ft.Alignment(-1, -1),
+                    end=ft.Alignment(1, 1),
+                    colors=["#1565C0", "#1E88E5", "#42A5F5"],
+                ),
+                border_radius=ft.border_radius.only(bottom_left=16, bottom_right=16),
+                width=450,
+            ),
+            # Login form card
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Container(height=8),
+                        self.email_field,
+                        self.password_field,
+                        self.mfa_field,
+                        ft.Row(
+                            [self.remember_me],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            width=350,
+                        ),
+                        self.status_text,
+                        ft.Row(
+                            [self.login_button, self.progress],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=12,
+                ),
+                padding=ft.padding.symmetric(vertical=24, horizontal=24),
+            ),
+            # Security note
+            ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.LOCK_OUTLINE, size=14, color=ft.Colors.OUTLINE),
+                        ft.Text(
+                            "Credentials are stored in your OS keychain "
+                            "(macOS Keychain, Windows Credential Locker, or Linux SecretService). "
+                            "Nothing is sent to third parties.",
+                            size=11,
+                            color=ft.Colors.OUTLINE,
+                            width=340,
+                        ),
+                    ],
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                padding=ft.padding.only(bottom=16),
             ),
         ]
 
