@@ -122,6 +122,10 @@ class MonarchClient:
             if cat_data:
                 category = cat_data.get("name", "")
 
+            account_data = r.get("account", {}) or {}
+            account_id = account_data.get("id", "")
+            account_name = account_data.get("displayName", "")
+
             is_cc_payment = _is_credit_card_payment(name, category)
 
             items.append(
@@ -131,6 +135,8 @@ class MonarchClient:
                     frequency=frequency,
                     base_date=base_date,
                     category=category,
+                    account_id=account_id,
+                    account_name=account_name,
                     is_credit_card_payment=is_cc_payment,
                 )
             )

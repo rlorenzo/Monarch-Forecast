@@ -267,6 +267,12 @@ class AdjustmentsPanel(ft.Column):
                             weight=ft.FontWeight.W_500,
                             color=ft.Colors.OUTLINE if is_excluded else None,
                         ),
+                        ft.Text(
+                            item.account_name or "—",
+                            width=120,
+                            color=ft.Colors.OUTLINE,
+                            size=12,
+                        ),
                         ft.Text(item.frequency, width=90, color=ft.Colors.OUTLINE, size=12),
                         ft.Text(
                             f"${abs(item.amount):,.2f}",
