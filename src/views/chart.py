@@ -4,7 +4,7 @@ import matplotlib
 
 matplotlib.use("agg")
 
-from flet.matplotlib_chart import MatplotlibChart
+from flet_charts import MatplotlibChart
 from matplotlib.dates import DateFormatter, WeekdayLocator
 from matplotlib.figure import Figure
 
