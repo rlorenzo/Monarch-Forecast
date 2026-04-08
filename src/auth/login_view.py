@@ -41,8 +41,14 @@ class LoginView(ft.Column):
             label="Remember credentials",
             value=True,
         )
+        self.login_text = ft.Text("Sign In")
+        self.progress = ft.ProgressRing(visible=False, width=18, height=18, stroke_width=2)
         self.login_button = ft.Button(
-            "Sign In",
+            content=ft.Row(
+                [self.login_text, self.progress],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=8,
+            ),
             width=350,
             on_click=self._handle_login,
             style=ft.ButtonStyle(
@@ -54,7 +60,6 @@ class LoginView(ft.Column):
             color=ft.Colors.RED_400,
             size=13,
         )
-        self.progress = ft.ProgressRing(visible=False, width=24, height=24)
 
         # Pre-fill saved credentials
         email, password = self.session_manager.load_credentials()
@@ -118,10 +123,7 @@ class LoginView(ft.Column):
                             width=350,
                         ),
                         self.status_text,
-                        ft.Row(
-                            [self.login_button, self.progress],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                        ),
+                        self.login_button,
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=12,
@@ -159,10 +161,10 @@ class LoginView(ft.Column):
             return
 
         self.login_button.disabled = True
+        self.login_text.value = "Signing in..."
         self.progress.visible = True
         self.status_text.value = ""
         self.login_button.update()
-        self.progress.update()
         self.status_text.update()
 
         try:
@@ -198,7 +200,7 @@ class LoginView(ft.Column):
 
         finally:
             self.login_button.disabled = False
+            self.login_text.value = "Sign In"
             self.progress.visible = False
             self.login_button.update()
-            self.progress.update()
             self.status_text.update()

@@ -58,7 +58,7 @@ class DashboardView(ft.Column):
         self.account_dropdown = ft.Dropdown(
             label="Checking Account",
             width=350,
-            on_change=self._on_account_change,
+            on_select=self._on_account_change,
         )
         self.days_slider = ft.Slider(
             min=14,
