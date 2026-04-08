@@ -20,11 +20,11 @@ jobs:
 
   type-check:
     runs-on: ubuntu-latest
-    continue-on-error: true  # ty is beta; Flet type stubs produce false positives
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv run ty check
+      - name: Type check (informational)
+        run: uv run ty check || true
 
   test:
     runs-on: ubuntu-latest
