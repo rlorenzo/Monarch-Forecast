@@ -10,6 +10,7 @@ from src.data.cached_client import CachedMonarchClient
 from src.data.credit_cards import estimate_cc_payments
 from src.data.history import ForecastHistory
 from src.data.monarch_client import MonarchClient
+from src.data.preferences import Preferences
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult, RecurringItem
 from src.views.accuracy import build_accuracy_view
@@ -40,6 +41,7 @@ class DashboardView(ft.Column):
         self._cache = DataCache()
         self.monarch = CachedMonarchClient(self._raw_client, self._cache)
         self._history = ForecastHistory()
+        self._prefs = Preferences()
         self.on_logout = on_logout
 
         self.expand = True
@@ -93,6 +95,7 @@ class DashboardView(ft.Column):
         self.adjustments_panel = AdjustmentsPanel(
             recurring_items=[],
             on_change=lambda: self.page.run_task(self._on_adjustment_change),
+            preferences=self._prefs,
         )
         self.cc_info_container = ft.Container()
         self.update_banner_container = ft.Container()
@@ -249,9 +252,10 @@ class DashboardView(ft.Column):
         # Get one-off transactions from the adjustments panel
         one_offs = list(self.adjustments_panel.one_off_transactions)
 
-        # Add estimated credit card payments, filtering out recurring CC items
-        # that would be double-counted with the balance-based estimates
-        cc_payments = estimate_cc_payments(self._cc_accounts, recurring, self._days_out)
+        # Filter out excluded credit cards, then estimate payments
+        excluded_cc = self._prefs.excluded_cc_ids
+        included_ccs = [cc for cc in self._cc_accounts if cc.get("id", "") not in excluded_cc]
+        cc_payments = estimate_cc_payments(included_ccs, recurring, self._days_out)
         if cc_payments:
             one_offs.extend(cc_payments)
             # Remove recurring CC payments that are replaced by balance-based estimates
@@ -293,23 +297,43 @@ class DashboardView(ft.Column):
         self.alerts_container.content = banner
         self.alerts_container.update()
 
+    def _on_cc_toggle(self, cc_id: str, included: bool) -> None:
+        self._prefs.set_cc_excluded(cc_id, excluded=not included)
+        self.page.run_task(self._run_forecast)
+
     def _update_cc_info(self) -> None:
-        """Show credit card balance summary."""
+        """Show credit card balance summary with include/exclude checkboxes."""
         if not self._cc_accounts:
             self.cc_info_container.content = None
             self.cc_info_container.update()
             return
 
-        chips = []
+        excluded = self._prefs.excluded_cc_ids
+        rows = []
         for cc in self._cc_accounts:
+            cc_id = cc.get("id", "")
             balance = cc.get("balance", 0.0)
             name = cc.get("name", "Card")
             owed = abs(balance) if balance < 0 else 0
-            chips.append(
-                ft.Chip(
-                    label=ft.Text(f"{name}: ${owed:,.2f} owed"),
-                    leading=ft.Icon(ft.Icons.CREDIT_CARD, size=18),
-                    bgcolor=ft.Colors.RED_50 if owed > 0 else ft.Colors.GREEN_50,
+            is_excluded = cc_id in excluded
+
+            rows.append(
+                ft.Row(
+                    [
+                        ft.Checkbox(
+                            value=not is_excluded,
+                            on_change=lambda e, cid=cc_id: self._on_cc_toggle(cid, e.control.value),
+                            tooltip="Include in forecast",
+                        ),
+                        ft.Icon(ft.Icons.CREDIT_CARD, size=18),
+                        ft.Text(name, weight=ft.FontWeight.W_500),
+                        ft.Text(
+                            f"${owed:,.2f} owed" if owed > 0 else "Paid",
+                            color=ft.Colors.RED_400 if owed > 0 else ft.Colors.GREEN_400,
+                            size=12,
+                        ),
+                    ],
+                    spacing=8,
                 )
             )
 
@@ -317,7 +341,12 @@ class DashboardView(ft.Column):
             content=ft.Column(
                 [
                     ft.Text("Credit Cards", size=14, weight=ft.FontWeight.W_500),
-                    ft.Row(chips, wrap=True, spacing=8),
+                    ft.Text(
+                        "Uncheck cards not paid from this checking account",
+                        size=12,
+                        color=ft.Colors.OUTLINE,
+                    ),
+                    *rows,
                 ],
                 spacing=4,
             ),

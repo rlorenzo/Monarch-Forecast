@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 import flet as ft
 
+from src.data.preferences import Preferences
 from src.forecast.models import ForecastTransaction, RecurringItem
 
 
@@ -15,10 +16,12 @@ class AdjustmentsPanel(ft.Column):
         self,
         recurring_items: list[RecurringItem],
         on_change: Callable[[], None],
+        preferences: Preferences | None = None,
     ) -> None:
         super().__init__()
         self._recurring_items = recurring_items
         self._on_change = on_change
+        self._prefs = preferences or Preferences()
         self._one_offs: list[ForecastTransaction] = []
         self._overrides: dict[int, float] = {}  # index in recurring_items -> new amount
 
@@ -88,12 +91,12 @@ class AdjustmentsPanel(ft.Column):
                 content=ft.Column(
                     [
                         ft.Text(
-                            "Override Recurring Amounts",
+                            "Recurring Transactions",
                             size=14,
                             weight=ft.FontWeight.W_500,
                         ),
                         ft.Text(
-                            "Adjust amounts for this forecast period only",
+                            "Uncheck items to exclude from forecast. Override amounts for this period only.",
                             size=12,
                             color=ft.Colors.OUTLINE,
                         ),
@@ -116,9 +119,12 @@ class AdjustmentsPanel(ft.Column):
 
     @property
     def adjusted_recurring_items(self) -> list[RecurringItem]:
-        """Return recurring items with any amount overrides applied."""
+        """Return recurring items with overrides applied and excluded items removed."""
+        excluded = self._prefs.excluded_recurring_names
         adjusted = []
         for i, item in enumerate(self._recurring_items):
+            if item.name in excluded:
+                continue
             if i in self._overrides:
                 from dataclasses import replace
 
@@ -231,21 +237,39 @@ class AdjustmentsPanel(ft.Column):
         self._rebuild_override_rows()
         self._on_change()
 
+    def _on_exclude_toggle(self, name: str, included: bool) -> None:
+        self._prefs.set_recurring_excluded(name, excluded=not included)
+        self._rebuild_override_rows()
+        self._on_change()
+
     def _rebuild_override_rows(self) -> None:
+        excluded = self._prefs.excluded_recurring_names
         rows = []
         for i, item in enumerate(self._recurring_items):
+            is_excluded = item.name in excluded
             is_overridden = i in self._overrides
             current_amount = self._overrides.get(i, item.amount)
             idx = i  # capture for closure
+            name = item.name  # capture for closure
 
             rows.append(
                 ft.Row(
                     [
-                        ft.Text(item.name, width=180, weight=ft.FontWeight.W_500),
+                        ft.Checkbox(
+                            value=not is_excluded,
+                            on_change=lambda e, n=name: self._on_exclude_toggle(n, e.control.value),
+                            tooltip="Include in forecast",
+                        ),
+                        ft.Text(
+                            item.name,
+                            width=180,
+                            weight=ft.FontWeight.W_500,
+                            color=ft.Colors.OUTLINE if is_excluded else None,
+                        ),
                         ft.Text(item.frequency, width=90, color=ft.Colors.OUTLINE, size=12),
                         ft.Text(
-                            f"Original: ${abs(item.amount):,.2f}",
-                            width=140,
+                            f"${abs(item.amount):,.2f}",
+                            width=100,
                             size=12,
                             color=ft.Colors.OUTLINE,
                         ),
@@ -256,13 +280,14 @@ class AdjustmentsPanel(ft.Column):
                             keyboard_type=ft.KeyboardType.NUMBER,
                             dense=True,
                             on_submit=lambda e, i=idx: self._on_override_change(i, e.control.value),
+                            visible=not is_excluded,
                         ),
                         ft.IconButton(
                             icon=ft.Icons.RESTORE,
                             icon_size=18,
                             tooltip="Reset to original",
                             on_click=lambda _, i=idx: self._reset_override(i),
-                            visible=is_overridden,
+                            visible=is_overridden and not is_excluded,
                         ),
                     ],
                     spacing=8,
