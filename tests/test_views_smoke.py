@@ -41,13 +41,16 @@ class TestAccuracyViewSmoke:
         history.close()
 
     def test_with_data(self, tmp_path: Path):
+        from datetime import timedelta
+
         from src.views.accuracy import build_accuracy_view
 
         history = ForecastHistory(db_path=tmp_path / "test.db")
-        # Seed some data
-        snapshot = "2026-01-01"
+        # Seed data relative to today so lookback window always includes them
+        today = date.today()
+        snapshot = (today - timedelta(days=10)).isoformat()
         for i in range(5):
-            target = f"2026-04-0{i + 1}"
+            target = (today - timedelta(days=5 - i)).isoformat()
             history._conn.execute(
                 "INSERT INTO forecast_snapshots VALUES (NULL,?,?,?,?)",
                 (snapshot, "acct1", target, 5000.0 + i * 100),

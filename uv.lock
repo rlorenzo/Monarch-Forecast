@@ -1249,7 +1249,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flet", specifier = ">=0.25.0" },
+    { name = "flet", specifier = ">=0.84.0" },
     { name = "flet-charts", specifier = ">=0.84.0" },
     { name = "keyring", specifier = ">=25.0.0" },
     { name = "matplotlib", specifier = ">=3.8.0" },
