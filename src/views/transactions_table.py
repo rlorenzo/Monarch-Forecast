@@ -49,8 +49,8 @@ def build_transactions_table(result: ForecastResult) -> ft.DataTable:
             ft.DataColumn(ft.Text("Balance"), numeric=True),
         ],
         rows=rows,
-        border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+        border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
         border_radius=8,
-        heading_row_color=ft.Colors.SURFACE_VARIANT,
+        heading_row_color=ft.Colors.ON_SURFACE_VARIANT,
         column_spacing=24,
     )

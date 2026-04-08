@@ -50,7 +50,7 @@ def build_accuracy_view(
                     spacing=8,
                 ),
                 padding=32,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment(0, 0),
             )
         )
         return ft.Column(controls=controls, spacing=12)
@@ -173,4 +173,4 @@ def _build_accuracy_chart(records: list[AccuracyRecord]) -> MatplotlibChart:
         ax.legend(loc="upper right", fontsize=8)
     fig.tight_layout()
 
-    return MatplotlibChart(fig, expand=True)
+    return MatplotlibChart(figure=fig, expand=True)

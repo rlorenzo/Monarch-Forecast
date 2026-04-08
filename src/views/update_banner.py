@@ -63,7 +63,7 @@ def build_update_banner(update_info: dict) -> ft.Container:
         ),
         padding=12,
         bgcolor=ft.Colors.PRIMARY_CONTAINER,
-        border=ft.border.all(1, ft.Colors.PRIMARY),
+        border=ft.Border.all(1, ft.Colors.PRIMARY),
         border_radius=8,
     )
     return banner

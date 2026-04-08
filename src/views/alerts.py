@@ -127,7 +127,7 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Column:
                 ),
                 padding=12,
                 bgcolor=bg_color,
-                border=ft.border.all(1, border_color),
+                border=ft.Border.all(1, border_color),
                 border_radius=8,
             )
         )
