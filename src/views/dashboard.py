@@ -11,6 +11,7 @@ from src.data.credit_cards import estimate_cc_payments
 from src.data.history import ForecastHistory
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
+from src.data.recurring_detector import detect_recurring
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult, RecurringItem
 from src.views.accuracy import build_accuracy_view
@@ -169,13 +170,20 @@ class DashboardView(ft.Column):
             self._cc_accounts = await self.monarch.get_credit_card_accounts(
                 force_refresh=force_refresh
             )
-            self._recurring_items = await self.monarch.get_recurring_items(
-                force_refresh=force_refresh
+            # Detect recurring transactions from 90 days of history
+            all_account_ids = [a["id"] for a in self._checking_accounts] + [
+                cc["id"] for cc in self._cc_accounts
+            ]
+            txn_history = await self._raw_client.get_transactions(
+                account_ids=all_account_ids, lookback_days=90
             )
+            self._recurring_items = detect_recurring(txn_history)
 
-            print(f"[DEBUG] Loaded {len(self._recurring_items)} recurring items:")
+            print(f"[DEBUG] Detected {len(self._recurring_items)} recurring items:")
             for item in self._recurring_items:
-                print(f"  {item.name}: ${item.amount:,.2f} ({item.frequency})")
+                print(
+                    f"  {item.name}: ${item.amount:,.2f} ({item.frequency}) [{item.account_name}]"
+                )
 
             # Update adjustments panel with fresh recurring items
             self.adjustments_panel.update_recurring_items(

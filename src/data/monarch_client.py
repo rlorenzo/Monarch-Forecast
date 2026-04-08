@@ -142,6 +142,35 @@ class MonarchClient:
 
         return items
 
+    async def get_transactions(
+        self,
+        account_ids: list[str] | None = None,
+        lookback_days: int = 90,
+    ) -> list[dict[str, Any]]:
+        """Fetch transaction history for the given accounts."""
+        today = date.today()
+        start = (today - timedelta(days=lookback_days)).isoformat()
+        end = today.isoformat()
+
+        all_txns: list[dict] = []
+        offset = 0
+        limit = 500
+        while True:
+            data = await self._mm.get_transactions(
+                limit=limit,
+                offset=offset,
+                start_date=start,
+                end_date=end,
+                account_ids=account_ids or [],
+            )
+            results = data.get("allTransactions", {}).get("results", [])
+            all_txns.extend(results)
+            if len(results) < limit:
+                break
+            offset += limit
+
+        return all_txns
+
     async def refresh_accounts(self) -> bool:
         """Trigger an account refresh and wait for completion."""
         try:
