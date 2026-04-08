@@ -1,10 +1,6 @@
 """Accuracy view showing historical forecast accuracy stats and chart."""
 
 import flet as ft
-import matplotlib
-
-matplotlib.use("agg")
-
 from flet_charts import MatplotlibChart
 from matplotlib.dates import DateFormatter
 from matplotlib.figure import Figure

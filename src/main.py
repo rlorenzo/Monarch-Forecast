@@ -74,7 +74,7 @@ async def main(page: ft.Page) -> None:
 
 
 def run() -> None:
-    ft.app(target=main)
+    ft.run(main)
 
 
 if __name__ == "__main__":

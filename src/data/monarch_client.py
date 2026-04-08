@@ -81,9 +81,13 @@ class MonarchClient:
         items: list[RecurringItem] = []
         recurring_list = data.get("recurringTransactions", [])
 
+        print(f"[DEBUG] Monarch API returned {len(recurring_list)} recurring transactions")
         for r in recurring_list:
             stream = r.get("stream", [])
+            merchant = r.get("merchant", {}) or {}
+            name = merchant.get("name", r.get("name", "Unknown"))
             if not stream:
+                print(f"[DEBUG]   SKIPPED (no stream): {name}")
                 continue
 
             merchant = r.get("merchant", {}) or {}
