@@ -51,3 +51,11 @@ class Preferences:
             items.discard(cc_id)
         self._data["excluded_cc_ids"] = sorted(items)
         self._save()
+
+    @property
+    def selected_account_id(self) -> str | None:
+        return self._data.get("selected_account_id")
+
+    def set_selected_account_id(self, account_id: str) -> None:
+        self._data["selected_account_id"] = account_id
+        self._save()

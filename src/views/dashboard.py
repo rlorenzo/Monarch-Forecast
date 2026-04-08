@@ -178,19 +178,26 @@ class DashboardView(ft.Column):
                 print(f"  {item.name}: ${item.amount:,.2f} ({item.frequency})")
 
             # Update adjustments panel with fresh recurring items
-            self.adjustments_panel.update_recurring_items(self._recurring_items)
+            self.adjustments_panel.update_recurring_items(
+                self._recurring_items, account_id=self._selected_account_id or ""
+            )
 
             # Populate account dropdown
             self.account_dropdown.options = [
                 ft.dropdown.Option(
                     key=a["id"],
-                    text=f"{a['name']} — ${a['balance']:,.2f}",
+                    text=f"{a['name']} ({a.get('institution', '')}) — ${a['balance']:,.2f}",
                 )
                 for a in self._checking_accounts
             ]
 
             if self._checking_accounts:
-                self._selected_account_id = self._checking_accounts[0]["id"]
+                # Restore previously selected account, or default to first
+                saved_id = self._prefs.selected_account_id
+                if saved_id and any(a["id"] == saved_id for a in self._checking_accounts):
+                    self._selected_account_id = saved_id
+                else:
+                    self._selected_account_id = self._checking_accounts[0]["id"]
                 self.account_dropdown.value = self._selected_account_id
                 self.account_dropdown.update()
                 await self._run_forecast()
@@ -459,6 +466,10 @@ class DashboardView(ft.Column):
 
     async def _on_account_change(self, e: ft.ControlEvent) -> None:
         self._selected_account_id = e.control.value
+        self._prefs.set_selected_account_id(self._selected_account_id)
+        self.adjustments_panel.update_recurring_items(
+            self._recurring_items, account_id=self._selected_account_id
+        )
         self.loading.visible = True
         self.loading.update()
         await self._run_forecast()

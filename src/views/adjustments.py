@@ -22,6 +22,7 @@ class AdjustmentsPanel(ft.Column):
         self._recurring_items = recurring_items
         self._on_change = on_change
         self._prefs = preferences or Preferences()
+        self._selected_account_id = ""
         self._one_offs: list[ForecastTransaction] = []
         self._overrides: dict[int, float] = {}  # index in recurring_items -> new amount
 
@@ -117,13 +118,23 @@ class AdjustmentsPanel(ft.Column):
     def one_off_transactions(self) -> list[ForecastTransaction]:
         return list(self._one_offs)
 
+    def _is_item_included(self, item: RecurringItem) -> bool:
+        """Check if an item should be included in the forecast."""
+        if item.name in self._prefs.excluded_recurring_names:
+            return False
+        # Auto-exclude items linked to a different account
+        return not (
+            self._selected_account_id
+            and item.account_id
+            and item.account_id != self._selected_account_id
+        )
+
     @property
     def adjusted_recurring_items(self) -> list[RecurringItem]:
         """Return recurring items with overrides applied and excluded items removed."""
-        excluded = self._prefs.excluded_recurring_names
         adjusted = []
         for i, item in enumerate(self._recurring_items):
-            if item.name in excluded:
+            if not self._is_item_included(item):
                 continue
             if i in self._overrides:
                 from dataclasses import replace
@@ -133,8 +144,9 @@ class AdjustmentsPanel(ft.Column):
                 adjusted.append(item)
         return adjusted
 
-    def update_recurring_items(self, items: list[RecurringItem]) -> None:
+    def update_recurring_items(self, items: list[RecurringItem], account_id: str = "") -> None:
         self._recurring_items = items
+        self._selected_account_id = account_id
         self._overrides.clear()
         self._rebuild_override_rows()
 
@@ -245,13 +257,26 @@ class AdjustmentsPanel(ft.Column):
 
     def _rebuild_override_rows(self) -> None:
         excluded = self._prefs.excluded_recurring_names
-        rows = []
+        # Split into matching-account and other-account items
+        matching = []
+        other_account = []
         for i, item in enumerate(self._recurring_items):
+            if (
+                self._selected_account_id
+                and item.account_id
+                and item.account_id != self._selected_account_id
+            ):
+                other_account.append((i, item))
+            else:
+                matching.append((i, item))
+
+        rows = []
+        for i, item in matching:
             is_excluded = item.name in excluded
             is_overridden = i in self._overrides
             current_amount = self._overrides.get(i, item.amount)
-            idx = i  # capture for closure
-            name = item.name  # capture for closure
+            idx = i
+            name = item.name
 
             rows.append(
                 ft.Row(
@@ -266,12 +291,6 @@ class AdjustmentsPanel(ft.Column):
                             width=180,
                             weight=ft.FontWeight.W_500,
                             color=ft.Colors.OUTLINE if is_excluded else None,
-                        ),
-                        ft.Text(
-                            item.account_name or "—",
-                            width=120,
-                            color=ft.Colors.OUTLINE,
-                            size=12,
                         ),
                         ft.Text(item.frequency, width=90, color=ft.Colors.OUTLINE, size=12),
                         ft.Text(
@@ -300,5 +319,17 @@ class AdjustmentsPanel(ft.Column):
                     spacing=8,
                 )
             )
+
+        # Show other-account items collapsed at the bottom
+        if other_account:
+            rows.append(
+                ft.Text(
+                    f"{len(other_account)} item(s) from other accounts hidden",
+                    size=12,
+                    color=ft.Colors.OUTLINE,
+                    italic=True,
+                )
+            )
+
         self._override_list.controls = rows
         self._override_list.update()
