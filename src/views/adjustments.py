@@ -32,10 +32,19 @@ class AdjustmentsPanel(ft.Column):
         self._oneoff_amount = ft.TextField(
             label="Amount ($)", width=120, keyboard_type=ft.KeyboardType.NUMBER
         )
-        self._oneoff_date = ft.TextField(
-            label="Date (YYYY-MM-DD)",
-            width=160,
-            value=(date.today() + timedelta(days=7)).isoformat(),
+        default_date = date.today() + timedelta(days=7)
+        self._oneoff_date_picker = ft.DatePicker(
+            value=default_date,
+            first_date=date.today(),
+            last_date=date.today() + timedelta(days=365),
+            on_change=self._on_date_picked,
+        )
+        self._oneoff_date_display = ft.TextField(
+            label="Date",
+            width=140,
+            value=default_date.strftime("%b %d, %Y"),
+            read_only=True,
+            on_click=lambda _: self.page.open(self._oneoff_date_picker),
         )
         self._oneoff_type = ft.Dropdown(
             label="Type",
@@ -66,7 +75,7 @@ class AdjustmentsPanel(ft.Column):
                             [
                                 self._oneoff_name,
                                 self._oneoff_amount,
-                                self._oneoff_date,
+                                self._oneoff_date_display,
                                 self._oneoff_type,
                                 ft.IconButton(
                                     icon=ft.Icons.ADD_CIRCLE,
@@ -149,10 +158,19 @@ class AdjustmentsPanel(ft.Column):
         self._selected_account_id = account_id
         self._rebuild_override_rows()
 
+    def _on_date_picked(self, e: ft.ControlEvent) -> None:
+        if self._oneoff_date_picker.value:
+            picked = self._oneoff_date_picker.value
+            if isinstance(picked, str):
+                picked = date.fromisoformat(picked[:10])
+            elif hasattr(picked, "date"):
+                picked = picked.date()
+            self._oneoff_date_display.value = picked.strftime("%b %d, %Y")
+            self._oneoff_date_display.update()
+
     def _add_one_off(self, e: ft.ControlEvent) -> None:
         name = self._oneoff_name.value.strip()
         amount_str = self._oneoff_amount.value.strip()
-        date_str = self._oneoff_date.value.strip()
         txn_type = self._oneoff_type.value
 
         if not name or not amount_str:
@@ -167,12 +185,16 @@ class AdjustmentsPanel(ft.Column):
             self._oneoff_error.update()
             return
 
-        try:
-            txn_date = date.fromisoformat(date_str)
-        except ValueError:
-            self._oneoff_error.value = "Invalid date format. Use YYYY-MM-DD."
-            self._oneoff_error.update()
-            return
+        # Get date from picker
+        picked = self._oneoff_date_picker.value
+        if picked is None:
+            txn_date = date.today() + timedelta(days=7)
+        elif isinstance(picked, str):
+            txn_date = date.fromisoformat(picked[:10])
+        elif hasattr(picked, "date"):
+            txn_date = picked.date()
+        else:
+            txn_date = picked
 
         amount = -abs(amount) if txn_type == "expense" else abs(amount)
 
