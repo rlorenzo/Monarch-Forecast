@@ -88,7 +88,7 @@ class DashboardView(ft.Column):
         self.loading = ft.ProgressRing(visible=False, width=24, height=24)
         self.alerts_container = ft.Container()
         self.summary_row = ft.Row(spacing=16, wrap=True)
-        self.chart_container = ft.Container(expand=True)
+        self.chart_container = ft.Container(height=400)
         self.table_container = ft.Container()
         self.adjustments_panel = AdjustmentsPanel(
             recurring_items=[],
