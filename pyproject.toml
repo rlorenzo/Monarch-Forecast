@@ -26,6 +26,10 @@ dev = [
     "pre-commit>=4.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
 [project.scripts]
 monarch-forecast = "src.main:run"
 
