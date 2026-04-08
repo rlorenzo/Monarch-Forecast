@@ -78,32 +78,42 @@ class MonarchClient:
             start_date=today.isoformat(), end_date=end.isoformat()
         )
 
-        items: list[RecurringItem] = []
-        recurring_list = data.get("recurringTransactions", [])
+        # The API returns recurringTransactionItems — each is an occurrence
+        # with a shared `stream` object containing frequency/merchant info.
+        # Deduplicate by stream ID to get unique recurring items.
+        raw_items = data.get("recurringTransactionItems", [])
 
-        print(f"[DEBUG] Monarch API returned {len(recurring_list)} recurring transactions")
-        for r in recurring_list:
-            stream = r.get("stream", [])
-            merchant = r.get("merchant", {}) or {}
-            name = merchant.get("name", r.get("name", "Unknown"))
-            if not stream:
-                print(f"[DEBUG]   SKIPPED (no stream): {name}")
+        # Group by stream ID to deduplicate
+        seen_streams: dict[str, dict] = {}
+        for item in raw_items:
+            stream = item.get("stream") or {}
+            stream_id = stream.get("id")
+            if not stream_id:
                 continue
+            if stream_id not in seen_streams:
+                seen_streams[stream_id] = item
 
-            merchant = r.get("merchant", {}) or {}
-            name = merchant.get("name", r.get("name", "Unknown"))
-            amount = r.get("amount", 0.0)
-            frequency = _parse_frequency(r.get("frequency", "monthly"))
+        items: list[RecurringItem] = []
+        for r in seen_streams.values():
+            stream = r.get("stream") or {}
+            merchant = stream.get("merchant", {}) or {}
+            name = merchant.get("name", "Unknown")
+            amount = r.get("amount", stream.get("amount", 0.0))
+            frequency = _parse_frequency(stream.get("frequency", "monthly"))
 
-            # Determine if this is income or expense
-            is_income = r.get("isIncome", False)
-            if not is_income and amount > 0:
-                amount = -amount  # expenses should be negative
+            # Expenses should be negative
+            if amount > 0 and frequency != "":
+                # Check if this looks like income based on amount sign from API
+                # Monarch returns negative amounts for expenses
+                pass
+            # Normalize: if amount is positive, it could be income or
+            # Monarch may report expenses as positive — use the sign as-is
+            # since Monarch's amount already reflects the correct sign
 
-            # Use the first upcoming date as base
-            first_date_str = stream[0].get("date", today.isoformat())
+            # Use the item's date as the base occurrence
+            date_str = r.get("date", today.isoformat())
             try:
-                base_date = date.fromisoformat(first_date_str)
+                base_date = date.fromisoformat(date_str)
             except (ValueError, TypeError):
                 base_date = today
 

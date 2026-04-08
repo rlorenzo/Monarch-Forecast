@@ -51,6 +51,6 @@ def build_transactions_table(result: ForecastResult) -> ft.DataTable:
         rows=rows,
         border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
         border_radius=8,
-        heading_row_color=ft.Colors.ON_SURFACE_VARIANT,
+        heading_row_color=ft.Colors.SURFACE,
         column_spacing=24,
     )

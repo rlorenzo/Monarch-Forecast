@@ -1,9 +1,9 @@
 """Accuracy view showing historical forecast accuracy stats and chart."""
 
 import flet as ft
+import matplotlib.pyplot as plt
 from flet_charts import MatplotlibChart
 from matplotlib.dates import DateFormatter
-from matplotlib.figure import Figure
 
 from src.data.history import AccuracyRecord, ForecastHistory
 
@@ -132,7 +132,7 @@ def _accuracy_grade(mape: float) -> dict:
 
 def _build_accuracy_chart(records: list[AccuracyRecord]) -> MatplotlibChart:
     """Build a chart comparing predicted vs actual balances."""
-    fig = Figure(figsize=(8, 3), dpi=100)
+    fig = plt.figure(figsize=(8, 3), dpi=100)
     ax = fig.add_subplot(111)
 
     dates = [r.target_date for r in records]

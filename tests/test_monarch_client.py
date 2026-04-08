@@ -118,21 +118,27 @@ class TestGetRecurringItems:
         mm = MagicMock()
         mm.get_recurring_transactions = AsyncMock(
             return_value={
-                "recurringTransactions": [
+                "recurringTransactionItems": [
                     {
-                        "merchant": {"name": "Netflix"},
-                        "amount": 15.99,
-                        "frequency": "monthly",
-                        "isIncome": False,
-                        "stream": [{"date": "2026-02-15"}],
+                        "stream": {
+                            "id": "s1",
+                            "frequency": "monthly",
+                            "amount": -15.99,
+                            "merchant": {"id": "m1", "name": "Netflix"},
+                        },
+                        "date": "2026-02-15",
+                        "amount": -15.99,
                         "category": {"name": "Entertainment"},
                     },
                     {
-                        "merchant": {"name": "Employer"},
+                        "stream": {
+                            "id": "s2",
+                            "frequency": "biweekly",
+                            "amount": 3000.0,
+                            "merchant": {"id": "m2", "name": "Employer"},
+                        },
+                        "date": "2026-02-01",
                         "amount": 3000.0,
-                        "frequency": "biweekly",
-                        "isIncome": True,
-                        "stream": [{"date": "2026-02-01"}],
                         "category": {"name": "Income"},
                     },
                 ]
@@ -143,24 +149,57 @@ class TestGetRecurringItems:
         assert len(items) == 2
 
         netflix = next(i for i in items if i.name == "Netflix")
-        assert netflix.amount == -15.99  # expense should be negative
+        assert netflix.amount == -15.99
         assert netflix.frequency == "monthly"
 
         employer = next(i for i in items if i.name == "Employer")
-        assert employer.amount == 3000.0  # income stays positive
+        assert employer.amount == 3000.0
         assert employer.frequency == "biweekly"
 
-    async def test_skips_empty_stream(self):
+    async def test_deduplicates_by_stream(self):
+        """Multiple occurrences of the same stream should produce one item."""
         mm = MagicMock()
         mm.get_recurring_transactions = AsyncMock(
             return_value={
-                "recurringTransactions": [
+                "recurringTransactionItems": [
                     {
-                        "merchant": {"name": "Canceled"},
+                        "stream": {
+                            "id": "s1",
+                            "frequency": "monthly",
+                            "amount": -50.0,
+                            "merchant": {"id": "m1", "name": "Netflix"},
+                        },
+                        "date": "2026-02-15",
+                        "amount": -50.0,
+                        "category": {"name": "Entertainment"},
+                    },
+                    {
+                        "stream": {
+                            "id": "s1",
+                            "frequency": "monthly",
+                            "amount": -50.0,
+                            "merchant": {"id": "m1", "name": "Netflix"},
+                        },
+                        "date": "2026-03-15",
+                        "amount": -50.0,
+                        "category": {"name": "Entertainment"},
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        items = await client.get_recurring_items()
+        assert len(items) == 1
+
+    async def test_skips_no_stream(self):
+        mm = MagicMock()
+        mm.get_recurring_transactions = AsyncMock(
+            return_value={
+                "recurringTransactionItems": [
+                    {
+                        "stream": None,
+                        "date": "2026-02-15",
                         "amount": 10.0,
-                        "frequency": "monthly",
-                        "isIncome": False,
-                        "stream": [],
                         "category": {},
                     },
                 ]
