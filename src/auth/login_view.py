@@ -100,7 +100,7 @@ class LoginView(ft.Column):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=6,
                 ),
-                padding=ft.padding.symmetric(vertical=40, horizontal=24),
+                padding=ft.Padding.symmetric(vertical=40, horizontal=24),
                 gradient=ft.LinearGradient(
                     begin=ft.Alignment(-1, -1),
                     end=ft.Alignment(1, 1),
@@ -128,7 +128,7 @@ class LoginView(ft.Column):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=12,
                 ),
-                padding=ft.padding.symmetric(vertical=24, horizontal=24),
+                padding=ft.Padding.symmetric(vertical=24, horizontal=24),
             ),
             # Security note
             ft.Container(
@@ -147,7 +147,7 @@ class LoginView(ft.Column):
                     spacing=8,
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
-                padding=ft.padding.only(bottom=16),
+                padding=ft.Padding.only(bottom=16),
             ),
         ]
 

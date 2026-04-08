@@ -81,7 +81,7 @@ class AdjustmentsPanel(ft.Column):
                     spacing=8,
                 ),
                 padding=16,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=8,
             ),
             ft.Container(
@@ -102,7 +102,7 @@ class AdjustmentsPanel(ft.Column):
                     spacing=8,
                 ),
                 padding=16,
-                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=8,
             ),
         ]

@@ -317,7 +317,7 @@ class DashboardView(ft.Column):
                 ],
                 spacing=4,
             ),
-            padding=ft.padding.only(bottom=12),
+            padding=ft.Padding.only(bottom=12),
         )
         self.cc_info_container.update()
 
