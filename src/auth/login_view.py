@@ -101,7 +101,7 @@ class LoginView(ft.Column):
                     end=ft.Alignment(1, 1),
                     colors=["#1565C0", "#1E88E5", "#42A5F5"],
                 ),
-                border_radius=ft.border_radius.only(bottom_left=16, bottom_right=16),
+                border_radius=16,
                 width=450,
             ),
             # Login form card
