@@ -41,8 +41,8 @@ class LoginView(ft.Column):
             label="Remember credentials",
             value=True,
         )
-        self.login_button = ft.ElevatedButton(
-            text="Sign In",
+        self.login_button = ft.Button(
+            "Sign In",
             width=350,
             on_click=self._handle_login,
             style=ft.ButtonStyle(
