@@ -31,16 +31,16 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: astral-sh/setup-uv@v6
+
       - name: Install dependencies
-        run: |
-          pip install flet
-          pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Build for ${{ matrix.platform }}
         run: |
           BUILD_VERSION="${{ github.ref_name }}"
           BUILD_VERSION="${BUILD_VERSION#v}"
-          flet build ${{ matrix.platform }} \
+          uv run flet build ${{ matrix.platform }} \
             --project "Monarch Forecast" \
             --org "com.monarchforecast" \
             --product "Monarch Forecast" \

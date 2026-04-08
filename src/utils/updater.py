@@ -1,11 +1,15 @@
 """Auto-update checker using GitHub releases."""
 
 import json
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-CURRENT_VERSION = "0.1.0"
+try:
+    CURRENT_VERSION = version("monarch-forecast")
+except PackageNotFoundError:
+    CURRENT_VERSION = "0.1.0"
 GITHUB_REPO = "rlorenzo/Monarch-Forecast"
 RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
