@@ -80,7 +80,8 @@ This is a [Flet](https://flet.dev/) desktop app. Dependencies are managed with [
 
 ```bash
 uv sync                          # install all dependencies (including dev)
-uv run monarch-forecast          # run the app locally
+uv run monarch-forecast          # run the app
+uv run flet run -r src/main.py   # run with hot reload (auto-restarts on file changes)
 uv run pytest                    # run tests
 uv run ruff check                # lint
 uv run ruff format               # format
