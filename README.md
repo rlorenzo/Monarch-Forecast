@@ -100,12 +100,14 @@ Tests are expected to pass before opening a PR. CI runs lint, type check, and py
 Building native installers requires Flutter and platform toolchains:
 
 ```bash
-brew install --cask flutter       # install Flutter SDK (macOS)
-sudo gem install cocoapods        # required for macOS builds
+brew install --cask flutter       # install Flutter SDK
+brew install cocoapods            # required for macOS builds (see note below)
 uv run flet build macos           # produces build/macos/Monarch Forecast.app
 ```
 
-CocoaPods must be installed and working — if `flutter doctor` reports it as broken, reinstall it with `sudo gem install cocoapods`. See the [Flet packaging guide](https://flet.dev/docs/publish) for platform-specific requirements.
+**macOS CocoaPods note:** Do not use `sudo gem install cocoapods` — the system Ruby (2.6) is too old and the install will fail with `ffi` gem errors. Use `brew install cocoapods` instead, which bundles its own Ruby. If `flutter doctor` still reports CocoaPods as broken after installing, run `brew reinstall cocoapods`.
+
+See the [Flet packaging guide](https://flet.dev/docs/publish) for other platform-specific requirements.
 
 ### Project structure
 
