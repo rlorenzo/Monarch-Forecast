@@ -53,6 +53,8 @@ uv run monarch-forecast
 
 ## Usage
 
+On first launch you'll sign in to Monarch Money and select a checking account. The app projects your balance forward based on recurring transactions — accuracy improves over time as it records daily snapshots to compare predictions against actuals.
+
 1. Launch the app and sign in with your Monarch Money email and password
 2. If your account has MFA enabled, you'll be prompted for a code
 3. Select a checking account from the dropdown
@@ -70,11 +72,11 @@ This app uses the [monarchmoney](https://github.com/hammem/monarchmoney) communi
 - **Session token** — Saved to `~/.monarch-forecast/session.pickle` (file permissions `600`) for automatic session restore. Deleted on logout.
 - **Forecast history** — SQLite database at `~/.monarch-forecast/history.db` storing forecast snapshots and actual balances for accuracy tracking. Auto-cleaned after 90 days.
 
-No financial data is sent anywhere other than Monarch Money's own servers.
+Your financial data is only sent to Monarch Money's servers. The only other outbound request is an update check to the GitHub Releases API on startup (no financial data is included).
 
 ## Development
 
-This is a [Flet](https://flet.dev/) desktop app. Dependencies are managed with [uv](https://docs.astral.sh/uv/) via `pyproject.toml` and `uv.lock` (`requirements.txt` exists for the build workflow but `uv.lock` is the source of truth).
+This is a [Flet](https://flet.dev/) desktop app. Dependencies are managed with [uv](https://docs.astral.sh/uv/) via `pyproject.toml` and `uv.lock`. Always use `uv sync` for local development — do not install from `requirements.txt` (it exists only as a fallback for the CI build workflow and may not reflect the full locked dependency set).
 
 ```bash
 uv sync                          # install all dependencies (including dev)
@@ -92,6 +94,18 @@ uv run pre-commit install
 ```
 
 Tests are expected to pass before opening a PR. CI runs lint, type check, and pytest on all pull requests.
+
+### Building desktop packages locally
+
+Building native installers requires Flutter and platform toolchains:
+
+```bash
+brew install --cask flutter       # install Flutter SDK (macOS)
+sudo gem install cocoapods        # required for macOS builds
+uv run flet build macos           # produces build/macos/Monarch Forecast.app
+```
+
+CocoaPods must be installed and working — if `flutter doctor` reports it as broken, reinstall it with `sudo gem install cocoapods`. See the [Flet packaging guide](https://flet.dev/docs/publish) for platform-specific requirements.
 
 ### Project structure
 
