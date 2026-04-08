@@ -54,7 +54,7 @@ async def main(page: ft.Page) -> None:
         page.controls.append(
             ft.Container(
                 content=login_view,
-                alignment=ft.alignment.center,
+                alignment=ft.Alignment(0, 0),
                 expand=True,
             )
         )
