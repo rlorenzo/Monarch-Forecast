@@ -82,4 +82,4 @@ def build_forecast_chart(
         ax.legend(loc="upper right", fontsize=8)
     fig.tight_layout()
 
-    return MatplotlibChart(figure=fig, expand=True)
+    return MatplotlibChart(figure=fig, expand=True, height=height)

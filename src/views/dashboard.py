@@ -170,6 +170,10 @@ class DashboardView(ft.Column):
                 force_refresh=force_refresh
             )
 
+            print(f"[DEBUG] Loaded {len(self._recurring_items)} recurring items:")
+            for item in self._recurring_items:
+                print(f"  {item.name}: ${item.amount:,.2f} ({item.frequency})")
+
             # Update adjustments panel with fresh recurring items
             self.adjustments_panel.update_recurring_items(self._recurring_items)
 
