@@ -186,7 +186,7 @@ class DashboardView(ft.Column):
             self.account_dropdown.options = [
                 ft.dropdown.Option(
                     key=a["id"],
-                    text=f"{a['name']} ({a.get('institution', '')}) — ${a['balance']:,.2f}",
+                    text=f"{a['name']} — ${a['balance']:,.2f}",
                 )
                 for a in self._checking_accounts
             ]

@@ -30,8 +30,7 @@ class MonarchClient:
                 else "",
             }
             for a in accounts
-            if a.get("type", {}).get("name", "").lower() in ("depository", "checking")
-            or a.get("subtype", {}).get("name", "").lower() == "checking"
+            if _is_checking_account(a)
         ]
 
     async def get_credit_card_accounts(self) -> list[dict[str, Any]]:
@@ -168,6 +167,19 @@ def _parse_frequency(raw: str) -> str:
         "every_year": "yearly",
     }
     return mapping.get(raw_lower, "monthly")
+
+
+def _is_checking_account(account: dict) -> bool:
+    """Filter for checking accounts only, excluding savings."""
+    acct_type = account.get("type", {}).get("name", "").lower()
+    subtype = account.get("subtype", {}).get("name", "").lower()
+    savings_subtypes = {"savings", "money market", "cd", "certificate of deposit"}
+    if subtype in savings_subtypes:
+        return False
+    if subtype == "checking":
+        return True
+    # Depository without a specific subtype — include it
+    return acct_type in ("depository", "checking")
 
 
 def _is_credit_card_payment(name: str, category: str) -> bool:
