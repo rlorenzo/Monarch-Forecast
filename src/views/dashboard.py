@@ -205,7 +205,12 @@ class DashboardView(ft.Column):
             expand=True,
         )
 
-        # Navigation rail — 3 page destinations + refresh/signout as actions
+        # Last refresh indicator
+        self._last_refresh_text = ft.Text(
+            "", size=9, color=ft.Colors.OUTLINE, text_align=ft.TextAlign.CENTER
+        )
+
+        # Navigation rail — 3 page destinations + refresh as action
         self._nav_rail = ft.NavigationRail(
             destinations=[
                 ft.NavigationRailDestination(
@@ -253,9 +258,6 @@ class DashboardView(ft.Column):
         # Get logged-in email for display
         email, _ = session_manager.load_credentials()
         self._user_email = email or ""
-
-        # Last refresh indicator
-        self._last_refresh_text = ft.Text("", size=9, color=ft.Colors.OUTLINE)
 
         # Bottom actions below the rail
         self._nav_column = ft.Column(
