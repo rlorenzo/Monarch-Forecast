@@ -643,11 +643,7 @@ class DashboardView(ft.Column):
         if not self._forecast:
             return
         table = build_transactions_table(self._forecast)
-        self.table_container.content = ft.Column(
-            [table],
-            scroll=ft.ScrollMode.AUTO,
-            height=500,
-        )
+        self.table_container.content = table
         self.table_container.update()
 
     async def _on_account_change(self, e: ft.ControlEvent) -> None:

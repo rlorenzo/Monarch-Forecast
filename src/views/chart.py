@@ -1,7 +1,15 @@
-"""Balance timeline chart using Plotly for interactive visualization."""
+"""Balance timeline chart using flet-charts LineChart for native interactivity."""
 
-import plotly.graph_objects as go
-from flet_charts import PlotlyChart
+import flet as ft
+from flet_charts import (
+    ChartAxis,
+    ChartAxisLabel,
+    ChartCirclePoint,
+    ChartGridLines,
+    LineChart,
+    LineChartData,
+    LineChartDataPoint,
+)
 
 from src.forecast.models import ForecastResult
 
@@ -9,83 +17,90 @@ from src.forecast.models import ForecastResult
 def build_forecast_chart(
     result: ForecastResult,
     height: float = 400,
-) -> PlotlyChart:
-    """Create an interactive Plotly chart showing the balance forecast timeline."""
-    dates = [day.date for day in result.days]
-    balances = [day.ending_balance for day in result.days]
+) -> LineChart:
+    """Create an interactive line chart with hover tooltips showing transactions."""
+    if not result.days:
+        return LineChart(height=height)
+
     threshold = result.safety_threshold
+    start_date = result.days[0].date
 
-    # Build hover text showing each day's transactions
-    hover_texts = []
+    # Build data points with tooltips
+    points = []
     for day in result.days:
-        parts = [f"<b>{day.date.strftime('%b %d, %Y')}</b>"]
-        parts.append(f"Balance: <b>${day.ending_balance:,.2f}</b>")
+        x = (day.date - start_date).days
+
+        # Build tooltip content
+        lines = [f"{day.date.strftime('%b %d')}  ${day.ending_balance:,.2f}"]
+        for txn in day.transactions:
+            sign = "+" if txn.amount > 0 else "−"
+            lines.append(f"  {sign}${abs(txn.amount):,.2f} {txn.name}")
         if day.transactions:
-            parts.append("")
-            for txn in day.transactions:
-                sign = "+" if txn.amount > 0 else "−"
-                color = "green" if txn.amount > 0 else "red"
-                parts.append(
-                    f"<span style='color:{color}'>{sign}${abs(txn.amount):,.2f}</span> {txn.name}"
-                )
-            parts.append(f"<br>Net change: <b>${day.net_change:+,.2f}</b>")
-        hover_texts.append("<br>".join(parts))
+            lines.append(f"  Net: ${day.net_change:+,.2f}")
+        tooltip_text = "\n".join(lines)
 
-    # Color each point based on balance health
-    colors = []
-    for b in balances:
-        if b < 0:
-            colors.append("#EF4444")
-        elif b < threshold:
-            colors.append("#F59E0B")
+        # Color based on health
+        if day.ending_balance < 0:
+            color = ft.Colors.RED
+        elif day.ending_balance < threshold:
+            color = ft.Colors.ORANGE
         else:
-            colors.append("#22C55E")
+            color = ft.Colors.BLUE
 
-    fig = go.Figure()
+        points.append(
+            LineChartDataPoint(
+                x=x,
+                y=day.ending_balance,
+                tooltip=tooltip_text,
+                show_tooltip=True,
+                point=ChartCirclePoint(radius=3, color=color),
+                selected_point=ChartCirclePoint(radius=5, color=color),
+            )
+        )
 
     # Main balance line
-    fig.add_trace(
-        go.Scatter(
-            x=dates,
-            y=balances,
-            mode="lines+markers",
-            name="Balance",
-            line={"color": "#3B82F6", "width": 2.5},
-            marker={"color": colors, "size": 7},
-            hovertext=hover_texts,
-            hoverinfo="text",
-            fill="tozeroy",
-            fillcolor="rgba(59, 130, 246, 0.05)",
-        )
+    balance_series = LineChartData(
+        points=points,
+        color=ft.Colors.BLUE,
+        stroke_width=2.5,
+        curved=True,
+        prevent_curve_over_shooting=True,
+        below_line_bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
     )
 
-    # Threshold line
-    if threshold > 0:
-        fig.add_hline(
-            y=threshold,
-            line_dash="dash",
-            line_color="#F59E0B",
-            annotation_text=f"Safety: ${threshold:,.0f}",
-            annotation_position="top right",
-            annotation_font_color="#F59E0B",
-        )
+    # X-axis labels (show ~6 evenly spaced dates)
+    total_days = (result.days[-1].date - start_date).days
+    label_interval = max(total_days // 6, 1)
+    x_labels = []
+    for day in result.days:
+        day_offset = (day.date - start_date).days
+        if day_offset % label_interval == 0:
+            x_labels.append(
+                ChartAxisLabel(
+                    value=day_offset,
+                    label=ft.Text(day.date.strftime("%b %d"), size=10),
+                )
+            )
 
-    # Zero line
-    fig.add_hline(y=0, line_color="#EF4444", line_width=0.8, opacity=0.5)
-
-    fig.update_layout(
-        title="Projected Checking Account Balance",
-        yaxis_title="Balance ($)",
-        xaxis_title="",
-        hovermode="closest",
-        showlegend=False,
-        margin={"l": 60, "r": 20, "t": 40, "b": 40},
+    chart = LineChart(
+        data_series=[balance_series],
+        interactive=True,
+        left_axis=ChartAxis(
+            title=ft.Text("Balance ($)", size=12),
+            label_size=60,
+        ),
+        bottom_axis=ChartAxis(
+            labels=x_labels,
+            label_size=30,
+        ),
+        horizontal_grid_lines=ChartGridLines(
+            interval=max(abs(max(d.ending_balance for d in result.days)) / 5, 1),
+            color=ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE),
+        ),
+        min_y=min(0, min(d.ending_balance for d in result.days) * 1.1),
+        max_y=max(d.ending_balance for d in result.days) * 1.1,
         height=height,
-        yaxis_tickformat="$,.0f",
-        xaxis_tickformat="%b %d",
-        plot_bgcolor="white",
-        xaxis={"gridcolor": "#f0f0f0", "showgrid": True},
-        yaxis={"gridcolor": "#f0f0f0", "showgrid": True},
+        expand=True,
     )
 
-    return PlotlyChart(figure=fig, expand=True)
+    return chart
