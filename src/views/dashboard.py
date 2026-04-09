@@ -341,6 +341,16 @@ class DashboardView(ft.Column):
                 ft.Text(f"Error loading data: {ex}", color=ft.Colors.RED_400)
             ]
             self.summary_row.update()
+            self.chart_container.content = None
+            self.chart_container.update()
+            self.table_container.content = None
+            self.table_container.update()
+            self.alerts_container.content = None
+            self.alerts_container.update()
+            self.cc_info_container.content = None
+            self.cc_info_container.update()
+            self.accuracy_container.content = None
+            self.accuracy_container.update()
 
         finally:
             self.loading.visible = False
