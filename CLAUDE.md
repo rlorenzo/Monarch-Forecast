@@ -22,13 +22,15 @@ uv run ty check                      # type check (informational only — Flet s
 - **`src/auth/`** — Login UI and session management. Credentials stored in OS keychain via `keyring`. Session tokens persisted to `~/.monarch-forecast/session.pickle`.
 - **`src/data/`** — Monarch Money API client (`monarch_client.py`), SQLite caching layer (`cache.py`, `cached_client.py`), credit card payment estimation (`credit_cards.py`), forecast history tracking (`history.py`).
 - **`src/forecast/`** — Core engine (`engine.py`) projects balance day-by-day. Data models in `models.py` (RecurringItem, ForecastDay, ForecastResult, ForecastTransaction).
-- **`src/views/`** — Flet UI components: dashboard, chart (matplotlib), alerts, adjustments panel, accuracy tracking, transactions table, update banner.
+- **`src/views/`** — Flet UI components: dashboard (tabbed: Overview/Transactions/Adjustments), chart (Plotly interactive), alerts, adjustments panel (ExpansionTile), accuracy tracking, transactions table, update banner.
+- **`src/data/preferences.py`** — JSON-backed user preferences (excluded items, CC selections, overrides, account selection). Stored at `~/.monarch-forecast/preferences.json`.
+- **`src/data/recurring_detector.py`** — Detects recurring transactions from 90 days of history (replaces Monarch's recurring API).
 - **`src/utils/`** — Date recurrence calculations (`date_helpers.py`), GitHub release update checker (`updater.py`).
 
 ## Key conventions
 
 - **Python 3.10+**. Use `from __future__ import annotations` in any file where a dataclass field name shadows its type (e.g., `date: date | None`). This was a runtime crash source.
-- **Flet 0.84 API**: `MatplotlibChart` is in the `flet-charts` package (`from flet_charts import MatplotlibChart`), not `flet.matplotlib_chart`. Use `ft.Border.all()` not `ft.border.all()`. Use `figure=` keyword arg for `MatplotlibChart`.
+- **Flet 0.84 API**: Charts use `PlotlyChart` from `flet-charts` (`from flet_charts import PlotlyChart`) — NOT `MatplotlibChart` (which has canvas manager bugs). Use `ft.Border.all()` not `ft.border.all()`. Dialogs: `page.show_dialog()` / `page.pop_dialog()`, not `page.open()` / `page.close()`.
 - **Imports**: `src` is the package root. Use `from src.data.history import ...` style. isort configured with `known-first-party = ["src"]`.
 - **Line length**: 100 characters.
 - **Pre-commit hooks**: ruff check (with `--fix`), ruff format, and ty (informational, non-blocking). Hooks run automatically on commit.
