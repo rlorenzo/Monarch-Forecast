@@ -245,8 +245,7 @@ class DashboardView(ft.Column):
         # Bottom actions below the rail (refresh + sign out)
         self._nav_column = ft.Column(
             [
-                self._nav_rail,
-                ft.Container(expand=True),  # Push actions to bottom
+                ft.Container(content=self._nav_rail, expand=True),
                 ft.Column(
                     [
                         ft.IconButton(

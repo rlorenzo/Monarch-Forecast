@@ -15,6 +15,7 @@ async def main(page: ft.Page) -> None:
     page.window.height = 750
     page.window.min_width = 800
     page.window.min_height = 600
+    page.window.icon = "assets/icon.png"
     page.padding = 24
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.theme = ft.Theme(
