@@ -1,5 +1,10 @@
 """Accuracy view showing historical forecast accuracy stats and chart."""
 
+import matplotlib
+
+if matplotlib.get_backend() == "agg" or not matplotlib.get_backend():
+    matplotlib.use("agg")
+
 import flet as ft
 import matplotlib.pyplot as plt
 from flet_charts import MatplotlibChart

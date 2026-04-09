@@ -100,15 +100,6 @@ class MonarchClient:
             amount = r.get("amount", stream.get("amount", 0.0))
             frequency = _parse_frequency(stream.get("frequency", "monthly"))
 
-            # Expenses should be negative
-            if amount > 0 and frequency != "":
-                # Check if this looks like income based on amount sign from API
-                # Monarch returns negative amounts for expenses
-                pass
-            # Normalize: if amount is positive, it could be income or
-            # Monarch may report expenses as positive — use the sign as-is
-            # since Monarch's amount already reflects the correct sign
-
             # Use the item's date as the base occurrence
             date_str = r.get("date", today.isoformat())
             try:

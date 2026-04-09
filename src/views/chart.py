@@ -1,5 +1,10 @@
 """Balance timeline chart using matplotlib embedded in Flet."""
 
+import matplotlib
+
+if matplotlib.get_backend() == "agg" or not matplotlib.get_backend():
+    matplotlib.use("agg")
+
 import matplotlib.pyplot as plt
 from flet_charts import MatplotlibChart
 from matplotlib.dates import DateFormatter, WeekdayLocator

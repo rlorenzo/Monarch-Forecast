@@ -291,11 +291,6 @@ class DashboardView(ft.Column):
             )
             self._recurring_items = detect_recurring(txn_history)
 
-            # Update adjustments panel with fresh recurring items
-            self.adjustments_panel.update_recurring_items(
-                self._recurring_items, account_id=self._selected_account_id or ""
-            )
-
             # Populate account dropdown
             self.account_dropdown.options = [
                 ft.dropdown.Option(
@@ -313,6 +308,11 @@ class DashboardView(ft.Column):
                     self._selected_account_id = self._checking_accounts[0]["id"]
                 self.account_dropdown.value = self._selected_account_id
                 self.account_dropdown.update()
+
+                # Update adjustments panel after account is selected
+                self.adjustments_panel.update_recurring_items(
+                    self._recurring_items, account_id=self._selected_account_id
+                )
                 await self._run_forecast()
             else:
                 self._selected_account_id = None
@@ -323,6 +323,14 @@ class DashboardView(ft.Column):
                     ft.Text("No checking accounts found.", color=ft.Colors.OUTLINE)
                 ]
                 self.summary_row.update()
+                self.chart_container.content = None
+                self.chart_container.update()
+                self.table_container.content = None
+                self.table_container.update()
+                self.alerts_container.content = None
+                self.alerts_container.update()
+                self.accuracy_container.content = None
+                self.accuracy_container.update()
 
             self._update_cc_info()
             self._maybe_show_onboarding()

@@ -23,7 +23,7 @@ A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that pro
 
 ### How it works
 
-- **Recurring transactions** are pulled from Monarch Money's API and projected forward based on their frequency (weekly, biweekly, semimonthly, monthly, or yearly)
+- **Recurring transactions** are detected by analyzing 90 days of transaction history — the app groups by merchant, checks amount consistency, and infers frequency (weekly, biweekly, monthly, or yearly)
 - **Credit card payments** are estimated using each card's current balance and either its existing recurring payment date or a default 25-day billing cycle
 - Only **checking accounts** are forecasted — credit card, savings, and investment accounts are not included in projections
 - Forecast accuracy is measured by comparing past predictions against actual balances recorded each time you open the app
