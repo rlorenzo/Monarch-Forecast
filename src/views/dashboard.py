@@ -247,6 +247,7 @@ class DashboardView(ft.Column):
             ),
             min_width=80,
             group_alignment=-0.85,
+            trailing=self._last_refresh_text,
         )
 
         # Get logged-in email for display
@@ -260,8 +261,6 @@ class DashboardView(ft.Column):
         self._nav_column = ft.Column(
             [
                 ft.Container(content=self._nav_rail, expand=True),
-                self._last_refresh_text,
-                ft.Container(height=8),
                 ft.Column(
                     [
                         self.logout_button,
