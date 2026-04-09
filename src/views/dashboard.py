@@ -46,7 +46,7 @@ class DashboardView(ft.Column):
         self.on_logout = on_logout
 
         self.expand = True
-        self.scroll = None  # Each tab manages its own scrolling
+        self.scroll = ft.ScrollMode.AUTO
 
         # State
         self._checking_accounts: list[dict] = []
@@ -107,41 +107,29 @@ class DashboardView(ft.Column):
         self.update_banner_container = ft.Container()
         self.accuracy_container = ft.Container()
 
-        # --- Build tabbed layout ---
-        self._overview_tab = ft.Column(
+        # --- Build page sections ---
+        self._overview_content = ft.Column(
             controls=[
-                ft.Container(height=4),
                 self.summary_row,
                 ft.Container(height=8),
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.SHOW_CHART, color=ft.Colors.PRIMARY, size=20),
-                        ft.Text("Balance Projection", size=18, weight=ft.FontWeight.W_600),
-                    ],
-                    spacing=8,
+                ft.Text(
+                    "Balance Projection",
+                    size=18,
+                    weight=ft.FontWeight.W_600,
                 ),
                 ft.Text(
-                    "Projected checking account balance over the forecast period",
+                    "Hover over data points to see transactions for that day",
                     size=12,
                     color=ft.Colors.OUTLINE,
                 ),
                 self.chart_container,
             ],
-            scroll=ft.ScrollMode.AUTO,
-            spacing=4,
-            expand=True,
+            spacing=8,
         )
 
-        self._transactions_tab = ft.Column(
+        self._transactions_content = ft.Column(
             controls=[
-                ft.Container(height=4),
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.TABLE_CHART, color=ft.Colors.PRIMARY, size=20),
-                        ft.Text("Upcoming Transactions", size=18, weight=ft.FontWeight.W_600),
-                    ],
-                    spacing=8,
-                ),
+                ft.Text("Upcoming Transactions", size=18, weight=ft.FontWeight.W_600),
                 ft.Text(
                     "All projected transactions showing date, amount, and running balance impact.",
                     size=12,
@@ -149,24 +137,15 @@ class DashboardView(ft.Column):
                 ),
                 self.table_container,
             ],
-            scroll=ft.ScrollMode.AUTO,
-            spacing=4,
-            expand=True,
+            spacing=8,
         )
 
-        self._adjustments_tab = ft.Column(
+        self._adjustments_content = ft.Column(
             controls=[
-                ft.Container(height=4),
                 self.cc_info_container,
                 self.adjustments_panel,
                 ft.Container(height=16),
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.TIMELINE, color=ft.Colors.PRIMARY, size=20),
-                        ft.Text("Forecast Accuracy", size=18, weight=ft.FontWeight.W_600),
-                    ],
-                    spacing=8,
-                ),
+                ft.Text("Forecast Accuracy", size=18, weight=ft.FontWeight.W_600),
                 ft.Text(
                     "How accurate past forecasts were compared to actual balances.",
                     size=12,
@@ -174,105 +153,110 @@ class DashboardView(ft.Column):
                 ),
                 self.accuracy_container,
             ],
+            spacing=8,
+        )
+
+        self._tab_pages = [
+            self._overview_content,
+            self._transactions_content,
+            self._adjustments_content,
+        ]
+
+        # Content area — shows the active page, scrollable
+        self._content_area = ft.Column(
+            controls=[
+                # Controls row
+                ft.Row(
+                    [
+                        self.account_dropdown,
+                        ft.Column(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Text(
+                                            "Forecast window:", size=12, color=ft.Colors.OUTLINE
+                                        ),
+                                        self._days_label,
+                                    ],
+                                    spacing=6,
+                                ),
+                                self.days_slider,
+                            ],
+                            spacing=0,
+                        ),
+                        self.threshold_field,
+                        self.loading,
+                    ],
+                    alignment=ft.MainAxisAlignment.START,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=20,
+                ),
+                self.alerts_container,
+                self._overview_content,
+            ],
             scroll=ft.ScrollMode.AUTO,
-            spacing=4,
+            spacing=12,
             expand=True,
         )
 
-        self._tabs = ft.Tabs(
-            content=ft.Column(
+        # Navigation rail
+        self._nav_rail = ft.NavigationRail(
+            destinations=[
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.DASHBOARD_OUTLINED,
+                    selected_icon=ft.Icons.DASHBOARD,
+                    label="Overview",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.TABLE_CHART_OUTLINED,
+                    selected_icon=ft.Icons.TABLE_CHART,
+                    label="Transactions",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.TUNE_OUTLINED,
+                    selected_icon=ft.Icons.TUNE,
+                    label="Adjustments",
+                ),
+            ],
+            selected_index=0,
+            label_type=ft.NavigationRailLabelType.ALL,
+            on_change=self._on_nav_change,
+            leading=ft.Column(
                 [
-                    ft.TabBar(
-                        tabs=[
-                            ft.Tab(label="Overview", icon=ft.Icons.DASHBOARD),
-                            ft.Tab(label="Transactions", icon=ft.Icons.TABLE_CHART),
-                            ft.Tab(label="Adjustments", icon=ft.Icons.TUNE),
-                        ],
-                    ),
-                    ft.TabBarView(
-                        controls=[
-                            self._overview_tab,
-                            self._transactions_tab,
-                            self._adjustments_tab,
-                        ],
-                        expand=True,
+                    ft.Icon(ft.Icons.ACCOUNT_BALANCE, color=ft.Colors.PRIMARY, size=28),
+                    ft.Text(
+                        "Monarch\nForecast",
+                        size=11,
+                        text_align=ft.TextAlign.CENTER,
+                        weight=ft.FontWeight.BOLD,
                     ),
                 ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=4,
             ),
-            length=3,
-            selected_index=0,
-            expand=True,
+            trailing=ft.Column(
+                [
+                    self.refresh_button,
+                    self.logout_button,
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=0,
+            ),
+            min_width=80,
+            group_alignment=-0.9,
         )
 
-        # Final layout: fixed header + tabbed content
+        # Final layout: rail + content
         self.controls = [
             self.update_banner_container,
-            # Title bar
-            ft.Container(
-                content=ft.Row(
-                    [
-                        ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.ACCOUNT_BALANCE,
-                                    color=ft.Colors.PRIMARY,
-                                    size=28,
-                                ),
-                                ft.Text(
-                                    "Monarch Forecast",
-                                    size=24,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                            ],
-                            spacing=12,
-                        ),
-                        ft.Container(expand=True),
-                        self.loading,
-                        self.refresh_button,
-                        self.logout_button,
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.only(bottom=4),
+            ft.Row(
+                [
+                    self._nav_rail,
+                    ft.VerticalDivider(width=1),
+                    self._content_area,
+                ],
+                expand=True,
             ),
-            # Alerts
-            self.alerts_container,
-            # Controls card
-            ft.Card(
-                content=ft.Container(
-                    content=ft.Row(
-                        [
-                            self.account_dropdown,
-                            ft.Column(
-                                [
-                                    ft.Row(
-                                        [
-                                            ft.Text(
-                                                "Forecast window:",
-                                                size=12,
-                                                color=ft.Colors.OUTLINE,
-                                            ),
-                                            self._days_label,
-                                        ],
-                                        spacing=6,
-                                    ),
-                                    self.days_slider,
-                                ],
-                                spacing=0,
-                            ),
-                            self.threshold_field,
-                        ],
-                        alignment=ft.MainAxisAlignment.START,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=24,
-                    ),
-                    padding=12,
-                ),
-            ),
-            ft.Container(height=4),
-            # Tabbed content
-            self._tabs,
         ]
 
     async def load_data(self, force_refresh: bool = False) -> None:
@@ -691,6 +675,18 @@ class DashboardView(ft.Column):
         accuracy_view = build_accuracy_view(self._history, self._selected_account_id)
         self.accuracy_container.content = accuracy_view
         self.accuracy_container.update()
+
+    def _on_nav_change(self, e: ft.ControlEvent) -> None:
+        idx = e.control.selected_index
+        # Swap the content area's last child (the page content)
+        # Keep controls row and alerts, replace the page-specific content
+        page_content = self._tab_pages[idx]
+        self._content_area.controls = [
+            self._content_area.controls[0],  # controls row
+            self.alerts_container,
+            page_content,
+        ]
+        self._content_area.update()
 
     async def _on_adjustment_change(self) -> None:
         await self._run_forecast()

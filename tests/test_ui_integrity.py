@@ -113,7 +113,7 @@ class TestDashboardViewInit:
         assert len(dashboard.controls) > 0
 
     @patch("src.auth.session_manager.keyring")
-    def test_has_tabs(self, mock_keyring, tmp_path: Path, monkeypatch):
+    def test_has_navigation_rail(self, mock_keyring, tmp_path: Path, monkeypatch):
         from src.auth.session_manager import SessionManager
         from src.views.dashboard import DashboardView
 
@@ -124,8 +124,8 @@ class TestDashboardViewInit:
 
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
-        tabs = [c for c in dashboard.controls if isinstance(c, ft.Tabs)]
-        assert len(tabs) == 1, "Dashboard should contain exactly one Tabs widget"
+        assert dashboard._nav_rail is not None
+        assert len(dashboard._nav_rail.destinations) == 3
 
 
 class TestAdjustmentsPanelInit:
@@ -142,7 +142,7 @@ class TestScrollableColumnLayout:
     """Catch layout issues: expand=True inside scrollable columns causes overlap."""
 
     @patch("src.auth.session_manager.keyring")
-    def test_no_expand_in_scrollable_dashboard(self, mock_keyring, tmp_path: Path, monkeypatch):
+    def test_no_expand_in_scrollable_content(self, mock_keyring, tmp_path: Path, monkeypatch):
         from src.auth.session_manager import SessionManager
         from src.views.dashboard import DashboardView
 
@@ -154,11 +154,13 @@ class TestScrollableColumnLayout:
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
 
-        if dashboard.scroll:
-            for i, control in enumerate(dashboard.controls):
+        # Check the scrollable content area's children
+        content = dashboard._content_area
+        if content.scroll:
+            for i, control in enumerate(content.controls):
                 expand = getattr(control, "expand", None)
                 assert not expand, (
-                    f"dashboard.controls[{i}] ({type(control).__name__}) has expand=True "
+                    f"content_area.controls[{i}] ({type(control).__name__}) has expand=True "
                     f"inside a scrollable Column — this causes layout overlap"
                 )
 
