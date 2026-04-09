@@ -170,7 +170,7 @@ class TestViewBuildersSmoke:
         from src.views.chart import build_forecast_chart
 
         chart = build_forecast_chart(_make_forecast())
-        assert chart is not None
+        assert isinstance(chart, ft.Image)
 
     def test_build_transactions_table(self):
         from src.views.transactions_table import build_transactions_table

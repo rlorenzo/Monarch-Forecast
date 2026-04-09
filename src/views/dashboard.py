@@ -64,17 +64,20 @@ class DashboardView(ft.Column):
             on_select=self._on_account_change,
             tooltip="Select which checking account to forecast",
         )
+        self._days_label = ft.Text("45 days", size=12, weight=ft.FontWeight.W_500)
         self.days_slider = ft.Slider(
             min=14,
             max=90,
             value=45,
             divisions=76,
             label="{value} days",
+            on_change=self._on_days_slider_move,
             on_change_end=self._on_days_change,
             width=250,
         )
         self.threshold_field = ft.TextField(
-            label="Safety threshold ($)",
+            label="Safety threshold",
+            prefix=ft.Text("$"),
             value="0",
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -109,8 +112,6 @@ class DashboardView(ft.Column):
             controls=[
                 ft.Container(height=4),
                 self.summary_row,
-                ft.Container(height=8),
-                self.cc_info_container,
                 ft.Container(height=8),
                 ft.Row(
                     [
@@ -156,6 +157,7 @@ class DashboardView(ft.Column):
         self._adjustments_tab = ft.Column(
             controls=[
                 ft.Container(height=4),
+                self.cc_info_container,
                 self.adjustments_panel,
                 ft.Container(height=16),
                 ft.Row(
@@ -244,10 +246,16 @@ class DashboardView(ft.Column):
                             self.account_dropdown,
                             ft.Column(
                                 [
-                                    ft.Text(
-                                        "Forecast window",
-                                        size=12,
-                                        color=ft.Colors.OUTLINE,
+                                    ft.Row(
+                                        [
+                                            ft.Text(
+                                                "Forecast window:",
+                                                size=12,
+                                                color=ft.Colors.OUTLINE,
+                                            ),
+                                            self._days_label,
+                                        ],
+                                        spacing=6,
                                     ),
                                     self.days_slider,
                                 ],
@@ -651,8 +659,14 @@ class DashboardView(ft.Column):
         self.loading.visible = False
         self.loading.update()
 
+    def _on_days_slider_move(self, e: ft.ControlEvent) -> None:
+        self._days_label.value = f"{int(e.control.value)} days"
+        self._days_label.update()
+
     async def _on_days_change(self, e: ft.ControlEvent) -> None:
         self._days_out = int(e.control.value)
+        self._days_label.value = f"{self._days_out} days"
+        self._days_label.update()
         await self._run_forecast()
 
     async def _on_threshold_change(self, e: ft.ControlEvent) -> None:

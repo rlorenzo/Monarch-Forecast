@@ -30,7 +30,7 @@ class AdjustmentsPanel(ft.Column):
         # --- One-off transaction form ---
         self._oneoff_name = ft.TextField(
             label="Description",
-            width=200,
+            width=220,
             tooltip="e.g., 'Car repair', 'Tax refund'",
         )
         self._oneoff_amount = ft.TextField(
@@ -56,7 +56,7 @@ class AdjustmentsPanel(ft.Column):
         )
         self._oneoff_type = ft.Dropdown(
             label="Type",
-            width=120,
+            width=140,
             value="expense",
             options=[
                 ft.dropdown.Option("expense", "Expense"),

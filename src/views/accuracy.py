@@ -1,7 +1,9 @@
 """Accuracy view showing historical forecast accuracy stats and chart."""
 
+import base64
+import io
+
 import flet as ft
-from flet_charts import MatplotlibChart
 from matplotlib.dates import DateFormatter
 from matplotlib.figure import Figure
 
@@ -130,7 +132,7 @@ def _accuracy_grade(mape: float) -> dict:
     return {"label": "Poor", "icon": ft.Icons.THUMB_DOWN, "color": ft.Colors.RED}
 
 
-def _build_accuracy_chart(records: list[AccuracyRecord]) -> MatplotlibChart:
+def _build_accuracy_chart(records: list[AccuracyRecord]) -> ft.Image:
     """Build a chart comparing predicted vs actual balances."""
     fig = Figure(figsize=(8, 3), dpi=100)
     ax = fig.add_subplot(111)
@@ -169,4 +171,8 @@ def _build_accuracy_chart(records: list[AccuracyRecord]) -> MatplotlibChart:
         ax.legend(loc="upper right", fontsize=8)
     fig.tight_layout()
 
-    return MatplotlibChart(figure=fig, expand=True)
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
+    buf.seek(0)
+    img_b64 = base64.b64encode(buf.read()).decode()
+    return ft.Image(src=f"data:image/png;base64,{img_b64}", fit=ft.BoxFit.CONTAIN, height=300)
