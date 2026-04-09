@@ -363,7 +363,7 @@ class DashboardView(ft.Column):
 
         def dismiss(_):
             self._prefs.set_onboarding_seen(True)
-            self.page.close(dialog)
+            self.page.pop_dialog()
 
         dialog = ft.AlertDialog(
             title=ft.Text("Welcome to Monarch Forecast!"),
@@ -409,7 +409,7 @@ class DashboardView(ft.Column):
             ),
             actions=[ft.TextButton("Got it!", on_click=dismiss)],
         )
-        self.page.open(dialog)
+        self.page.show_dialog(dialog)
 
     async def _run_forecast(self) -> None:
         """Run the forecast engine and update the UI."""

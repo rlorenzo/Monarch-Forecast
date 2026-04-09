@@ -316,6 +316,7 @@ class AdjustmentsPanel(ft.Column):
             is_overridden = item.name in overrides
             current_amount = overrides.get(item.name, item.amount)
             name = item.name
+            is_income = item.amount > 0
             if not is_excluded:
                 included_count += 1
 
@@ -327,18 +328,25 @@ class AdjustmentsPanel(ft.Column):
                             on_change=lambda e, n=name: self._on_exclude_toggle(e, n),
                             tooltip="Include in forecast",
                         ),
+                        ft.Icon(
+                            ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD,
+                            color=ft.Colors.GREEN_400 if is_income else ft.Colors.RED_400,
+                            size=16,
+                        ),
                         ft.Text(
                             item.name,
-                            width=180,
+                            width=170,
                             weight=ft.FontWeight.W_500,
                             color=ft.Colors.OUTLINE if is_excluded else None,
                         ),
-                        ft.Text(item.frequency, width=90, color=ft.Colors.OUTLINE, size=12),
+                        ft.Text(item.frequency, width=80, color=ft.Colors.OUTLINE, size=12),
                         ft.Text(
-                            f"${abs(item.amount):,.2f}",
-                            width=100,
+                            f"{'+' if is_income else '−'}${abs(item.amount):,.2f}",
+                            width=110,
                             size=12,
-                            color=ft.Colors.OUTLINE,
+                            color=(ft.Colors.GREEN_400 if is_income else ft.Colors.RED_400)
+                            if not is_excluded
+                            else ft.Colors.OUTLINE,
                         ),
                         ft.TextField(
                             value=f"{abs(current_amount):.2f}",

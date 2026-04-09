@@ -1,16 +1,8 @@
 """Balance timeline chart using matplotlib embedded in Flet."""
 
-import matplotlib
-
-if not matplotlib.get_backend() or matplotlib.get_backend().lower() != "agg":
-    try:
-        matplotlib.use("agg")
-    except Exception:
-        pass  # Backend already set by Flet runtime
-
-import matplotlib.pyplot as plt
 from flet_charts import MatplotlibChart
 from matplotlib.dates import DateFormatter, WeekdayLocator
+from matplotlib.figure import Figure
 
 from src.forecast.models import ForecastResult
 
@@ -21,7 +13,7 @@ def build_forecast_chart(
     height: float = 400,
 ) -> MatplotlibChart:
     """Create a matplotlib chart showing the balance forecast timeline."""
-    fig = plt.figure(figsize=(width / 100, height / 100), dpi=100)
+    fig = Figure(figsize=(width / 100, height / 100), dpi=100)
     ax = fig.add_subplot(111)
 
     dates = [day.date for day in result.days]
