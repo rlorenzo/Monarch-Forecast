@@ -76,3 +76,11 @@ class Preferences:
         overrides.pop(name, None)
         self._data["amount_overrides"] = overrides
         self._save()
+
+    @property
+    def onboarding_seen(self) -> bool:
+        return self._data.get("onboarding_seen", False)
+
+    def set_onboarding_seen(self, seen: bool) -> None:
+        self._data["onboarding_seen"] = seen
+        self._save()

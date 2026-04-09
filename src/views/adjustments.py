@@ -25,12 +25,19 @@ class AdjustmentsPanel(ft.Column):
         self._selected_account_id = ""
         self._one_offs: list[ForecastTransaction] = []
 
-        self.spacing = 12
+        self.spacing = 16
 
         # --- One-off transaction form ---
-        self._oneoff_name = ft.TextField(label="Description", width=200)
+        self._oneoff_name = ft.TextField(
+            label="Description",
+            width=200,
+            tooltip="e.g., 'Car repair', 'Tax refund'",
+        )
         self._oneoff_amount = ft.TextField(
-            label="Amount ($)", width=120, keyboard_type=ft.KeyboardType.NUMBER
+            label="Amount ($)",
+            width=120,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            tooltip="Enter the dollar amount (positive number)",
         )
         default_date = date.today() + timedelta(days=7)
         self._oneoff_date_picker = ft.DatePicker(
@@ -45,6 +52,7 @@ class AdjustmentsPanel(ft.Column):
             value=default_date.strftime("%b %d, %Y"),
             read_only=True,
             on_click=lambda _: self.page.open(self._oneoff_date_picker),
+            tooltip="Click to pick a date",
         )
         self._oneoff_type = ft.Dropdown(
             label="Type",
@@ -56,66 +64,81 @@ class AdjustmentsPanel(ft.Column):
             ],
         )
         self._oneoff_error = ft.Text("", color=ft.Colors.RED_400, size=12)
-
         self._oneoff_list = ft.Column(spacing=4)
 
         # --- Recurring overrides ---
         self._override_list = ft.Column(spacing=4)
+        self._recurring_expansion = ft.ExpansionTile(
+            title=ft.Text("Recurring Transactions"),
+            subtitle=ft.Text(
+                "Uncheck to exclude. Override amounts for this period only.",
+                size=12,
+            ),
+            leading=ft.Icon(ft.Icons.REPEAT, size=20),
+            controls=[self._override_list],
+            expanded=False,
+            controls_padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+        )
 
         self.controls = self._build_controls()
 
     def _build_controls(self) -> list[ft.Control]:
         return [
-            ft.Text("What-If Adjustments", size=18, weight=ft.FontWeight.W_600),
-            ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Text("Add One-Off Transaction", size=18, weight=ft.FontWeight.W_600),
-                        ft.Row(
-                            [
-                                self._oneoff_name,
-                                self._oneoff_amount,
-                                self._oneoff_date_display,
-                                self._oneoff_type,
-                                ft.IconButton(
-                                    icon=ft.Icons.ADD_CIRCLE,
-                                    tooltip="Add transaction",
-                                    on_click=self._add_one_off,
-                                    icon_color=ft.Colors.PRIMARY,
-                                ),
-                            ],
-                            wrap=True,
-                            spacing=8,
-                        ),
-                        self._oneoff_error,
-                        self._oneoff_list,
-                    ],
-                    spacing=8,
+            # One-off transactions section
+            ft.Card(
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.Icon(
+                                        ft.Icons.ADD_SHOPPING_CART,
+                                        color=ft.Colors.PRIMARY,
+                                        size=20,
+                                    ),
+                                    ft.Text(
+                                        "Add One-Off Transaction",
+                                        size=16,
+                                        weight=ft.FontWeight.W_600,
+                                    ),
+                                ],
+                                spacing=8,
+                            ),
+                            ft.Text(
+                                "Model a future expense or income that isn't recurring.",
+                                size=12,
+                                color=ft.Colors.OUTLINE,
+                            ),
+                            ft.Row(
+                                [
+                                    self._oneoff_name,
+                                    self._oneoff_amount,
+                                    self._oneoff_date_display,
+                                    self._oneoff_type,
+                                    ft.IconButton(
+                                        icon=ft.Icons.ADD_CIRCLE,
+                                        tooltip="Add transaction",
+                                        on_click=self._add_one_off,
+                                        icon_color=ft.Colors.PRIMARY,
+                                    ),
+                                ],
+                                wrap=True,
+                                spacing=8,
+                            ),
+                            self._oneoff_error,
+                            self._oneoff_list,
+                        ],
+                        spacing=8,
+                    ),
+                    padding=16,
                 ),
-                padding=16,
-                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
-                border_radius=8,
             ),
-            ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Text(
-                            "Recurring Transactions",
-                            size=18,
-                            weight=ft.FontWeight.W_600,
-                        ),
-                        ft.Text(
-                            "Uncheck items to exclude from forecast. Override amounts for this period only.",
-                            size=12,
-                            color=ft.Colors.OUTLINE,
-                        ),
-                        self._override_list,
-                    ],
-                    spacing=8,
+            # Recurring transactions section (collapsible)
+            ft.Card(
+                content=ft.Container(
+                    content=self._recurring_expansion,
+                    padding=ft.Padding.symmetric(vertical=4),
                 ),
-                padding=16,
-                border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
-                border_radius=8,
             ),
         ]
 
@@ -130,7 +153,6 @@ class AdjustmentsPanel(ft.Column):
         """Check if an item should be included in the forecast."""
         if item.name in self._prefs.excluded_recurring_names:
             return False
-        # Auto-exclude items linked to a different account
         return not (
             self._selected_account_id
             and item.account_id
@@ -185,7 +207,6 @@ class AdjustmentsPanel(ft.Column):
             self._oneoff_error.update()
             return
 
-        # Get date from picker
         picked = self._oneoff_date_picker.value
         if picked is None:
             txn_date = date.today() + timedelta(days=7)
@@ -208,7 +229,6 @@ class AdjustmentsPanel(ft.Column):
             )
         )
 
-        # Clear form
         self._oneoff_name.value = ""
         self._oneoff_amount.value = ""
         self._oneoff_error.value = ""
@@ -229,7 +249,7 @@ class AdjustmentsPanel(ft.Column):
         rows = []
         for i, txn in enumerate(self._one_offs):
             is_expense = txn.amount < 0
-            idx = i  # capture for closure
+            idx = i
             rows.append(
                 ft.Row(
                     [
@@ -257,7 +277,6 @@ class AdjustmentsPanel(ft.Column):
     def _on_override_change(self, name: str, original_amount: float, value: str) -> None:
         try:
             new_amount = float(value)
-            # Preserve sign convention: expenses negative, income positive
             new_amount = -abs(new_amount) if original_amount < 0 else abs(new_amount)
             self._prefs.set_amount_override(name, new_amount)
         except ValueError:
@@ -277,7 +296,6 @@ class AdjustmentsPanel(ft.Column):
 
     def _rebuild_override_rows(self) -> None:
         excluded = self._prefs.excluded_recurring_names
-        # Split into matching-account and other-account items
         matching = []
         other_account = []
         for i, item in enumerate(self._recurring_items):
@@ -291,12 +309,15 @@ class AdjustmentsPanel(ft.Column):
                 matching.append((i, item))
 
         overrides = self._prefs.amount_overrides
+        included_count = 0
         rows = []
         for _i, item in matching:
             is_excluded = item.name in excluded
             is_overridden = item.name in overrides
             current_amount = overrides.get(item.name, item.amount)
             name = item.name
+            if not is_excluded:
+                included_count += 1
 
             rows.append(
                 ft.Row(
@@ -322,7 +343,7 @@ class AdjustmentsPanel(ft.Column):
                         ft.TextField(
                             value=f"{abs(current_amount):.2f}",
                             width=100,
-                            label="Amount",
+                            label="Override",
                             keyboard_type=ft.KeyboardType.NUMBER,
                             dense=True,
                             on_submit=lambda e, n=name, a=item.amount: self._on_override_change(
@@ -342,16 +363,23 @@ class AdjustmentsPanel(ft.Column):
                 )
             )
 
-        # Show other-account items collapsed at the bottom
         if other_account:
             rows.append(
-                ft.Text(
-                    f"{len(other_account)} item(s) from other accounts hidden",
-                    size=12,
-                    color=ft.Colors.OUTLINE,
-                    italic=True,
+                ft.Container(
+                    content=ft.Text(
+                        f"{len(other_account)} item(s) from other accounts hidden",
+                        size=12,
+                        color=ft.Colors.OUTLINE,
+                        italic=True,
+                    ),
+                    padding=ft.Padding.only(top=8),
                 )
             )
+
+        # Update expansion tile title with count
+        self._recurring_expansion.title = ft.Text(
+            f"Recurring Transactions ({included_count}/{len(matching)} included)"
+        )
 
         self._override_list.controls = rows
         self._override_list.update()
