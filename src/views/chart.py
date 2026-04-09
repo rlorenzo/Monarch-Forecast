@@ -32,15 +32,20 @@ def build_forecast_chart(
         x = (day.date - start_date).days
 
         # Build concise tooltip — keep short to avoid truncation
-        lines = [f"{day.date.strftime('%b %d')} — ${day.ending_balance:,.2f}"]
-        for txn in day.transactions[:4]:  # Limit to 4 transactions
-            sign = "+" if txn.amount > 0 else "-"
-            name = txn.name[:20]
-            lines.append(f"{sign}${abs(txn.amount):,.0f} {name}")
+        lines = [f"{day.date.strftime('%b %d')}: ${day.ending_balance:,.2f}"]
+        for txn in day.transactions[:4]:
+            name = txn.name[:18]
+            if txn.amount >= 0:
+                lines.append(f"+${txn.amount:,.0f} {name}")
+            else:
+                lines.append(f"-${abs(txn.amount):,.0f} {name}")
         if len(day.transactions) > 4:
             lines.append(f"...+{len(day.transactions) - 4} more")
         if day.transactions:
-            lines.append(f"Net: ${day.net_change:+,.0f}")
+            if day.net_change >= 0:
+                lines.append(f"Net: +${day.net_change:,.0f}")
+            else:
+                lines.append(f"Net: -${abs(day.net_change):,.0f}")
         tooltip_text = "\n".join(lines)
 
         # Color based on health
