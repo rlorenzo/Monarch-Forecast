@@ -41,7 +41,7 @@ def build_forecast_chart(
                 lines.append(f"-${abs(txn.amount):,.0f} {name}")
         if len(day.transactions) > 4:
             lines.append(f"...+{len(day.transactions) - 4} more")
-        if day.transactions:
+        if len(day.transactions) > 1:
             if day.net_change >= 0:
                 lines.append(f"Net: +${day.net_change:,.0f}")
             else:
