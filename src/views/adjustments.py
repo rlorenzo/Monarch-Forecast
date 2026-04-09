@@ -272,7 +272,10 @@ class AdjustmentsPanel(ft.Column):
                 )
             )
         self._oneoff_list.controls = rows
-        self._oneoff_list.update()
+        try:
+            self._oneoff_list.update()
+        except RuntimeError:
+            pass  # Not mounted yet
 
     def _on_override_change(self, name: str, original_amount: float, value: str) -> None:
         try:
@@ -390,4 +393,7 @@ class AdjustmentsPanel(ft.Column):
         )
 
         self._override_list.controls = rows
-        self._override_list.update()
+        try:
+            self._override_list.update()
+        except RuntimeError:
+            pass  # Not mounted yet

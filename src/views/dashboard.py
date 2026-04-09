@@ -32,6 +32,14 @@ def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
     return False
 
 
+def _safe_update(control: ft.Control) -> None:
+    """Update a control only if it's mounted to a page."""
+    try:
+        control.update()
+    except RuntimeError:
+        pass  # Control not yet added to page
+
+
 class DashboardView(ft.Column):
     """Main dashboard showing forecast summary, chart, transactions, alerts, and adjustments."""
 
@@ -314,15 +322,15 @@ class DashboardView(ft.Column):
                 self.summary_row.controls = [
                     ft.Text("No checking accounts found.", color=ft.Colors.OUTLINE)
                 ]
-                self.summary_row.update()
+                _safe_update(self.summary_row)
                 self.chart_container.content = None
-                self.chart_container.update()
+                _safe_update(self.chart_container)
                 self.table_container.content = None
-                self.table_container.update()
+                _safe_update(self.table_container)
                 self.alerts_container.content = None
-                self.alerts_container.update()
+                _safe_update(self.alerts_container)
                 self.accuracy_container.content = None
-                self.accuracy_container.update()
+                _safe_update(self.accuracy_container)
 
             self._update_cc_info()
             self._maybe_show_onboarding()
@@ -336,17 +344,17 @@ class DashboardView(ft.Column):
             self.summary_row.controls = [
                 ft.Text(f"Error loading data: {error_msg}", color=ft.Colors.RED_400)
             ]
-            self.summary_row.update()
+            _safe_update(self.summary_row)
             self.chart_container.content = None
-            self.chart_container.update()
+            _safe_update(self.chart_container)
             self.table_container.content = None
-            self.table_container.update()
+            _safe_update(self.table_container)
             self.alerts_container.content = None
-            self.alerts_container.update()
+            _safe_update(self.alerts_container)
             self.cc_info_container.content = None
-            self.cc_info_container.update()
+            _safe_update(self.cc_info_container)
             self.accuracy_container.content = None
-            self.accuracy_container.update()
+            _safe_update(self.accuracy_container)
 
         finally:
             self.loading.visible = False
@@ -456,12 +464,12 @@ class DashboardView(ft.Column):
     def _update_alerts(self) -> None:
         if not self._forecast:
             self.alerts_container.content = None
-            self.alerts_container.update()
+            _safe_update(self.alerts_container)
             return
         alerts = generate_alerts(self._forecast, self._safety_threshold)
         banner = build_alerts_banner(alerts)
         self.alerts_container.content = banner
-        self.alerts_container.update()
+        _safe_update(self.alerts_container)
 
     def _on_cc_toggle(self, cc_id: str, included: bool) -> None:
         self._prefs.set_cc_excluded(cc_id, excluded=not included)
@@ -471,7 +479,7 @@ class DashboardView(ft.Column):
         """Show credit card balance summary with include/exclude checkboxes."""
         if not self._cc_accounts:
             self.cc_info_container.content = None
-            self.cc_info_container.update()
+            _safe_update(self.cc_info_container)
             return
 
         excluded = self._prefs.excluded_cc_ids
@@ -530,7 +538,7 @@ class DashboardView(ft.Column):
                 padding=16,
             ),
         )
-        self.cc_info_container.update()
+        _safe_update(self.cc_info_container)
 
     def _update_summary(self, account: dict) -> None:
         f = self._forecast
@@ -585,7 +593,7 @@ class DashboardView(ft.Column):
             )
 
         self.summary_row.controls = cards
-        self.summary_row.update()
+        _safe_update(self.summary_row)
 
     def _summary_card(
         self,
@@ -621,14 +629,14 @@ class DashboardView(ft.Column):
             return
         chart = build_forecast_chart(self._forecast)
         self.chart_container.content = chart
-        self.chart_container.update()
+        _safe_update(self.chart_container)
 
     def _update_table(self) -> None:
         if not self._forecast:
             return
         table = build_transactions_table(self._forecast)
         self.table_container.content = table
-        self.table_container.update()
+        _safe_update(self.table_container)
 
     async def _on_account_change(self, e: ft.ControlEvent) -> None:
         self._selected_account_id = e.control.value
@@ -665,7 +673,7 @@ class DashboardView(ft.Column):
             update_info = await check_update_async()
             if update_info:
                 self.update_banner_container.content = build_update_banner(update_info)
-                self.update_banner_container.update()
+                _safe_update(self.update_banner_container)
         except Exception:
             pass
 
@@ -674,7 +682,7 @@ class DashboardView(ft.Column):
             return
         accuracy_view = build_accuracy_view(self._history, self._selected_account_id)
         self.accuracy_container.content = accuracy_view
-        self.accuracy_container.update()
+        _safe_update(self.accuracy_container)
 
     def _on_nav_change(self, e: ft.ControlEvent) -> None:
         idx = e.control.selected_index
