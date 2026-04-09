@@ -344,9 +344,13 @@ class DashboardView(ft.Column):
             self._maybe_show_onboarding()
 
         except Exception as ex:
+            import traceback
+
+            traceback.print_exc()
             self._forecast = None
+            error_msg = str(ex) or type(ex).__name__
             self.summary_row.controls = [
-                ft.Text(f"Error loading data: {ex}", color=ft.Colors.RED_400)
+                ft.Text(f"Error loading data: {error_msg}", color=ft.Colors.RED_400)
             ]
             self.summary_row.update()
             self.chart_container.content = None
