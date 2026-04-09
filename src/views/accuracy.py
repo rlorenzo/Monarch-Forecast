@@ -1,11 +1,8 @@
 """Accuracy view showing historical forecast accuracy stats and chart."""
 
-import base64
-import io
-
 import flet as ft
-from matplotlib.dates import DateFormatter
-from matplotlib.figure import Figure
+import plotly.graph_objects as go
+from flet_charts import PlotlyChart
 
 from src.data.history import AccuracyRecord, ForecastHistory
 
@@ -132,47 +129,48 @@ def _accuracy_grade(mape: float) -> dict:
     return {"label": "Poor", "icon": ft.Icons.THUMB_DOWN, "color": ft.Colors.RED}
 
 
-def _build_accuracy_chart(records: list[AccuracyRecord]) -> ft.Image:
-    """Build a chart comparing predicted vs actual balances."""
-    fig = Figure(figsize=(8, 3), dpi=100)
-    ax = fig.add_subplot(111)
-
+def _build_accuracy_chart(records: list[AccuracyRecord]) -> PlotlyChart:
+    """Build an interactive chart comparing predicted vs actual balances."""
     dates = [r.target_date for r in records]
     predicted = [r.predicted_balance for r in records]
     actual = [r.actual_balance for r in records]
 
-    ax.plot(dates, actual, color="#3B82F6", linewidth=2, label="Actual", marker="o", markersize=4)
-    ax.plot(
-        dates,
-        predicted,
-        color="#F59E0B",
-        linewidth=2,
-        label="Predicted",
-        linestyle="--",
-        marker="s",
-        markersize=4,
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=actual,
+            mode="lines+markers",
+            name="Actual",
+            line={"color": "#3B82F6", "width": 2},
+            marker={"size": 5},
+            hovertemplate="<b>Actual</b>: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=predicted,
+            mode="lines+markers",
+            name="Predicted",
+            line={"color": "#F59E0B", "width": 2, "dash": "dash"},
+            marker={"size": 5, "symbol": "square"},
+            hovertemplate="<b>Predicted</b>: $%{y:,.2f}<extra></extra>",
+        )
     )
 
-    # Fill the error band
-    ax.fill_between(
-        dates,
-        predicted,
-        actual,
-        alpha=0.1,
-        color="#EF4444",
+    fig.update_layout(
+        title="Predicted vs Actual Balance",
+        yaxis_title="Balance ($)",
+        hovermode="x unified",
+        margin={"l": 60, "r": 20, "t": 40, "b": 40},
+        height=300,
+        yaxis_tickformat="$,.0f",
+        xaxis_tickformat="%b %d",
+        plot_bgcolor="white",
+        xaxis={"gridcolor": "#f0f0f0"},
+        yaxis={"gridcolor": "#f0f0f0"},
+        legend={"orientation": "h", "y": -0.2},
     )
 
-    ax.set_ylabel("Balance ($)")
-    ax.set_title("Predicted vs Actual Balance")
-    ax.xaxis.set_major_formatter(DateFormatter("%b %d"))
-    fig.autofmt_xdate(rotation=45)
-    ax.grid(True, alpha=0.3)
-    if ax.get_legend_handles_labels()[1]:
-        ax.legend(loc="upper right", fontsize=8)
-    fig.tight_layout()
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
-    buf.seek(0)
-    img_b64 = base64.b64encode(buf.read()).decode()
-    return ft.Image(src=f"data:image/png;base64,{img_b64}", fit=ft.BoxFit.CONTAIN, height=300)
+    return PlotlyChart(figure=fig, expand=True)

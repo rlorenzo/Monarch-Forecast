@@ -1,97 +1,96 @@
-"""Balance timeline chart using matplotlib rendered as a static image."""
+"""Balance timeline chart using Plotly for interactive visualization."""
 
-import base64
-import io
-
-import flet as ft
-from matplotlib.dates import DateFormatter, WeekdayLocator
-from matplotlib.figure import Figure
+import plotly.graph_objects as go
+from flet_charts import PlotlyChart
 
 from src.forecast.models import ForecastResult
 
 
 def build_forecast_chart(
     result: ForecastResult,
-    width: float = 800,
     height: float = 400,
-) -> ft.Image:
-    """Create a matplotlib chart rendered as a base64 PNG image."""
-    fig = Figure(figsize=(width / 100, height / 100), dpi=150)
-    ax = fig.add_subplot(111)
-
+) -> PlotlyChart:
+    """Create an interactive Plotly chart showing the balance forecast timeline."""
     dates = [day.date for day in result.days]
     balances = [day.ending_balance for day in result.days]
     threshold = result.safety_threshold
 
-    # Color the line segments based on balance health
-    for i in range(len(dates) - 1):
-        segment_dates = [dates[i], dates[i + 1]]
-        segment_balances = [balances[i], balances[i + 1]]
-
-        if balances[i + 1] < 0:
-            color = "#EF4444"  # red
-        elif balances[i + 1] < threshold:
-            color = "#F59E0B"  # amber
+    # Color each point based on balance health
+    colors = []
+    for b in balances:
+        if b < 0:
+            colors.append("#EF4444")  # red
+        elif b < threshold:
+            colors.append("#F59E0B")  # amber
         else:
-            color = "#22C55E"  # green
+            colors.append("#22C55E")  # green
 
-        ax.plot(segment_dates, segment_balances, color=color, linewidth=2)
+    fig = go.Figure()
+
+    # Main balance line
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=balances,
+            mode="lines+markers",
+            name="Balance",
+            line={"color": "#3B82F6", "width": 2},
+            marker={"color": colors, "size": 6},
+            hovertemplate="<b>%{x|%b %d}</b><br>Balance: $%{y:,.2f}<extra></extra>",
+            fill="tozeroy",
+            fillcolor="rgba(59, 130, 246, 0.05)",
+        )
+    )
 
     # Threshold line
     if threshold > 0:
-        ax.axhline(
+        fig.add_hline(
             y=threshold,
-            color="#F59E0B",
-            linestyle="--",
-            linewidth=1,
-            alpha=0.7,
-            label=f"Safety threshold (${threshold:,.0f})",
+            line_dash="dash",
+            line_color="#F59E0B",
+            annotation_text=f"Safety: ${threshold:,.0f}",
+            annotation_position="top right",
+            annotation_font_color="#F59E0B",
         )
 
     # Zero line
-    ax.axhline(y=0, color="#EF4444", linestyle="-", linewidth=0.8, alpha=0.5)
+    fig.add_hline(y=0, line_color="#EF4444", line_width=0.8, opacity=0.5)
 
-    # Fill below zero in red
-    ax.fill_between(
-        dates,
-        balances,
-        0,
-        where=[b < 0 for b in balances],
-        alpha=0.15,
-        color="#EF4444",
-        interpolate=True,
-    )
-
-    # Mark income and large expense transactions
+    # Mark significant transactions
     for day in result.days:
         for txn in day.transactions:
-            if abs(txn.amount) >= 100:
-                marker = "^" if txn.amount > 0 else "v"
+            if abs(txn.amount) >= 500:
+                symbol = "triangle-up" if txn.amount > 0 else "triangle-down"
                 color = "#22C55E" if txn.amount > 0 else "#EF4444"
-                ax.plot(day.date, day.ending_balance, marker=marker, color=color, markersize=6)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[day.date],
+                        y=[day.ending_balance],
+                        mode="markers",
+                        marker={"symbol": symbol, "size": 10, "color": color},
+                        name=txn.name,
+                        hovertemplate=(
+                            f"<b>{txn.name}</b><br>"
+                            f"{'+' if txn.amount > 0 else '−'}${abs(txn.amount):,.2f}<br>"
+                            f"Balance: $%{{y:,.2f}}<extra></extra>"
+                        ),
+                        showlegend=False,
+                    )
+                )
 
-    ax.set_xlabel("")
-    ax.set_ylabel("Balance ($)")
-    ax.set_title("Projected Checking Account Balance")
-    ax.xaxis.set_major_formatter(DateFormatter("%b %d"))
-    ax.xaxis.set_major_locator(WeekdayLocator(byweekday=0))
-    fig.autofmt_xdate(rotation=45)
-    ax.grid(True, alpha=0.3)
-    if ax.get_legend_handles_labels()[1]:
-        ax.legend(loc="upper right", fontsize=8)
-    fig.tight_layout()
-
-    return _fig_to_image(fig, height=height)
-
-
-def _fig_to_image(fig: Figure, height: float = 400) -> ft.Image:
-    """Render a matplotlib Figure to a Flet Image via base64 PNG."""
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
-    buf.seek(0)
-    img_b64 = base64.b64encode(buf.read()).decode()
-    return ft.Image(
-        src=f"data:image/png;base64,{img_b64}",
-        fit=ft.BoxFit.CONTAIN,
+    fig.update_layout(
+        title="Projected Checking Account Balance",
+        yaxis_title="Balance ($)",
+        xaxis_title="",
+        hovermode="x unified",
+        showlegend=False,
+        margin={"l": 60, "r": 20, "t": 40, "b": 40},
         height=height,
+        yaxis_tickformat="$,.0f",
+        xaxis_tickformat="%b %d",
+        plot_bgcolor="white",
+        xaxis={"gridcolor": "#f0f0f0", "showgrid": True},
+        yaxis={"gridcolor": "#f0f0f0", "showgrid": True},
     )
+
+    return PlotlyChart(figure=fig, expand=True)
