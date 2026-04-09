@@ -266,6 +266,7 @@ class DashboardView(ft.Column):
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             width=80,
+            expand=True,
         )
 
         # Final layout: rail + content
