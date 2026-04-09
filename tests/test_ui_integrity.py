@@ -125,7 +125,7 @@ class TestDashboardViewInit:
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
         assert dashboard._nav_rail is not None
-        assert len(dashboard._nav_rail.destinations) == 3
+        assert len(dashboard._nav_rail.destinations) == 4
 
 
 class TestAdjustmentsPanelInit:
