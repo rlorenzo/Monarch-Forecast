@@ -109,27 +109,43 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Column:
             icon_color = ft.Colors.BLUE
             border_color = ft.Colors.BLUE_200
 
-        banners.append(
-            ft.Container(
-                content=ft.Row(
-                    [
-                        ft.Icon(icon, color=icon_color, size=22),
-                        ft.Column(
-                            [
-                                ft.Text(alert.title, weight=ft.FontWeight.BOLD, size=13),
-                                ft.Text(alert.message, size=12),
-                            ],
-                            spacing=2,
-                            expand=True,
-                        ),
-                    ],
-                    spacing=12,
-                ),
-                padding=12,
-                bgcolor=bg_color,
-                border=ft.Border.all(1, border_color),
-                border_radius=8,
-            )
+        banner = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(icon, color=icon_color, size=22),
+                    ft.Column(
+                        [
+                            ft.Text(alert.title, weight=ft.FontWeight.BOLD, size=13),
+                            ft.Text(alert.message, size=12),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_size=16,
+                        icon_color=icon_color,
+                        tooltip="Dismiss",
+                        on_click=lambda _, b=None: None,  # placeholder, set below
+                    ),
+                ],
+                spacing=12,
+            ),
+            padding=12,
+            bgcolor=bg_color,
+            border=ft.Border.all(1, border_color),
+            border_radius=8,
         )
 
+        # Wire up dismiss to hide this specific banner
+        close_btn = banner.content.controls[-1]
+        close_btn.on_click = lambda _, b=banner: _dismiss_banner(b)
+
+        banners.append(banner)
+
     return ft.Column(controls=banners, spacing=8)
+
+
+def _dismiss_banner(banner: ft.Container) -> None:
+    banner.visible = False
+    banner.update()
