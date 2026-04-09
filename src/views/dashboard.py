@@ -54,7 +54,7 @@ class DashboardView(ft.Column):
         self.on_logout = on_logout
 
         self.expand = True
-        self.scroll = ft.ScrollMode.AUTO
+        self.scroll = None
 
         # State
         self._checking_accounts: list[dict] = []
