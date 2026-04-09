@@ -15,15 +15,31 @@ def build_forecast_chart(
     balances = [day.ending_balance for day in result.days]
     threshold = result.safety_threshold
 
+    # Build hover text showing each day's transactions
+    hover_texts = []
+    for day in result.days:
+        parts = [f"<b>{day.date.strftime('%b %d, %Y')}</b>"]
+        parts.append(f"Balance: <b>${day.ending_balance:,.2f}</b>")
+        if day.transactions:
+            parts.append("")
+            for txn in day.transactions:
+                sign = "+" if txn.amount > 0 else "−"
+                color = "green" if txn.amount > 0 else "red"
+                parts.append(
+                    f"<span style='color:{color}'>{sign}${abs(txn.amount):,.2f}</span> {txn.name}"
+                )
+            parts.append(f"<br>Net change: <b>${day.net_change:+,.2f}</b>")
+        hover_texts.append("<br>".join(parts))
+
     # Color each point based on balance health
     colors = []
     for b in balances:
         if b < 0:
-            colors.append("#EF4444")  # red
+            colors.append("#EF4444")
         elif b < threshold:
-            colors.append("#F59E0B")  # amber
+            colors.append("#F59E0B")
         else:
-            colors.append("#22C55E")  # green
+            colors.append("#22C55E")
 
     fig = go.Figure()
 
@@ -34,9 +50,10 @@ def build_forecast_chart(
             y=balances,
             mode="lines+markers",
             name="Balance",
-            line={"color": "#3B82F6", "width": 2},
-            marker={"color": colors, "size": 6},
-            hovertemplate="<b>%{x|%b %d}</b><br>Balance: $%{y:,.2f}<extra></extra>",
+            line={"color": "#3B82F6", "width": 2.5},
+            marker={"color": colors, "size": 7},
+            hovertext=hover_texts,
+            hoverinfo="text",
             fill="tozeroy",
             fillcolor="rgba(59, 130, 246, 0.05)",
         )
@@ -56,33 +73,11 @@ def build_forecast_chart(
     # Zero line
     fig.add_hline(y=0, line_color="#EF4444", line_width=0.8, opacity=0.5)
 
-    # Mark significant transactions
-    for day in result.days:
-        for txn in day.transactions:
-            if abs(txn.amount) >= 500:
-                symbol = "triangle-up" if txn.amount > 0 else "triangle-down"
-                color = "#22C55E" if txn.amount > 0 else "#EF4444"
-                fig.add_trace(
-                    go.Scatter(
-                        x=[day.date],
-                        y=[day.ending_balance],
-                        mode="markers",
-                        marker={"symbol": symbol, "size": 10, "color": color},
-                        name=txn.name,
-                        hovertemplate=(
-                            f"<b>{txn.name}</b><br>"
-                            f"{'+' if txn.amount > 0 else '−'}${abs(txn.amount):,.2f}<br>"
-                            f"Balance: $%{{y:,.2f}}<extra></extra>"
-                        ),
-                        showlegend=False,
-                    )
-                )
-
     fig.update_layout(
         title="Projected Checking Account Balance",
         yaxis_title="Balance ($)",
         xaxis_title="",
-        hovermode="x unified",
+        hovermode="closest",
         showlegend=False,
         margin={"l": 60, "r": 20, "t": 40, "b": 40},
         height=height,
