@@ -97,8 +97,9 @@ class DashboardView(ft.Column):
             tooltip="Refresh accounts and re-detect recurring items",
             on_click=self._on_refresh,
         )
-        self.logout_button = ft.TextButton(
-            "Sign Out",
+        self.logout_button = ft.IconButton(
+            icon=ft.Icons.LOGOUT,
+            tooltip="Sign out",
             on_click=lambda _: self._handle_logout(),
         )
         self.loading = ft.ProgressRing(visible=False, width=24, height=24)
@@ -244,14 +245,29 @@ class DashboardView(ft.Column):
             ),
             trailing=ft.Column(
                 [
-                    self.refresh_button,
-                    self.logout_button,
+                    ft.Column(
+                        [
+                            self.refresh_button,
+                            ft.Text("Refresh", size=9, color=ft.Colors.OUTLINE),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=0,
+                    ),
+                    ft.Container(height=16),
+                    ft.Column(
+                        [
+                            self.logout_button,
+                            ft.Text("Sign Out", size=9, color=ft.Colors.OUTLINE),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=0,
+                    ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=0,
             ),
             min_width=80,
-            group_alignment=-0.9,
+            group_alignment=-0.85,
         )
 
         # Final layout: rail + content
