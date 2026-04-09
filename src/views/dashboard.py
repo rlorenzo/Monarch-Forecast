@@ -1,6 +1,7 @@
 """Main dashboard view with summary cards, chart, transaction table, alerts, and adjustments."""
 
 from collections.abc import Callable
+from datetime import datetime
 
 import flet as ft
 
@@ -64,6 +65,7 @@ class DashboardView(ft.Column):
         self._forecast: ForecastResult | None = None
         self._days_out = 45
         self._safety_threshold = 0.0
+        self._current_nav_index = 0
 
         # --- UI controls ---
         self.account_dropdown = ft.Dropdown(
@@ -221,6 +223,11 @@ class DashboardView(ft.Column):
                     selected_icon=ft.Icons.TUNE,
                     label="Adjustments",
                 ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.REFRESH_OUTLINED,
+                    selected_icon=ft.Icons.REFRESH,
+                    label="Refresh",
+                ),
             ],
             selected_index=0,
             label_type=ft.NavigationRailLabelType.ALL,
@@ -242,30 +249,39 @@ class DashboardView(ft.Column):
             group_alignment=-0.85,
         )
 
-        # Bottom actions below the rail (refresh + sign out)
+        # Get logged-in email for display
+        email, _ = session_manager.load_credentials()
+        self._user_email = email or ""
+
+        # Last refresh indicator
+        self._last_refresh_text = ft.Text("", size=9, color=ft.Colors.OUTLINE)
+
+        # Bottom actions below the rail
         self._nav_column = ft.Column(
             [
                 ft.Container(content=self._nav_rail, expand=True),
+                self._last_refresh_text,
+                ft.Container(height=8),
                 ft.Column(
                     [
-                        ft.IconButton(
-                            icon=ft.Icons.REFRESH,
-                            tooltip="Refresh accounts",
-                            on_click=self._on_refresh,
-                        ),
-                        ft.Text("Refresh", size=10, color=ft.Colors.OUTLINE),
-                        ft.Container(height=12),
                         self.logout_button,
                         ft.Text("Sign Out", size=10, color=ft.Colors.OUTLINE),
-                        ft.Container(height=8),
+                        ft.Text(
+                            self._user_email[:20] if self._user_email else "",
+                            size=8,
+                            color=ft.Colors.OUTLINE,
+                            text_align=ft.TextAlign.CENTER,
+                            width=78,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        ft.Container(height=4),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=0,
                 ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            width=80,
-            expand=True,
         )
 
         # Final layout: rail + content
@@ -273,7 +289,10 @@ class DashboardView(ft.Column):
             self.update_banner_container,
             ft.Row(
                 [
-                    self._nav_column,
+                    ft.Container(
+                        content=self._nav_column,
+                        width=80,
+                    ),
                     ft.VerticalDivider(width=1),
                     self._content_area,
                 ],
@@ -347,6 +366,8 @@ class DashboardView(ft.Column):
                 _safe_update(self.accuracy_container)
 
             self._update_cc_info()
+            self._last_refresh_text.value = f"Updated {datetime.now().strftime('%I:%M %p')}"
+            _safe_update(self._last_refresh_text)
             self._maybe_show_onboarding()
 
         except Exception as ex:
@@ -700,8 +721,14 @@ class DashboardView(ft.Column):
 
     def _on_nav_change(self, e: ft.ControlEvent) -> None:
         idx = e.control.selected_index
-        # Swap the content area's last child (the page content)
-        # Keep controls row and alerts, replace the page-specific content
+        # Index 3 = Refresh (action, not a page)
+        if idx == 3:
+            # Reset selection to previous page
+            self._nav_rail.selected_index = self._current_nav_index
+            _safe_update(self._nav_rail)
+            self.page.run_task(self._on_refresh_action)
+            return
+        self._current_nav_index = idx
         page_content = self._tab_pages[idx]
         self._content_area.controls = [
             self._content_area.controls[0],  # controls row
@@ -709,6 +736,14 @@ class DashboardView(ft.Column):
             page_content,
         ]
         self._content_area.update()
+
+    async def _on_refresh_action(self) -> None:
+        self.loading.visible = True
+        self.loading.update()
+        await self.monarch.refresh_accounts()
+        await self.load_data(force_refresh=True)
+        self.loading.visible = False
+        self.loading.update()
 
     async def _on_adjustment_change(self) -> None:
         await self._run_forecast()
