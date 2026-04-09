@@ -9,6 +9,7 @@ from flet_charts import (
     LineChart,
     LineChartData,
     LineChartDataPoint,
+    LineChartDataPointTooltip,
 )
 
 from src.forecast.models import ForecastResult
@@ -30,13 +31,16 @@ def build_forecast_chart(
     for day in result.days:
         x = (day.date - start_date).days
 
-        # Build tooltip content
-        lines = [f"{day.date.strftime('%b %d')}  ${day.ending_balance:,.2f}"]
-        for txn in day.transactions:
-            sign = "+" if txn.amount > 0 else "−"
-            lines.append(f"  {sign}${abs(txn.amount):,.2f} {txn.name}")
+        # Build concise tooltip — keep short to avoid truncation
+        lines = [f"{day.date.strftime('%b %d')} — ${day.ending_balance:,.2f}"]
+        for txn in day.transactions[:4]:  # Limit to 4 transactions
+            sign = "+" if txn.amount > 0 else "-"
+            name = txn.name[:20]
+            lines.append(f"{sign}${abs(txn.amount):,.0f} {name}")
+        if len(day.transactions) > 4:
+            lines.append(f"...+{len(day.transactions) - 4} more")
         if day.transactions:
-            lines.append(f"  Net: ${day.net_change:+,.2f}")
+            lines.append(f"Net: ${day.net_change:+,.0f}")
         tooltip_text = "\n".join(lines)
 
         # Color based on health
@@ -51,7 +55,14 @@ def build_forecast_chart(
             LineChartDataPoint(
                 x=x,
                 y=day.ending_balance,
-                tooltip=tooltip_text,
+                tooltip=LineChartDataPointTooltip(
+                    text=tooltip_text,
+                    text_style=ft.TextStyle(
+                        color=ft.Colors.WHITE,
+                        size=11,
+                        weight=ft.FontWeight.W_500,
+                    ),
+                ),
                 show_tooltip=True,
                 point=ChartCirclePoint(radius=3, color=color),
                 selected_point=ChartCirclePoint(radius=5, color=color),
