@@ -2,8 +2,11 @@
 
 import matplotlib
 
-if matplotlib.get_backend() == "agg" or not matplotlib.get_backend():
-    matplotlib.use("agg")
+if not matplotlib.get_backend() or matplotlib.get_backend().lower() != "agg":
+    try:
+        matplotlib.use("agg")
+    except Exception:
+        pass  # Backend already set by Flet runtime
 
 import flet as ft
 import matplotlib.pyplot as plt

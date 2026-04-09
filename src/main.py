@@ -76,7 +76,11 @@ async def main(page: ft.Page) -> None:
 def run() -> None:
     import warnings
 
-    warnings.filterwarnings("ignore", message=".*variable_values.*operation_name.*deprecated.*")
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        message=".*variable_values.*operation_name.*deprecated.*",
+    )
     ft.run(main)
 
 

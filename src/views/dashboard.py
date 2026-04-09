@@ -424,8 +424,6 @@ class DashboardView(ft.Column):
             return
 
         recurring = self.adjustments_panel.adjusted_recurring_items
-        if not recurring:
-            recurring = self._recurring_items
 
         one_offs = list(self.adjustments_panel.one_off_transactions)
 
