@@ -92,11 +92,6 @@ class DashboardView(ft.Column):
             on_submit=self._on_threshold_change,
             tooltip="Alert when projected balance drops below this amount",
         )
-        self.refresh_button = ft.IconButton(
-            icon=ft.Icons.REFRESH,
-            tooltip="Refresh accounts and re-detect recurring items",
-            on_click=self._on_refresh,
-        )
         self.logout_button = ft.IconButton(
             icon=ft.Icons.LOGOUT,
             tooltip="Sign out",
@@ -208,7 +203,7 @@ class DashboardView(ft.Column):
             expand=True,
         )
 
-        # Navigation rail
+        # Navigation rail — 3 page destinations + refresh/signout as actions
         self._nav_rail = ft.NavigationRail(
             destinations=[
                 ft.NavigationRailDestination(
@@ -243,31 +238,34 @@ class DashboardView(ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=4,
             ),
-            trailing=ft.Column(
-                [
-                    ft.Column(
-                        [
-                            self.refresh_button,
-                            ft.Text("Refresh", size=9, color=ft.Colors.OUTLINE),
-                        ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=0,
-                    ),
-                    ft.Container(height=16),
-                    ft.Column(
-                        [
-                            self.logout_button,
-                            ft.Text("Sign Out", size=9, color=ft.Colors.OUTLINE),
-                        ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=0,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=0,
-            ),
             min_width=80,
             group_alignment=-0.85,
+        )
+
+        # Bottom actions below the rail (refresh + sign out)
+        self._nav_column = ft.Column(
+            [
+                self._nav_rail,
+                ft.Container(expand=True),  # Push actions to bottom
+                ft.Column(
+                    [
+                        ft.IconButton(
+                            icon=ft.Icons.REFRESH,
+                            tooltip="Refresh accounts",
+                            on_click=self._on_refresh,
+                        ),
+                        ft.Text("Refresh", size=10, color=ft.Colors.OUTLINE),
+                        ft.Container(height=12),
+                        self.logout_button,
+                        ft.Text("Sign Out", size=10, color=ft.Colors.OUTLINE),
+                        ft.Container(height=8),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=0,
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            width=80,
         )
 
         # Final layout: rail + content
@@ -275,7 +273,7 @@ class DashboardView(ft.Column):
             self.update_banner_container,
             ft.Row(
                 [
-                    self._nav_rail,
+                    self._nav_column,
                     ft.VerticalDivider(width=1),
                     self._content_area,
                 ],
