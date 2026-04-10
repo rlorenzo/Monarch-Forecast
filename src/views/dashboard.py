@@ -221,12 +221,12 @@ class DashboardView(ft.Column):
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TABLE_CHART_OUTLINED,
                     selected_icon=ft.Icons.TABLE_CHART,
-                    label="Transactions",
+                    label="Txns",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TUNE_OUTLINED,
                     selected_icon=ft.Icons.TUNE,
-                    label="Adjustments",
+                    label="Adjust",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.REFRESH_OUTLINED,
@@ -236,6 +236,8 @@ class DashboardView(ft.Column):
             ],
             selected_index=0,
             label_type=ft.NavigationRailLabelType.ALL,
+            selected_label_text_style=ft.TextStyle(size=10),
+            unselected_label_text_style=ft.TextStyle(size=10),
             on_change=self._on_nav_change,
             leading=ft.Column(
                 [
