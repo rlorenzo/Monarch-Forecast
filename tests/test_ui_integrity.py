@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 import flet as ft
 
-from src.data.history import ForecastHistory
 from src.forecast.models import ForecastDay, ForecastResult, ForecastTransaction
 
 
@@ -40,7 +39,6 @@ class TestNoDeprecationWarnings:
         modules = [
             "src.main",
             "src.auth.login_view",
-            "src.views.accuracy",
             "src.views.adjustments",
             "src.views.alerts",
             "src.views.chart",
@@ -65,7 +63,6 @@ class TestNoDeprecationWarnings:
         monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
         monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
         monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-        monkeypatch.setattr("src.data.history.HISTORY_DB", tmp_path / "history.db")
         mock_keyring.get_password.return_value = None
 
         with warnings.catch_warnings():
@@ -105,7 +102,6 @@ class TestDashboardViewInit:
         monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
         monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
         monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-        monkeypatch.setattr("src.data.history.HISTORY_DB", tmp_path / "history.db")
 
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
@@ -120,7 +116,6 @@ class TestDashboardViewInit:
         monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
         monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
         monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-        monkeypatch.setattr("src.data.history.HISTORY_DB", tmp_path / "history.db")
 
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
@@ -149,7 +144,6 @@ class TestScrollableColumnLayout:
         monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
         monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
         monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-        monkeypatch.setattr("src.data.history.HISTORY_DB", tmp_path / "history.db")
 
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
@@ -186,14 +180,6 @@ class TestViewBuildersSmoke:
         alerts = generate_alerts(_make_forecast(), safety_threshold=500.0)
         banner = build_alerts_banner(alerts)
         assert isinstance(banner, ft.Column)
-
-    def test_build_accuracy_view_empty(self, tmp_path: Path):
-        from src.views.accuracy import build_accuracy_view
-
-        history = ForecastHistory(db_path=tmp_path / "h.db")
-        view = build_accuracy_view(history, "acct1")
-        assert isinstance(view, ft.Column)
-        history.close()
 
     def test_build_update_banner(self):
         from src.views.update_banner import build_update_banner

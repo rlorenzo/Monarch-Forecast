@@ -23,7 +23,7 @@ class AdjustmentsPanel(ft.Column):
         self._on_change = on_change
         self._prefs = preferences or Preferences()
         self._selected_account_id = ""
-        self._one_offs: list[ForecastTransaction] = []
+        self._one_offs: list[ForecastTransaction] = self._prefs.one_off_transactions
 
         self.spacing = 16
 
@@ -146,6 +146,8 @@ class AdjustmentsPanel(ft.Column):
 
     def did_mount(self) -> None:
         self._rebuild_override_rows()
+        if self._one_offs:
+            self._rebuild_oneoff_rows()
 
     @property
     def one_off_transactions(self) -> list[ForecastTransaction]:
@@ -232,6 +234,7 @@ class AdjustmentsPanel(ft.Column):
                 is_recurring=False,
             )
         )
+        self._prefs.set_one_off_transactions(self._one_offs)
 
         self._oneoff_name.value = ""
         self._oneoff_amount.value = ""
@@ -243,9 +246,17 @@ class AdjustmentsPanel(ft.Column):
         self._rebuild_oneoff_rows()
         self._on_change()
 
-    def _remove_one_off(self, index: int) -> None:
+    def _remove_one_off(self, index: int, row: ft.Row | None = None) -> None:
         if 0 <= index < len(self._one_offs):
+            # Show spinner in place of the delete button immediately
+            if row is not None and len(row.controls) > 0:
+                row.controls[-1] = ft.ProgressRing(width=18, height=18, stroke_width=2)
+                try:
+                    row.update()
+                except RuntimeError:
+                    pass
             self._one_offs.pop(index)
+            self._prefs.set_one_off_transactions(self._one_offs)
             self._rebuild_oneoff_rows()
             self._on_change()
 
@@ -254,27 +265,28 @@ class AdjustmentsPanel(ft.Column):
         for i, txn in enumerate(self._one_offs):
             is_expense = txn.amount < 0
             idx = i
-            rows.append(
-                ft.Row(
-                    [
-                        ft.Text(txn.date.strftime("%b %d"), width=70),
-                        ft.Text(txn.name, width=160, weight=ft.FontWeight.W_500),
-                        ft.Text(
-                            f"{'−' if is_expense else '+'} ${abs(txn.amount):,.2f}",
-                            color=ft.Colors.RED_400 if is_expense else ft.Colors.GREEN_400,
-                            width=100,
-                        ),
-                        ft.IconButton(
-                            icon=ft.Icons.DELETE_OUTLINE,
-                            icon_size=18,
-                            tooltip="Remove",
-                            on_click=lambda _, i=idx: self._remove_one_off(i),
-                            icon_color=ft.Colors.ERROR,
-                        ),
-                    ],
-                    spacing=8,
+            row = ft.Row(
+                [
+                    ft.Text(txn.date.strftime("%b %d"), width=70),
+                    ft.Text(txn.name, width=160, weight=ft.FontWeight.W_500),
+                    ft.Text(
+                        f"{'−' if is_expense else '+'} ${abs(txn.amount):,.2f}",
+                        color=ft.Colors.RED_400 if is_expense else ft.Colors.GREEN_400,
+                        width=100,
+                    ),
+                ],
+                spacing=8,
+            )
+            row.controls.append(
+                ft.IconButton(
+                    icon=ft.Icons.DELETE_OUTLINE,
+                    icon_size=18,
+                    tooltip="Remove",
+                    on_click=lambda _, i=idx, r=row: self._remove_one_off(i, r),
+                    icon_color=ft.Colors.ERROR,
                 )
             )
+            rows.append(row)
         self._oneoff_list.controls = rows
         try:
             self._oneoff_list.update()

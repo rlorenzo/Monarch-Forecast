@@ -4,7 +4,6 @@ import flet as ft
 
 from src.auth.login_view import LoginView
 from src.auth.session_manager import SessionManager
-from src.data.history import ForecastHistory
 from src.utils.updater import get_current_version
 from src.views.dashboard import DashboardView
 
@@ -23,14 +22,6 @@ async def main(page: ft.Page) -> None:
     )
 
     session_manager = SessionManager()
-
-    # Clean up old forecast history on startup
-    try:
-        history = ForecastHistory()
-        history.cleanup_old_data(keep_days=90)
-        history.close()
-    except Exception:
-        pass
 
     async def do_logout() -> None:
         session_manager.logout()

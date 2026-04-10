@@ -1,14 +1,12 @@
 # Monarch Forecast
 
-A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that projects your checking account balance day-by-day using data from [Monarch Money](https://www.monarchmoney.com/). See where your money is headed, spot shortfalls before they happen, and track how accurate your forecasts have been over time.
+A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that projects your checking account balance day-by-day using data from [Monarch Money](https://www.monarchmoney.com/). See where your money is headed and spot shortfalls before they happen.
 
 ## Screenshots
 
 <!-- Replace with actual screenshots -->
 
-| Dashboard | Accuracy tracking |
-|-----------|-------------------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Accuracy](docs/screenshots/accuracy.png) |
+![Dashboard](docs/screenshots/dashboard.png)
 
 > *Screenshots coming soon. Run `uv run monarch-forecast` to see the app in action.*
 
@@ -17,7 +15,6 @@ A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that pro
 - **Cash flow forecasting** — Projects your checking account balance 45+ days ahead by combining recurring income/expenses with one-off transactions and credit card payment estimates
 - **Low-balance alerts** — Flags dates where your balance is projected to drop below a safety threshold
 - **Manual adjustments** — Add one-off transactions (upcoming bills, expected refunds) to refine the forecast
-- **Forecast accuracy tracking** — Compares past predictions against actual balances with stats and a predicted-vs-actual chart
 - **Auto-update notifications** — Checks GitHub Releases for newer versions on startup
 - **Cross-platform** — Builds for macOS (.dmg), Windows (.msix), and Linux (.AppImage)
 
@@ -26,7 +23,6 @@ A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that pro
 - **Recurring transactions** are detected by analyzing 90 days of transaction history — the app groups by merchant, checks amount consistency, and infers frequency (weekly, biweekly, monthly, or yearly)
 - **Credit card payments** are estimated using each card's current balance and either its existing recurring payment date or a default 25-day billing cycle
 - Only **checking accounts** are forecasted — credit card, savings, and investment accounts are not included in projections
-- Forecast accuracy is measured by comparing past predictions against actual balances recorded each time you open the app
 
 ## Installation
 
@@ -53,14 +49,13 @@ uv run monarch-forecast
 
 ## Usage
 
-On first launch you'll sign in to Monarch Money and select a checking account. The app projects your balance forward based on recurring transactions — accuracy improves over time as it records daily snapshots to compare predictions against actuals.
+On first launch you'll sign in to Monarch Money and select a checking account. The app projects your balance forward based on recurring transactions.
 
 1. Launch the app and sign in with your Monarch Money email and password
 2. If your account has MFA enabled, you'll be prompted for a code
 3. Select a checking account from the dropdown
 4. The forecast chart and summary cards update automatically
 5. Use the adjustments panel to add one-off transactions
-6. Check the accuracy section to see how past forecasts compared to reality
 
 ### Authentication and data storage
 
@@ -70,7 +65,8 @@ This app uses the [monarchmoney](https://github.com/hammem/monarchmoney) communi
 
 - **Credentials** — Email and password are stored in your OS keychain via [keyring](https://pypi.org/project/keyring/) (macOS Keychain, Windows Credential Locker, or SecretService on Linux). Cleared on logout.
 - **Session token** — Saved to `~/.monarch-forecast/session.pickle` (file permissions `600`) for automatic session restore. Deleted on logout.
-- **Forecast history** — SQLite database at `~/.monarch-forecast/history.db` storing forecast snapshots and actual balances for accuracy tracking. Auto-cleaned after 90 days.
+- **Preferences** — JSON file at `~/.monarch-forecast/preferences.json` storing excluded recurring items, credit card selections, amount overrides, and one-off transactions.
+- **Transaction cache** — SQLite database at `~/.monarch-forecast/cache.db` caching recent Monarch data to avoid hammering the API on every launch.
 
 Your financial data is only sent to Monarch Money's servers. The only other outbound request is an update check to the GitHub Releases API on startup (no financial data is included).
 
@@ -116,10 +112,10 @@ See the [Flet packaging guide](https://flet.dev/docs/publish) for other platform
 src/
 ├── main.py                 # Flet app entry point
 ├── auth/                   # Login UI and session management (keyring + MFA)
-├── data/                   # Monarch API client, caching, credit card estimation, history
+├── data/                   # Monarch API client, caching, credit card estimation
 ├── forecast/               # Day-by-day balance projection engine and data models
 ├── utils/                  # Date helpers, GitHub release update checker
-└── views/                  # Dashboard, chart, alerts, adjustments, accuracy, update banner
+└── views/                  # Dashboard, chart, alerts, adjustments, update banner
 ```
 
 ## Troubleshooting
@@ -128,7 +124,6 @@ src/
 - **Keychain access denied** — On macOS, the app needs Keychain Access permission. On Linux, make sure a SecretService provider (like `gnome-keyring` or `kwallet`) is running.
 - **"App is damaged" / Gatekeeper warning (macOS)** — The app is not notarized. Right-click and choose "Open", or allow it in System Settings > Privacy & Security.
 - **AppImage won't run (Linux)** — Make sure it's executable: `chmod +x Monarch-Forecast-*.AppImage`. You may also need FUSE installed (`sudo apt install libfuse2` on Ubuntu).
-- **Forecast accuracy section is empty** — Accuracy data builds up over time. The app records a snapshot each time you open it, so results appear after a few days of use.
 - **Update banner doesn't appear** — The update check is best-effort and requires internet access. It queries the GitHub Releases API on startup; failures are silently ignored.
 
 ## License

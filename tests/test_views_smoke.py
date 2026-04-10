@@ -1,11 +1,9 @@
 """Smoke tests for view modules — verify they don't crash on construction."""
 
 from datetime import date
-from pathlib import Path
 
 import flet as ft
 
-from src.data.history import ForecastHistory
 from src.forecast.models import (
     ForecastDay,
     ForecastResult,
@@ -29,41 +27,6 @@ def _make_forecast(
         b = day.ending_balance
         days.append(day)
     return ForecastResult(days=days, starting_balance=balance, safety_threshold=threshold)
-
-
-class TestAccuracyViewSmoke:
-    def test_no_data(self, tmp_path: Path):
-        from src.views.accuracy import build_accuracy_view
-
-        history = ForecastHistory(db_path=tmp_path / "test.db")
-        result = build_accuracy_view(history, "acct1")
-        assert isinstance(result, ft.Column)
-        history.close()
-
-    def test_with_data(self, tmp_path: Path):
-        from datetime import timedelta
-
-        from src.views.accuracy import build_accuracy_view
-
-        history = ForecastHistory(db_path=tmp_path / "test.db")
-        # Seed data relative to today so lookback window always includes them
-        today = date.today()
-        snapshot = (today - timedelta(days=10)).isoformat()
-        for i in range(5):
-            target = (today - timedelta(days=5 - i)).isoformat()
-            history._conn.execute(
-                "INSERT INTO forecast_snapshots VALUES (NULL,?,?,?,?)",
-                (snapshot, "acct1", target, 5000.0 + i * 100),
-            )
-            history._conn.execute(
-                "INSERT INTO actual_balances VALUES (NULL,?,?,?)",
-                (target, "acct1", 4900.0 + i * 50),
-            )
-        history._conn.commit()
-
-        result = build_accuracy_view(history, "acct1")
-        assert isinstance(result, ft.Column)
-        history.close()
 
 
 class TestChartSmoke:

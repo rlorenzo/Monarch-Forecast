@@ -1,7 +1,10 @@
 """User preferences persisted to disk (excluded items, CC selections, etc.)."""
 
 import json
+from datetime import date
 from pathlib import Path
+
+from src.forecast.models import ForecastTransaction
 
 PREFS_DIR = Path.home() / ".monarch-forecast"
 PREFS_FILE = PREFS_DIR / "preferences.json"
@@ -121,4 +124,39 @@ class Preferences:
         overrides = dict(self._data.get("cc_amount_overrides", {}))
         overrides.pop(cc_id, None)
         self._data["cc_amount_overrides"] = overrides
+        self._save()
+
+    @property
+    def one_off_transactions(self) -> list[ForecastTransaction]:
+        """One-off what-if transactions. Past-dated entries are dropped on load."""
+        today = date.today()
+        result: list[ForecastTransaction] = []
+        for raw in self._data.get("one_off_transactions", []):
+            try:
+                txn_date = date.fromisoformat(raw["date"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if txn_date < today:
+                continue
+            result.append(
+                ForecastTransaction(
+                    date=txn_date,
+                    name=raw.get("name", ""),
+                    amount=float(raw.get("amount", 0.0)),
+                    category=raw.get("category", "Adjustment"),
+                    is_recurring=False,
+                )
+            )
+        return result
+
+    def set_one_off_transactions(self, transactions: list[ForecastTransaction]) -> None:
+        self._data["one_off_transactions"] = [
+            {
+                "date": txn.date.isoformat(),
+                "name": txn.name,
+                "amount": txn.amount,
+                "category": txn.category,
+            }
+            for txn in transactions
+        ]
         self._save()

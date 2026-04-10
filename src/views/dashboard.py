@@ -10,13 +10,11 @@ from src.auth.session_manager import SessionManager
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
 from src.data.credit_cards import DEFAULT_GRACE_PERIOD, estimate_cc_payments, infer_due_day
-from src.data.history import ForecastHistory
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
 from src.data.recurring_detector import detect_recurring
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult, RecurringItem
-from src.views.accuracy import build_accuracy_view
 from src.views.adjustments import AdjustmentsPanel
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart
@@ -65,7 +63,6 @@ class DashboardView(ft.Column):
         self._raw_client = MonarchClient(session_manager.client)
         self._cache = DataCache()
         self.monarch = CachedMonarchClient(self._raw_client, self._cache)
-        self._history = ForecastHistory()
         self._prefs = Preferences()
         self.on_logout = on_logout
 
@@ -127,7 +124,6 @@ class DashboardView(ft.Column):
         )
         self.cc_info_container = ft.Container()
         self.update_banner_container = ft.Container()
-        self.accuracy_container = ft.Container()
 
         # --- Build page sections ---
         self._overview_content = ft.Column(
@@ -167,14 +163,6 @@ class DashboardView(ft.Column):
             controls=[
                 self.cc_info_container,
                 self.adjustments_panel,
-                ft.Container(height=16),
-                ft.Text("Forecast Accuracy", size=18, weight=ft.FontWeight.W_600),
-                ft.Text(
-                    "How accurate past forecasts were compared to actual balances.",
-                    size=12,
-                    color=ft.Colors.OUTLINE,
-                ),
-                self.accuracy_container,
             ],
             spacing=8,
         )
@@ -379,8 +367,6 @@ class DashboardView(ft.Column):
                 _safe_update(self.table_container)
                 self.alerts_container.content = None
                 _safe_update(self.alerts_container)
-                self.accuracy_container.content = None
-                _safe_update(self.accuracy_container)
 
             self._update_cc_info()
             self._last_refresh_text.value = f"Updated {datetime.now().strftime('%I:%M %p')}"
@@ -405,8 +391,6 @@ class DashboardView(ft.Column):
             _safe_update(self.alerts_container)
             self.cc_info_container.content = None
             _safe_update(self.cc_info_container)
-            self.accuracy_container.content = None
-            _safe_update(self.accuracy_container)
 
         finally:
             self.loading.visible = False
@@ -514,11 +498,6 @@ class DashboardView(ft.Column):
         self._update_summary(account)
         self._update_chart()
         self._update_table()
-
-        self._history.record_actual_balance(self._selected_account_id, account["balance"])
-        predictions = [(day.date, day.ending_balance) for day in self._forecast.days]
-        self._history.save_forecast_snapshot(self._selected_account_id, predictions)
-        self._update_accuracy()
 
     def _update_alerts(self) -> None:
         if not self._forecast:
@@ -836,13 +815,6 @@ class DashboardView(ft.Column):
         except Exception:
             pass
 
-    def _update_accuracy(self) -> None:
-        if not self._selected_account_id:
-            return
-        accuracy_view = build_accuracy_view(self._history, self._selected_account_id)
-        self.accuracy_container.content = accuracy_view
-        _safe_update(self.accuracy_container)
-
     def _on_nav_change(self, e: ft.ControlEvent) -> None:
         idx = e.control.selected_index
         # Index 3 = Refresh (action, not a page)
@@ -895,7 +867,6 @@ class DashboardView(ft.Column):
         await self._run_forecast()
 
     def _handle_logout(self) -> None:
-        self._history.close()
         self.on_logout()
 
     async def _on_refresh(self, e: ft.ControlEvent) -> None:
