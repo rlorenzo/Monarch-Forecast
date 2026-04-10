@@ -151,11 +151,6 @@ def _estimate_from_cycle(
 
     amount = _sum_cc_charges(cc_id, transactions, cycle_start, cycle_end)
 
-    print(f"[CC DEBUG] {cc_name}: cycle ({cycle_start}, {cycle_end}] = ${amount:.2f} ({label})")
-    print(
-        f"[CC DEBUG]   cc_id={cc_id}, due={next_due}, txns matching id: {sum(1 for t in transactions if (t.get('account') or {}).get('id') == cc_id)}"
-    )
-
     # If the closed cycle has no charges, check the open (next) cycle
     if amount == 0 and label == "stmt":
         next_close = _next_month_day(last_close, close_day)

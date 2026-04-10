@@ -25,7 +25,10 @@ class Preferences:
 
     def _save(self) -> None:
         self._path.write_text(json.dumps(self._data, indent=2))
-        self._path.chmod(0o600)
+        try:
+            self._path.chmod(0o600)
+        except OSError:
+            pass  # chmod not supported on all platforms
 
     @property
     def excluded_recurring_names(self) -> set[str]:
