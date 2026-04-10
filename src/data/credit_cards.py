@@ -26,6 +26,7 @@ def estimate_cc_payments(
     transactions: list[dict] | None = None,
     today: date | None = None,
     cc_settings: dict[str, dict[str, int]] | None = None,
+    amount_overrides: dict[str, float] | None = None,
 ) -> list[ForecastTransaction]:
     """Estimate upcoming credit card payments.
 
@@ -37,12 +38,15 @@ def estimate_cc_payments(
         today: Override for current date (for testing).
         cc_settings: Per-CC billing settings from preferences.
             Format: {cc_id: {"due_day": int, "close_day": int}}
+        amount_overrides: Per-CC amount overrides from user.
+            Format: {cc_id: float}
     """
     if today is None:
         today = date.today()
     end = today + timedelta(days=forecast_days)
     txns = transactions or []
     settings = cc_settings or {}
+    overrides = amount_overrides or {}
     payments: list[ForecastTransaction] = []
 
     for cc in cc_accounts:
@@ -75,6 +79,11 @@ def estimate_cc_payments(
                     continue
                 amount = abs(balance)
                 label = "est."
+
+        # Apply user amount override if set
+        if cc_id in overrides:
+            amount = abs(overrides[cc_id])
+            label = "manual"
 
         payments.append(
             ForecastTransaction(

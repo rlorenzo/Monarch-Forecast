@@ -9,7 +9,7 @@ import flet as ft
 from src.auth.session_manager import SessionManager
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
-from src.data.credit_cards import estimate_cc_payments
+from src.data.credit_cards import DEFAULT_GRACE_PERIOD, _infer_due_day, estimate_cc_payments
 from src.data.history import ForecastHistory
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
@@ -479,6 +479,7 @@ class DashboardView(ft.Column):
             self._days_out,
             transactions=self._txn_history,
             cc_settings=self._prefs.cc_billing_settings,
+            amount_overrides=self._prefs.cc_amount_overrides,
         )
         if cc_payments:
             one_offs.extend(cc_payments)
@@ -521,6 +522,18 @@ class DashboardView(ft.Column):
         self._prefs.set_cc_excluded(cc_id, excluded=not included)
         self.page.run_task(self._run_forecast)
 
+    def _on_cc_amount_override(self, cc_id: str, value: str) -> None:
+        """Handle manual amount override for a CC."""
+        try:
+            amount = float(value)
+            if amount > 0:
+                self._prefs.set_cc_amount_override(cc_id, amount)
+            else:
+                self._prefs.clear_cc_amount_override(cc_id)
+        except ValueError:
+            self._prefs.clear_cc_amount_override(cc_id)
+        self.page.run_task(self._run_forecast)
+
     def _on_cc_billing_change(self, cc_id: str, field: str, value: str) -> None:
         """Handle due_day or close_day change for a CC."""
         try:
@@ -547,6 +560,7 @@ class DashboardView(ft.Column):
 
         excluded = self._prefs.excluded_cc_ids
         billing = self._prefs.cc_billing_settings
+        amt_overrides = self._prefs.cc_amount_overrides
         cards = []
 
         for cc in self._cc_accounts:
@@ -558,6 +572,16 @@ class DashboardView(ft.Column):
             cc_billing = billing.get(cc_id, {})
             due_day = cc_billing.get("due_day", "")
             close_day = cc_billing.get("close_day", "")
+            amt_override = amt_overrides.get(cc_id, "")
+
+            # Auto-detect due day from payment history for hint text
+            inferred_due = _infer_due_day(name, self._txn_history) if not due_day else 0
+            due_hint = f"detected: {inferred_due}" if inferred_due else "e.g., 1"
+            close_hint = (
+                f"detected: {max(1, inferred_due - DEFAULT_GRACE_PERIOD)}"
+                if inferred_due
+                else "e.g., 4"
+            )
 
             cards.append(
                 ft.ExpansionTile(
@@ -574,38 +598,64 @@ class DashboardView(ft.Column):
                     ),
                     controls=[
                         ft.Container(
-                            content=ft.Row(
+                            content=ft.Column(
                                 [
-                                    ft.TextField(
-                                        label="Due day",
-                                        value=str(due_day) if due_day else "",
-                                        width=90,
-                                        dense=True,
-                                        keyboard_type=ft.KeyboardType.NUMBER,
-                                        tooltip="Day of month payment is due (e.g., 1)",
-                                        on_submit=lambda e, cid=cc_id: self._on_cc_billing_change(
-                                            cid, "due_day", e.control.value
-                                        ),
-                                    ),
-                                    ft.TextField(
-                                        label="Close day",
-                                        value=str(close_day) if close_day else "",
-                                        width=90,
-                                        dense=True,
-                                        keyboard_type=ft.KeyboardType.NUMBER,
-                                        tooltip="Day of month statement closes (e.g., 4)",
-                                        on_submit=lambda e, cid=cc_id: self._on_cc_billing_change(
-                                            cid, "close_day", e.control.value
-                                        ),
+                                    ft.Row(
+                                        [
+                                            ft.TextField(
+                                                label="Due day",
+                                                value=str(due_day) if due_day else "",
+                                                hint_text=due_hint,
+                                                width=120,
+                                                dense=True,
+                                                keyboard_type=ft.KeyboardType.NUMBER,
+                                                tooltip="Day of month payment is due",
+                                                on_submit=lambda e, cid=cc_id: (
+                                                    self._on_cc_billing_change(
+                                                        cid, "due_day", e.control.value
+                                                    )
+                                                ),
+                                            ),
+                                            ft.TextField(
+                                                label="Close day",
+                                                value=str(close_day) if close_day else "",
+                                                hint_text=close_hint,
+                                                width=120,
+                                                dense=True,
+                                                keyboard_type=ft.KeyboardType.NUMBER,
+                                                tooltip="Day of month statement closes",
+                                                on_submit=lambda e, cid=cc_id: (
+                                                    self._on_cc_billing_change(
+                                                        cid, "close_day", e.control.value
+                                                    )
+                                                ),
+                                            ),
+                                            ft.TextField(
+                                                label="Payment amount",
+                                                value=str(amt_override) if amt_override else "",
+                                                hint_text="auto" if not amt_override else "",
+                                                prefix=ft.Text("$"),
+                                                width=140,
+                                                dense=True,
+                                                keyboard_type=ft.KeyboardType.NUMBER,
+                                                tooltip="Override the estimated payment amount",
+                                                on_submit=lambda e, cid=cc_id: (
+                                                    self._on_cc_amount_override(
+                                                        cid, e.control.value
+                                                    )
+                                                ),
+                                            ),
+                                        ],
+                                        spacing=12,
                                     ),
                                     ft.Text(
-                                        "Set both to improve payment estimates",
+                                        "Press Enter after typing to save. Leave amount blank for auto-estimate.",
                                         size=11,
                                         color=ft.Colors.OUTLINE,
                                         italic=True,
                                     ),
                                 ],
-                                spacing=12,
+                                spacing=4,
                             ),
                             padding=ft.Padding.only(left=48, bottom=8),
                         ),

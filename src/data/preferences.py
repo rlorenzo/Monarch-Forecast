@@ -102,3 +102,20 @@ class Preferences:
         billing.pop(cc_id, None)
         self._data["cc_billing"] = billing
         self._save()
+
+    @property
+    def cc_amount_overrides(self) -> dict[str, float]:
+        """Per-CC payment amount overrides: {cc_id: amount}."""
+        return dict(self._data.get("cc_amount_overrides", {}))
+
+    def set_cc_amount_override(self, cc_id: str, amount: float) -> None:
+        overrides = dict(self._data.get("cc_amount_overrides", {}))
+        overrides[cc_id] = amount
+        self._data["cc_amount_overrides"] = overrides
+        self._save()
+
+    def clear_cc_amount_override(self, cc_id: str) -> None:
+        overrides = dict(self._data.get("cc_amount_overrides", {}))
+        overrides.pop(cc_id, None)
+        self._data["cc_amount_overrides"] = overrides
+        self._save()
