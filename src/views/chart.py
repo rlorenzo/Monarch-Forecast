@@ -54,15 +54,13 @@ def build_forecast_chart(
             )
         )
 
-    # Single data series with blue line and red fill below zero
+    # Single data series with blue line; points colored green/red
     balance_series = LineChartData(
         points=points,
         color=_BLUE,
         stroke_width=2.5,
         curved=True,
         prevent_curve_over_shooting=True,
-        below_line_bgcolor=ft.Colors.with_opacity(0.15, _RED),
-        below_line_cutoff_y=0,
     )
 
     # X-axis labels
