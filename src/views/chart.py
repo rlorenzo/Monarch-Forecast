@@ -78,9 +78,14 @@ def build_forecast_chart(
             )
 
     all_balances = [d.ending_balance for d in result.days]
-    min_y = min(0, min(all_balances) * 1.1)
-    max_y = max(all_balances) * 1.1
-    # Ensure non-zero vertical span so the chart renders correctly when all balances are equal
+    min_bal = min(all_balances)
+    max_bal = max(all_balances)
+    # Pad each bound by 10% of its absolute value so the line has breathing room.
+    # Using abs() ensures the padding always moves in the right direction regardless of sign.
+    min_y = min(0, min_bal - abs(min_bal) * 0.1)
+    max_y = max_bal + abs(max_bal) * 0.1
+    # Ensure non-zero vertical span (e.g. all-zero or constant-balance forecasts).
+    # $200 gives a readable chart scale when the account is flat.
     if min_y == max_y:
         min_y -= 100
         max_y += 100
