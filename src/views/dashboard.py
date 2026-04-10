@@ -236,8 +236,6 @@ class DashboardView(ft.Column):
             ],
             selected_index=0,
             label_type=ft.NavigationRailLabelType.ALL,
-            selected_label_text_style=ft.TextStyle(size=10),
-            unselected_label_text_style=ft.TextStyle(size=10),
             on_change=self._on_nav_change,
             leading=ft.Column(
                 [
