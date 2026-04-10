@@ -676,27 +676,25 @@ class DashboardView(ft.Column):
                 )
             )
 
+        included_count = sum(1 for cc in self._cc_accounts if cc.get("id", "") not in excluded)
+        total_count = len(self._cc_accounts)
+
         self.cc_info_container.content = ft.Card(
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Icon(ft.Icons.CREDIT_CARD, color=ft.Colors.PRIMARY, size=20),
-                                ft.Text("Credit Cards", size=16, weight=ft.FontWeight.W_600),
-                            ],
-                            spacing=8,
-                        ),
-                        ft.Text(
-                            "Expand a card to set billing dates for accurate payment estimates",
-                            size=12,
-                            color=ft.Colors.OUTLINE,
-                        ),
-                        *cards,
-                    ],
-                    spacing=4,
+            content=ft.ExpansionTile(
+                leading=ft.Icon(ft.Icons.CREDIT_CARD, color=ft.Colors.PRIMARY, size=20),
+                title=ft.Text(
+                    f"Credit Cards ({included_count}/{total_count})",
+                    size=16,
+                    weight=ft.FontWeight.W_600,
                 ),
-                padding=16,
+                subtitle=ft.Text(
+                    "Expand a card to set billing dates for accurate estimates",
+                    size=12,
+                    color=ft.Colors.OUTLINE,
+                ),
+                controls=cards,
+                controls_padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                expanded=False,
             ),
         )
         _safe_update(self.cc_info_container)
