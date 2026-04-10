@@ -574,14 +574,13 @@ class DashboardView(ft.Column):
             close_day = cc_billing.get("close_day", "")
             amt_override = amt_overrides.get(cc_id, "")
 
-            # Auto-detect due day from payment history for hint text
-            inferred_due = _infer_due_day(name, self._txn_history) if not due_day else 0
-            due_hint = f"detected: {inferred_due}" if inferred_due else "e.g., 1"
-            close_hint = (
-                f"detected: {max(1, inferred_due - DEFAULT_GRACE_PERIOD)}"
-                if inferred_due
-                else "e.g., 4"
-            )
+            # Auto-detect and auto-fill due day from payment history
+            if not due_day:
+                inferred_due = _infer_due_day(name, self._txn_history)
+                if inferred_due:
+                    due_day = inferred_due
+                    close_day = max(1, inferred_due - DEFAULT_GRACE_PERIOD)
+                    self._prefs.set_cc_billing(cc_id, due_day=due_day, close_day=close_day)
 
             cards.append(
                 ft.ExpansionTile(
@@ -605,7 +604,7 @@ class DashboardView(ft.Column):
                                             ft.TextField(
                                                 label="Due day",
                                                 value=str(due_day) if due_day else "",
-                                                hint_text=due_hint,
+                                                hint_text="e.g., 1",
                                                 width=120,
                                                 dense=True,
                                                 keyboard_type=ft.KeyboardType.NUMBER,
@@ -619,7 +618,7 @@ class DashboardView(ft.Column):
                                             ft.TextField(
                                                 label="Close day",
                                                 value=str(close_day) if close_day else "",
-                                                hint_text=close_hint,
+                                                hint_text="e.g., 4",
                                                 width=120,
                                                 dense=True,
                                                 keyboard_type=ft.KeyboardType.NUMBER,
