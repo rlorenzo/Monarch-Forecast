@@ -51,7 +51,7 @@ class AdjustmentsPanel(ft.Column):
             width=140,
             value=default_date.strftime("%b %d, %Y"),
             read_only=True,
-            on_click=lambda _: self.page.open(self._oneoff_date_picker),
+            on_click=lambda _: self.page.show_dialog(self._oneoff_date_picker),
             tooltip="Click to pick a date",
         )
         self._oneoff_type = ft.Dropdown(
@@ -323,6 +323,13 @@ class AdjustmentsPanel(ft.Column):
             if not is_excluded:
                 included_count += 1
 
+            # Calculate next occurrence date
+            from src.utils.date_helpers import next_occurrence
+
+            today = date.today()
+            next_date = next_occurrence(item.base_date, item.frequency, today)
+            next_date_str = next_date.strftime("%b %d") if next_date else "—"
+
             rows.append(
                 ft.Row(
                     [
@@ -338,14 +345,20 @@ class AdjustmentsPanel(ft.Column):
                         ),
                         ft.Text(
                             item.name,
-                            width=170,
+                            width=160,
                             weight=ft.FontWeight.W_500,
                             color=ft.Colors.OUTLINE if is_excluded else None,
                         ),
-                        ft.Text(item.frequency, width=80, color=ft.Colors.OUTLINE, size=12),
+                        ft.Text(item.frequency, width=70, color=ft.Colors.OUTLINE, size=12),
+                        ft.Text(
+                            f"Next: {next_date_str}",
+                            width=90,
+                            size=11,
+                            color=ft.Colors.OUTLINE,
+                        ),
                         ft.Text(
                             f"{'+' if is_income else '−'}${abs(item.amount):,.2f}",
-                            width=110,
+                            width=100,
                             size=12,
                             color=(ft.Colors.GREEN_400 if is_income else ft.Colors.RED_400)
                             if not is_excluded
