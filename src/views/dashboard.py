@@ -239,16 +239,16 @@ class DashboardView(ft.Column):
             on_change=self._on_nav_change,
             leading=ft.Column(
                 [
-                    ft.Icon(ft.Icons.ACCOUNT_BALANCE, color=ft.Colors.PRIMARY, size=28),
+                    ft.Image(src="assets/icon.png", width=36, height=36),
                     ft.Text(
                         "Monarch\nForecast",
-                        size=11,
+                        size=9,
                         text_align=ft.TextAlign.CENTER,
                         weight=ft.FontWeight.BOLD,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=4,
+                spacing=2,
             ),
             min_width=80,
             group_alignment=-0.85,
