@@ -118,7 +118,7 @@ def _estimate_from_cycle(
             return None
     else:
         # Infer from payment history
-        due_day = _infer_due_day(cc_name, transactions)
+        due_day = infer_due_day(cc_name, transactions)
         if not due_day:
             return None
         # Default: statement closes ~25 days before due date
@@ -166,7 +166,7 @@ def _estimate_from_cycle(
     return next_due, amount, label
 
 
-def _infer_due_day(cc_name: str, transactions: list[dict]) -> int:
+def infer_due_day(cc_name: str, transactions: list[dict]) -> int:
     """Infer due day-of-month from payment history."""
     cc_name_lower = cc_name.lower()
     payment_days: list[int] = []

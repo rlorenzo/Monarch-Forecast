@@ -9,7 +9,7 @@ import flet as ft
 from src.auth.session_manager import SessionManager
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
-from src.data.credit_cards import DEFAULT_GRACE_PERIOD, _infer_due_day, estimate_cc_payments
+from src.data.credit_cards import DEFAULT_GRACE_PERIOD, estimate_cc_payments, infer_due_day
 from src.data.history import ForecastHistory
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
@@ -23,7 +23,19 @@ from src.views.chart import build_forecast_chart
 from src.views.transactions_table import build_transactions_table
 from src.views.update_banner import build_update_banner, check_update_async
 
-_ICON_PATH = str(Path(__file__).resolve().parent.parent.parent / "assets" / "icon.png")
+
+def _resolve_icon_path() -> str:
+    """Find the app icon, trying absolute path first then relative.
+
+    Absolute path works in dev mode; relative path works in Flet packaged builds.
+    """
+    abs_path = Path(__file__).resolve().parent.parent.parent / "assets" / "icon.png"
+    if abs_path.exists():
+        return str(abs_path)
+    return "assets/icon.png"
+
+
+_ICON_PATH = _resolve_icon_path()
 
 
 def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
@@ -576,7 +588,7 @@ class DashboardView(ft.Column):
 
             # Auto-detect due day from payment history (only if never set)
             if not due_day and cc_id not in billing:
-                inferred_due = _infer_due_day(name, self._txn_history)
+                inferred_due = infer_due_day(name, self._txn_history)
                 if inferred_due:
                     due_day = inferred_due
                     # Statement close is ~25 days before due, wrapping around month
