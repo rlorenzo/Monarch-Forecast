@@ -13,13 +13,13 @@ def estimate_cc_payments(
 ) -> list[ForecastTransaction]:
     """Estimate upcoming credit card payments as forecast transactions.
 
-    Uses current CC balance as the estimated next statement amount.
-    If a recurring payment already exists for the card, uses that date;
-    otherwise assumes payment due ~25 days from now (typical billing cycle).
+    Uses the recurring payment amount (from transaction history) as the best
+    estimate of the statement balance. Falls back to the current balance only
+    if no recurring payment history is found.
 
     Args:
         cc_accounts: Credit card accounts with id, name, balance.
-        recurring_items: Existing recurring items (to find CC payment dates).
+        recurring_items: Existing recurring items (to find CC payment dates/amounts).
         forecast_days: How far out to look.
 
     Returns:
@@ -32,26 +32,31 @@ def estimate_cc_payments(
     for cc in cc_accounts:
         balance = cc.get("balance", 0.0)
         if balance >= 0:
-            # No balance owed (or credit), skip
             continue
 
-        # Amount owed is the absolute value of the negative balance
-        payment_amount = abs(balance)
         cc_name = cc.get("name", "Credit Card")
 
-        # Try to find a matching recurring payment
-        payment_date = _find_recurring_cc_date(cc_name, recurring_items, today, end)
+        # Try to find a matching recurring payment — use its amount and date
+        recurring_match = _find_recurring_cc_match(cc_name, recurring_items, today, end)
 
-        if payment_date is None:
-            # Default: assume payment due ~25 days from now
+        if recurring_match:
+            payment_date, recurring_amount = recurring_match
+            # Use the recurring payment amount (historical average) as the
+            # statement balance estimate — more accurate than current balance
+            payment_amount = abs(recurring_amount)
+            label = f"{cc_name} Payment (avg)"
+        else:
+            # Fallback: current balance, estimated date
+            payment_amount = abs(balance)
             payment_date = today + timedelta(days=25)
             if payment_date > end:
                 continue
+            label = f"{cc_name} Payment (est.)"
 
         payments.append(
             ForecastTransaction(
                 date=payment_date,
-                name=f"{cc_name} Payment (est.)",
+                name=label,
                 amount=-payment_amount,
                 category="Credit Card Payment",
                 is_recurring=False,
@@ -61,23 +66,22 @@ def estimate_cc_payments(
     return payments
 
 
-def _find_recurring_cc_date(
+def _find_recurring_cc_match(
     cc_name: str,
     recurring_items: list[RecurringItem],
     start: date,
     end: date,
-) -> date | None:
-    """Find the next payment date for a credit card from recurring items."""
+) -> tuple[date, float] | None:
+    """Find the next payment date and amount for a credit card from recurring items."""
     cc_lower = cc_name.lower()
     for item in recurring_items:
         item_lower = f"{item.name} {item.category}".lower()
-        # Match by card name or credit card payment flag
         if _names_match(cc_lower, item_lower):
             from src.utils.date_helpers import next_occurrence
 
             occ = next_occurrence(item.base_date, item.frequency, start)
             if occ is not None and occ <= end:
-                return occ
+                return occ, item.amount
     return None
 
 
