@@ -656,7 +656,7 @@ class DashboardView(ft.Column):
                                 ],
                                 spacing=4,
                             ),
-                            padding=ft.Padding.only(left=48, bottom=8),
+                            padding=ft.Padding.only(left=48, top=8, bottom=8),
                         ),
                     ],
                     expanded=False,
