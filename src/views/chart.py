@@ -24,7 +24,7 @@ def build_forecast_chart(
     result: ForecastResult,
     height: float = 400,
 ) -> LineChart:
-    """Create an interactive line chart with green/red point coloring and red fill below $0."""
+    """Create an interactive line chart with a blue balance line and green/red point coloring."""
     if not result.days:
         return LineChart(height=height)
 
@@ -78,6 +78,13 @@ def build_forecast_chart(
             )
 
     all_balances = [d.ending_balance for d in result.days]
+    min_y = min(0, min(all_balances) * 1.1)
+    max_y = max(all_balances) * 1.1
+    # Ensure non-zero vertical span so the chart renders correctly when all balances are equal
+    if min_y == max_y:
+        min_y -= 100
+        max_y += 100
+    y_range = max_y - min_y
     return LineChart(
         data_series=[balance_series],
         interactive=True,
@@ -90,11 +97,11 @@ def build_forecast_chart(
             label_size=30,
         ),
         horizontal_grid_lines=ChartGridLines(
-            interval=max(abs(max(all_balances)) / 5, 1),
+            interval=max(y_range / 5, 1),
             color=ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE),
         ),
-        min_y=min(0, min(all_balances) * 1.1),
-        max_y=max(all_balances) * 1.1,
+        min_y=min_y,
+        max_y=max_y,
         height=height,
         expand=True,
     )

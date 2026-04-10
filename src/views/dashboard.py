@@ -84,7 +84,7 @@ class DashboardView(ft.Column):
         self.account_dropdown = ft.Dropdown(
             label="Checking Account",
             width=350,
-            on_select=self._on_account_change,
+            on_change=self._on_account_change,
             tooltip="Select which checking account to forecast",
         )
         self._days_label = ft.Text("45 days", size=12, weight=ft.FontWeight.W_500)
