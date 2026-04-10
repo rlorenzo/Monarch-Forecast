@@ -34,8 +34,9 @@ class AdjustmentsPanel(ft.Column):
             tooltip="e.g., 'Car repair', 'Tax refund'",
         )
         self._oneoff_amount = ft.TextField(
-            label="Amount ($)",
-            width=120,
+            label="Amount",
+            prefix=ft.Text("$"),
+            width=160,
             keyboard_type=ft.KeyboardType.NUMBER,
             tooltip="Enter the dollar amount (positive number)",
         )
@@ -202,7 +203,9 @@ class AdjustmentsPanel(ft.Column):
             return
 
         try:
-            amount = float(amount_str)
+            # Strip commas and $ sign for parsing
+            cleaned = amount_str.replace(",", "").replace("$", "").strip()
+            amount = float(cleaned)
         except ValueError:
             self._oneoff_error.value = "Invalid amount."
             self._oneoff_error.update()
