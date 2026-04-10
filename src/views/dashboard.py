@@ -216,22 +216,22 @@ class DashboardView(ft.Column):
                 ft.NavigationRailDestination(
                     icon=ft.Icons.DASHBOARD_OUTLINED,
                     selected_icon=ft.Icons.DASHBOARD,
-                    label="Overview",
+                    label_content=ft.Text("Overview", size=10, text_align=ft.TextAlign.CENTER),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TABLE_CHART_OUTLINED,
                     selected_icon=ft.Icons.TABLE_CHART,
-                    label="Transactions",
+                    label_content=ft.Text("Transactions", size=10, text_align=ft.TextAlign.CENTER),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TUNE_OUTLINED,
                     selected_icon=ft.Icons.TUNE,
-                    label="Adjustments",
+                    label_content=ft.Text("Adjustments", size=10, text_align=ft.TextAlign.CENTER),
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.REFRESH_OUTLINED,
                     selected_icon=ft.Icons.REFRESH,
-                    label="Refresh",
+                    label_content=ft.Text("Refresh", size=10, text_align=ft.TextAlign.CENTER),
                 ),
             ],
             selected_index=0,
