@@ -849,15 +849,39 @@ class DashboardView(ft.Column):
         idx = e.control.selected_index
         # Index 3 = Refresh (action, not a page)
         if idx == 3:
-            # Reset selection to previous page
             self._nav_rail.selected_index = self._current_nav_index
             _safe_update(self._nav_rail)
             self.page.run_task(self._on_refresh_action)
             return
         self._current_nav_index = idx
+
+        # Show loading indicator immediately, then swap content on next frame
+        loading_placeholder = ft.Container(
+            content=ft.Column(
+                [
+                    ft.ProgressRing(width=32, height=32),
+                    ft.Text("Loading...", size=12, color=ft.Colors.OUTLINE),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12,
+            ),
+            alignment=ft.Alignment(0, 0),
+            padding=40,
+        )
+        self._content_area.controls = [
+            self._content_area.controls[0],
+            self.alerts_container,
+            loading_placeholder,
+        ]
+        self._content_area.update()
+        # Swap in the real content on the next event loop tick
+        self.page.run_task(self._swap_nav_content, idx)
+
+    async def _swap_nav_content(self, idx: int) -> None:
+        """Swap in the actual tab content after showing the loader."""
         page_content = self._tab_pages[idx]
         self._content_area.controls = [
-            self._content_area.controls[0],  # controls row
+            self._content_area.controls[0],
             self.alerts_container,
             page_content,
         ]
