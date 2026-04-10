@@ -132,6 +132,7 @@ class DashboardView(ft.Column):
         # --- Build page sections ---
         self._overview_content = ft.Column(
             controls=[
+                self.alerts_container,
                 self.summary_row,
                 ft.Container(height=8),
                 ft.Text(
@@ -213,7 +214,6 @@ class DashboardView(ft.Column):
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=20,
                 ),
-                self.alerts_container,
                 self._overview_content,
             ],
             scroll=ft.ScrollMode.AUTO,
@@ -868,7 +868,6 @@ class DashboardView(ft.Column):
         )
         self._content_area.controls = [
             self._content_area.controls[0],
-            self.alerts_container,
             loading_placeholder,
         ]
         self._content_area.update()
@@ -880,7 +879,6 @@ class DashboardView(ft.Column):
         page_content = self._tab_pages[idx]
         self._content_area.controls = [
             self._content_area.controls[0],
-            self.alerts_container,
             page_content,
         ]
         self._content_area.update()

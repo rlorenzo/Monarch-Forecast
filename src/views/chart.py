@@ -14,66 +14,59 @@ from flet_charts import (
 
 from src.forecast.models import ForecastResult
 
-# Accessible green/red that work on both light and dark backgrounds
+# Accessible colors with good contrast
+_BLUE = "#1976D2"
 _GREEN = "#2E7D32"
 _RED = "#C62828"
-_GREEN_LIGHT = "#A5D6A7"
-_RED_LIGHT = "#EF9A9A"
 
 
 def build_forecast_chart(
     result: ForecastResult,
     height: float = 400,
 ) -> LineChart:
-    """Create an interactive line chart with green/red coloring above/below $0."""
+    """Create an interactive line chart with green/red point coloring and red fill below $0."""
     if not result.days:
         return LineChart(height=height)
 
     start_date = result.days[0].date
 
-    # Build all data points with tooltips
-    all_points: list[dict] = []
+    points = []
     for day in result.days:
         x = (day.date - start_date).days
         tooltip_text = _build_tooltip(day)
+        color = _GREEN if day.ending_balance >= 0 else _RED
 
-        all_points.append(
-            {
-                "x": x,
-                "y": day.ending_balance,
-                "tooltip": tooltip_text,
-            }
-        )
-
-    # Split into green (>= 0) and red (< 0) series
-    green_series, red_series = _split_by_zero(all_points)
-
-    data_series = []
-    if green_series:
-        data_series.append(
-            LineChartData(
-                points=green_series,
-                color=_GREEN,
-                stroke_width=2.5,
-                curved=True,
-                prevent_curve_over_shooting=True,
-                below_line_bgcolor=ft.Colors.with_opacity(0.05, _GREEN),
+        points.append(
+            LineChartDataPoint(
+                x=x,
+                y=day.ending_balance,
+                tooltip=LineChartDataPointTooltip(
+                    text=tooltip_text,
+                    text_style=ft.TextStyle(
+                        color=ft.Colors.WHITE,
+                        size=11,
+                        weight=ft.FontWeight.W_500,
+                    ),
+                ),
+                show_tooltip=True,
+                point=ChartCirclePoint(radius=3, color=color),
+                selected_point=ChartCirclePoint(radius=5, color=color),
             )
         )
-    if red_series:
-        data_series.append(
-            LineChartData(
-                points=red_series,
-                color=_RED,
-                stroke_width=2.5,
-                curved=True,
-                prevent_curve_over_shooting=True,
-                below_line_bgcolor=ft.Colors.with_opacity(0.08, _RED),
-            )
-        )
+
+    # Single data series with blue line and red fill below zero
+    balance_series = LineChartData(
+        points=points,
+        color=_BLUE,
+        stroke_width=2.5,
+        curved=True,
+        prevent_curve_over_shooting=True,
+        below_line_bgcolor=ft.Colors.with_opacity(0.15, _RED),
+        below_line_cutoff_y=0,
+    )
 
     # X-axis labels
-    total_days = all_points[-1]["x"] if all_points else 1
+    total_days = (result.days[-1].date - start_date).days
     label_interval = max(total_days // 6, 1)
     x_labels = []
     for day in result.days:
@@ -87,8 +80,8 @@ def build_forecast_chart(
             )
 
     all_balances = [d.ending_balance for d in result.days]
-    chart = LineChart(
-        data_series=data_series,
+    return LineChart(
+        data_series=[balance_series],
         interactive=True,
         left_axis=ChartAxis(
             title=ft.Text("Balance ($)", size=12),
@@ -108,8 +101,6 @@ def build_forecast_chart(
         expand=True,
     )
 
-    return chart
-
 
 def _build_tooltip(day) -> str:
     """Build concise tooltip text for a data point."""
@@ -128,63 +119,3 @@ def _build_tooltip(day) -> str:
         else:
             lines.append(f"Net: -${abs(day.net_change):,.0f}")
     return "\n".join(lines)
-
-
-def _make_point(
-    x: float, y: float, tooltip: str = "", is_crossing: bool = False
-) -> LineChartDataPoint:
-    """Create a styled data point."""
-    color = _GREEN if y >= 0 else _RED
-    return LineChartDataPoint(
-        x=x,
-        y=y,
-        tooltip=LineChartDataPointTooltip(
-            text=tooltip,
-            text_style=ft.TextStyle(
-                color=ft.Colors.WHITE,
-                size=11,
-                weight=ft.FontWeight.W_500,
-            ),
-        )
-        if tooltip
-        else None,
-        show_tooltip=bool(tooltip),
-        point=ChartCirclePoint(radius=0 if is_crossing else 3, color=color),
-        selected_point=ChartCirclePoint(radius=5, color=color),
-    )
-
-
-def _split_by_zero(
-    points: list[dict],
-) -> tuple[list[LineChartDataPoint], list[LineChartDataPoint]]:
-    """Split data points into green (>=0) and red (<0) series.
-
-    When the line crosses zero between two points, insert a crossing
-    point at y=0 in both series for a clean color transition.
-    """
-    green: list[LineChartDataPoint] = []
-    red: list[LineChartDataPoint] = []
-
-    for i, pt in enumerate(points):
-        x, y, tooltip = pt["x"], pt["y"], pt["tooltip"]
-
-        # Check if we cross zero between this point and the previous
-        if i > 0:
-            prev = points[i - 1]
-            prev_y = prev["y"]
-            if (prev_y >= 0) != (y >= 0):
-                # Crossing — interpolate x at y=0
-                t = prev_y / (prev_y - y)
-                cross_x = prev["x"] + t * (x - prev["x"])
-                crossing = _make_point(cross_x, 0.0, is_crossing=True)
-                green.append(crossing)
-                red.append(crossing)
-
-        # Add to the appropriate series
-        point = _make_point(x, y, tooltip)
-        if y >= 0:
-            green.append(point)
-        else:
-            red.append(point)
-
-    return green, red
