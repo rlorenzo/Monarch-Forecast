@@ -544,10 +544,10 @@ class DashboardView(ft.Column):
             return
         settings = self._prefs.cc_billing_settings.get(cc_id, {})
         if field == "due_day":
-            close_day = settings.get("close_day", max(1, day - 25))
+            close_day = settings.get("close_day", ((day - DEFAULT_GRACE_PERIOD - 1) % 28) + 1)
             self._prefs.set_cc_billing(cc_id, due_day=day, close_day=close_day)
         else:
-            due_day = settings.get("due_day", min(28, day + 25))
+            due_day = settings.get("due_day", ((day + DEFAULT_GRACE_PERIOD - 1) % 28) + 1)
             self._prefs.set_cc_billing(cc_id, due_day=due_day, close_day=day)
         self.page.run_task(self._run_forecast)
 
@@ -574,12 +574,13 @@ class DashboardView(ft.Column):
             close_day = cc_billing.get("close_day", "")
             amt_override = amt_overrides.get(cc_id, "")
 
-            # Auto-detect and auto-fill due day from payment history
-            if not due_day:
+            # Auto-detect due day from payment history (only if never set)
+            if not due_day and cc_id not in billing:
                 inferred_due = _infer_due_day(name, self._txn_history)
                 if inferred_due:
                     due_day = inferred_due
-                    close_day = max(1, inferred_due - DEFAULT_GRACE_PERIOD)
+                    # Statement close is ~25 days before due, wrapping around month
+                    close_day = ((inferred_due - DEFAULT_GRACE_PERIOD - 1) % 28) + 1
                     self._prefs.set_cc_billing(cc_id, due_day=due_day, close_day=close_day)
 
             cards.append(
