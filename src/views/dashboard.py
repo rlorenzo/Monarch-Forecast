@@ -221,12 +221,12 @@ class DashboardView(ft.Column):
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TABLE_CHART_OUTLINED,
                     selected_icon=ft.Icons.TABLE_CHART,
-                    label="Txns",
+                    label="Transactions",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.TUNE_OUTLINED,
                     selected_icon=ft.Icons.TUNE,
-                    label="Adjust",
+                    label="Adjustments",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.REFRESH_OUTLINED,
