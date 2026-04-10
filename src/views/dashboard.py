@@ -66,6 +66,7 @@ class DashboardView(ft.Column):
         self._days_out = 45
         self._safety_threshold = 0.0
         self._current_nav_index = 0
+        self._txn_history: list[dict] = []
 
         # --- UI controls ---
         self.account_dropdown = ft.Dropdown(
@@ -320,10 +321,10 @@ class DashboardView(ft.Column):
             all_account_ids = [a["id"] for a in self._checking_accounts] + [
                 cc["id"] for cc in self._cc_accounts
             ]
-            txn_history = await self._raw_client.get_transactions(
+            self._txn_history = await self._raw_client.get_transactions(
                 account_ids=all_account_ids, lookback_days=90
             )
-            self._recurring_items = detect_recurring(txn_history)
+            self._recurring_items = detect_recurring(self._txn_history)
 
             # Populate account dropdown
             self.account_dropdown.options = [
@@ -469,7 +470,13 @@ class DashboardView(ft.Column):
 
         excluded_cc = self._prefs.excluded_cc_ids
         included_ccs = [cc for cc in self._cc_accounts if cc.get("id", "") not in excluded_cc]
-        cc_payments = estimate_cc_payments(included_ccs, recurring, self._days_out)
+        cc_payments = estimate_cc_payments(
+            included_ccs,
+            recurring,
+            self._days_out,
+            transactions=self._txn_history,
+            cc_settings=self._prefs.cc_billing_settings,
+        )
         if cc_payments:
             one_offs.extend(cc_payments)
             estimated_cc_names = {
@@ -511,39 +518,96 @@ class DashboardView(ft.Column):
         self._prefs.set_cc_excluded(cc_id, excluded=not included)
         self.page.run_task(self._run_forecast)
 
+    def _on_cc_billing_change(self, cc_id: str, field: str, value: str) -> None:
+        """Handle due_day or close_day change for a CC."""
+        try:
+            day = int(value)
+            if not 1 <= day <= 31:
+                return
+        except ValueError:
+            return
+        settings = self._prefs.cc_billing_settings.get(cc_id, {})
+        if field == "due_day":
+            close_day = settings.get("close_day", max(1, day - 25))
+            self._prefs.set_cc_billing(cc_id, due_day=day, close_day=close_day)
+        else:
+            due_day = settings.get("due_day", min(28, day + 25))
+            self._prefs.set_cc_billing(cc_id, due_day=due_day, close_day=day)
+        self.page.run_task(self._run_forecast)
+
     def _update_cc_info(self) -> None:
-        """Show credit card balance summary with include/exclude checkboxes."""
+        """Show credit card cards with expandable billing settings."""
         if not self._cc_accounts:
             self.cc_info_container.content = None
             _safe_update(self.cc_info_container)
             return
 
         excluded = self._prefs.excluded_cc_ids
-        rows = []
+        billing = self._prefs.cc_billing_settings
+        cards = []
+
         for cc in self._cc_accounts:
             cc_id = cc.get("id", "")
             balance = cc.get("balance", 0.0)
             name = cc.get("name", "Card")
             owed = abs(balance) if balance < 0 else 0
             is_excluded = cc_id in excluded
+            cc_billing = billing.get(cc_id, {})
+            due_day = cc_billing.get("due_day", "")
+            close_day = cc_billing.get("close_day", "")
 
-            rows.append(
-                ft.Row(
-                    [
-                        ft.Checkbox(
-                            value=not is_excluded,
-                            on_change=lambda e, cid=cc_id: self._on_cc_toggle(cid, e.control.value),
-                            tooltip="Include this card's payments in forecast",
-                        ),
-                        ft.Icon(ft.Icons.CREDIT_CARD, size=18),
-                        ft.Text(name, weight=ft.FontWeight.W_500),
-                        ft.Text(
-                            f"${owed:,.2f} owed" if owed > 0 else "Paid",
-                            color=ft.Colors.RED_400 if owed > 0 else ft.Colors.GREEN_400,
-                            size=12,
+            cards.append(
+                ft.ExpansionTile(
+                    leading=ft.Checkbox(
+                        value=not is_excluded,
+                        on_change=lambda e, cid=cc_id: self._on_cc_toggle(cid, e.control.value),
+                        tooltip="Include in forecast",
+                    ),
+                    title=ft.Text(name, weight=ft.FontWeight.W_500),
+                    subtitle=ft.Text(
+                        f"${owed:,.2f} owed" if owed > 0 else "Paid",
+                        color=ft.Colors.RED_400 if owed > 0 else ft.Colors.GREEN_400,
+                        size=12,
+                    ),
+                    controls=[
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.TextField(
+                                        label="Due day",
+                                        value=str(due_day) if due_day else "",
+                                        width=80,
+                                        dense=True,
+                                        keyboard_type=ft.KeyboardType.NUMBER,
+                                        tooltip="Day of month payment is due (e.g., 1)",
+                                        on_submit=lambda e, cid=cc_id: self._on_cc_billing_change(
+                                            cid, "due_day", e.control.value
+                                        ),
+                                    ),
+                                    ft.TextField(
+                                        label="Close day",
+                                        value=str(close_day) if close_day else "",
+                                        width=80,
+                                        dense=True,
+                                        keyboard_type=ft.KeyboardType.NUMBER,
+                                        tooltip="Day of month statement closes (e.g., 4)",
+                                        on_submit=lambda e, cid=cc_id: self._on_cc_billing_change(
+                                            cid, "close_day", e.control.value
+                                        ),
+                                    ),
+                                    ft.Text(
+                                        "Set both to improve payment estimates",
+                                        size=11,
+                                        color=ft.Colors.OUTLINE,
+                                        italic=True,
+                                    ),
+                                ],
+                                spacing=12,
+                            ),
+                            padding=ft.Padding.only(left=48, bottom=8),
                         ),
                     ],
-                    spacing=8,
+                    expanded=False,
                 )
             )
 
@@ -554,20 +618,16 @@ class DashboardView(ft.Column):
                         ft.Row(
                             [
                                 ft.Icon(ft.Icons.CREDIT_CARD, color=ft.Colors.PRIMARY, size=20),
-                                ft.Text(
-                                    "Credit Cards",
-                                    size=16,
-                                    weight=ft.FontWeight.W_600,
-                                ),
+                                ft.Text("Credit Cards", size=16, weight=ft.FontWeight.W_600),
                             ],
                             spacing=8,
                         ),
                         ft.Text(
-                            "Uncheck cards not paid from this checking account",
+                            "Expand a card to set billing dates for accurate payment estimates",
                             size=12,
                             color=ft.Colors.OUTLINE,
                         ),
-                        *rows,
+                        *cards,
                     ],
                     spacing=4,
                 ),

@@ -36,6 +36,22 @@ class TestPreferences:
         assert "Rent" in prefs2.excluded_recurring_names
         assert "cc-456" in prefs2.excluded_cc_ids
 
+    def test_cc_billing_settings(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        assert prefs.cc_billing_settings == {}
+
+        prefs.set_cc_billing("cc1", due_day=1, close_day=4)
+        assert prefs.cc_billing_settings["cc1"]["due_day"] == 1
+        assert prefs.cc_billing_settings["cc1"]["close_day"] == 4
+
+        # Persists across instances
+        prefs2 = Preferences(path=path)
+        assert prefs2.cc_billing_settings["cc1"]["due_day"] == 1
+
+        prefs.clear_cc_billing("cc1")
+        assert "cc1" not in prefs.cc_billing_settings
+
     def test_handles_corrupt_file(self, tmp_path: Path):
         path = tmp_path / "prefs.json"
         path.write_text("not json{{{")

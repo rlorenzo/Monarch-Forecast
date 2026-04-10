@@ -85,3 +85,20 @@ class Preferences:
     def set_onboarding_seen(self, seen: bool) -> None:
         self._data["onboarding_seen"] = seen
         self._save()
+
+    @property
+    def cc_billing_settings(self) -> dict[str, dict[str, int]]:
+        """Per-CC billing settings: {cc_id: {"due_day": int, "close_day": int}}."""
+        return dict(self._data.get("cc_billing", {}))
+
+    def set_cc_billing(self, cc_id: str, due_day: int, close_day: int) -> None:
+        billing = dict(self._data.get("cc_billing", {}))
+        billing[cc_id] = {"due_day": due_day, "close_day": close_day}
+        self._data["cc_billing"] = billing
+        self._save()
+
+    def clear_cc_billing(self, cc_id: str) -> None:
+        billing = dict(self._data.get("cc_billing", {}))
+        billing.pop(cc_id, None)
+        self._data["cc_billing"] = billing
+        self._save()
