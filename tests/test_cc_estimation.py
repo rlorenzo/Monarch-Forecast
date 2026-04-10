@@ -117,6 +117,38 @@ class TestStatementChargesSummation:
         assert len(payments) == 1
         assert payments[0].amount == pytest.approx(-300.0)
 
+    def test_real_scenario_chase_sapphire(self):
+        """Real scenario: Chase Sapphire Reserve, due 1st, close 4th.
+        Today is Apr 9. Statement closed Apr 4 (covers Mar 4 - Apr 4).
+        Payment due May 1. Should show 'stmt', not 'partial'."""
+        cc = _cc("Chase Sapphire Reserve", -3000.0)
+        cc_settings = {"cc1": {"due_day": 1, "close_day": 4}}
+        txns = [
+            # Charges in the Mar 4 - Apr 4 billing cycle (the closed statement)
+            _charge(-500.0, date(2026, 3, 10)),
+            _charge(-200.0, date(2026, 3, 18)),
+            _charge(-150.0, date(2026, 3, 25)),
+            _charge(-300.0, date(2026, 4, 1)),
+            # Charges after Apr 4 (next cycle, not due yet)
+            _charge(-100.0, date(2026, 4, 7)),
+        ]
+        payments = estimate_cc_payments(
+            [cc],
+            [],
+            forecast_days=30,
+            transactions=txns,
+            today=date(2026, 4, 9),
+            cc_settings=cc_settings,
+        )
+        assert len(payments) == 1
+        # Should be the closed statement: 500 + 200 + 150 + 300 = 1150
+        assert payments[0].amount == pytest.approx(-1150.0)
+        # Due May 1
+        assert payments[0].date == date(2026, 5, 1)
+        # Should say "stmt", not "partial"
+        assert "stmt" in payments[0].name
+        assert "partial" not in payments[0].name
+
 
 # =============================================================================
 # Due date and statement close inference
