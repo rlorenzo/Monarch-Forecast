@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 import flet as ft
 
@@ -21,6 +22,8 @@ from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart
 from src.views.transactions_table import build_transactions_table
 from src.views.update_banner import build_update_banner, check_update_async
+
+_ICON_PATH = str(Path(__file__).resolve().parent.parent.parent / "assets" / "icon.png")
 
 
 def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
@@ -240,7 +243,7 @@ class DashboardView(ft.Column):
             on_change=self._on_nav_change,
             leading=ft.Column(
                 [
-                    ft.Image(src="assets/icon.png", width=36, height=36),
+                    ft.Image(src=_ICON_PATH, width=36, height=36),
                     ft.Text(
                         "Monarch\nForecast",
                         size=9,
@@ -251,7 +254,7 @@ class DashboardView(ft.Column):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=2,
             ),
-            min_width=80,
+            min_width=90,
             group_alignment=-0.85,
             trailing=self._last_refresh_text,
         )
@@ -293,7 +296,7 @@ class DashboardView(ft.Column):
                 [
                     ft.Container(
                         content=self._nav_column,
-                        width=80,
+                        width=90,
                     ),
                     ft.VerticalDivider(width=1),
                     self._content_area,
@@ -576,7 +579,7 @@ class DashboardView(ft.Column):
                                     ft.TextField(
                                         label="Due day",
                                         value=str(due_day) if due_day else "",
-                                        width=80,
+                                        width=90,
                                         dense=True,
                                         keyboard_type=ft.KeyboardType.NUMBER,
                                         tooltip="Day of month payment is due (e.g., 1)",
@@ -587,7 +590,7 @@ class DashboardView(ft.Column):
                                     ft.TextField(
                                         label="Close day",
                                         value=str(close_day) if close_day else "",
-                                        width=80,
+                                        width=90,
                                         dense=True,
                                         keyboard_type=ft.KeyboardType.NUMBER,
                                         tooltip="Day of month statement closes (e.g., 4)",
