@@ -44,6 +44,7 @@ class AdjustmentsPanel(ft.Column):
             value=default_date,
             first_date=date.today(),
             last_date=date.today() + timedelta(days=365),
+            entry_mode=ft.DatePickerEntryMode.CALENDAR_ONLY,
             on_change=self._on_date_picked,
         )
         self._oneoff_date_display = ft.TextField(
