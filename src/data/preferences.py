@@ -165,11 +165,15 @@ class Preferences:
                 continue
             if txn_date < today:
                 continue
+            try:
+                amount = float(raw.get("amount", 0.0))
+            except (TypeError, ValueError):
+                continue
             result.append(
                 ForecastTransaction(
                     date=txn_date,
                     name=raw.get("name", ""),
-                    amount=float(raw.get("amount", 0.0)),
+                    amount=amount,
                     category=raw.get("category", "Adjustment"),
                     is_recurring=False,
                     id=str(raw.get("id", "")),

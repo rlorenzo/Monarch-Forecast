@@ -180,10 +180,11 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
             if index < len(current_alerts):
                 current_alerts.pop(index)
             wrapper.label = build_alerts_summary(current_alerts)
-            try:
-                result_column.update()
-            except RuntimeError:
-                pass
+            # Flet rejects a Semantics whose content collapses to zero size,
+            # so when the last banner is dismissed swap the Column out for an
+            # empty Container placeholder before calling update().
+            if not current_alerts:
+                wrapper.content = ft.Container()
             try:
                 wrapper.update()
             except RuntimeError:
