@@ -63,8 +63,19 @@ def estimate_cc_payments(
         if result:
             due_date, amount, label = result
         elif cc_setting:
-            # User provided settings but no charges in cycle — nothing to pay
-            continue
+            # User provided settings but no charges in the cycle. If the user
+            # also set a manual amount override we still emit a payment using
+            # the next due date from settings; otherwise skip the card.
+            if cc_id not in overrides:
+                continue
+            due_day = cc_setting.get("due_day")
+            if not isinstance(due_day, int) or due_day <= 0:
+                continue
+            due_date = _next_month_day(today, due_day)
+            if due_date > end:
+                continue
+            amount = 0.0
+            label = "est."
         else:
             # No settings and no cycle data — try fallbacks
             recurring = _find_recurring_cc(cc_name, recurring_items, today, end)

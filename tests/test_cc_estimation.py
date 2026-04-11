@@ -244,6 +244,27 @@ class TestUserOverrides:
         assert len(payments) == 1
         assert payments[0].date.day == 1
 
+    def test_amount_override_applies_when_no_cycle_charges(self):
+        """Manual amount override should still produce a payment entry when
+        the billing cycle has no charges, using the next due date from the
+        user's settings."""
+        cc = _cc("Chase Visa", -1000.0)
+        cc_settings = {"cc1": {"due_day": 1, "close_day": 4}}
+        amount_overrides = {"cc1": 750.0}
+        payments = estimate_cc_payments(
+            [cc],
+            [],
+            forecast_days=60,
+            transactions=[],
+            today=date(2026, 4, 15),
+            cc_settings=cc_settings,
+            amount_overrides=amount_overrides,
+        )
+        assert len(payments) == 1
+        assert payments[0].amount == pytest.approx(-750.0)
+        assert payments[0].date.day == 1
+        assert "manual" in payments[0].name
+
     def test_user_close_day_controls_charge_window(self):
         """User sets close_day=4. Charges summed from 4th to 4th."""
         cc = _cc("Chase Visa", -2000.0)
