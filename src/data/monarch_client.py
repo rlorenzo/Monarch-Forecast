@@ -15,7 +15,7 @@ class MonarchClient:
         self._mm = mm
 
     async def get_checking_accounts(self) -> list[dict[str, Any]]:
-        """Return all checking/depository accounts with id, name, balance."""
+        """Return all active, visible checking/depository accounts."""
         data = await self._mm.get_accounts()
         accounts = data.get("accounts", [])
         return [
@@ -30,11 +30,11 @@ class MonarchClient:
                 else "",
             }
             for a in accounts
-            if _is_checking_account(a)
+            if _is_checking_account(a) and _is_active_visible(a)
         ]
 
     async def get_credit_card_accounts(self) -> list[dict[str, Any]]:
-        """Return all credit card accounts."""
+        """Return all active, visible credit card accounts."""
         data = await self._mm.get_accounts()
         accounts = data.get("accounts", [])
         return [
@@ -47,8 +47,11 @@ class MonarchClient:
                 else "",
             }
             for a in accounts
-            if a.get("type", {}).get("name", "").lower() == "credit"
-            or a.get("subtype", {}).get("name", "").lower() == "credit card"
+            if (
+                a.get("type", {}).get("name", "").lower() == "credit"
+                or a.get("subtype", {}).get("name", "").lower() == "credit card"
+            )
+            and _is_active_visible(a)
         ]
 
     async def get_all_accounts(self) -> list[dict[str, Any]]:
@@ -163,9 +166,13 @@ class MonarchClient:
         return all_txns
 
     async def refresh_accounts(self) -> bool:
-        """Trigger an account refresh and wait for completion."""
+        """Trigger a bank sync and wait for completion.
+
+        Capped at 60s because institutions that stall past a minute typically
+        don't finish at all on this request; a fresh retry works better.
+        """
         try:
-            return await self._mm.request_accounts_refresh_and_wait(timeout=120)
+            return await self._mm.request_accounts_refresh_and_wait(timeout=60)
         except Exception:
             return False
 
@@ -187,6 +194,20 @@ def _parse_frequency(raw: str) -> str:
         "every_year": "yearly",
     }
     return mapping.get(raw_lower, "monthly")
+
+
+def _is_active_visible(account: dict) -> bool:
+    """Exclude closed and user-hidden Monarch accounts.
+
+    Monarch sets `deactivatedAt` when an account is closed, and exposes
+    `isHidden` / `hideFromList` for user visibility toggles. Any of these
+    being truthy means the user doesn't want the account showing up.
+    """
+    if account.get("deactivatedAt"):
+        return False
+    if account.get("isHidden"):
+        return False
+    return not account.get("hideFromList")
 
 
 def _is_checking_account(account: dict) -> bool:

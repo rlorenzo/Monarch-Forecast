@@ -11,15 +11,61 @@ from src.views.dashboard import DashboardView
 async def main(page: ft.Page) -> None:
     page.title = f"Monarch Forecast v{get_current_version()}"
     page.window.width = 1100
-    page.window.height = 750
+    page.window.height = 900
     page.window.min_width = 800
     page.window.min_height = 600
     page.window.icon = "assets/icon.png"
     page.padding = ft.Padding.only(left=0, top=8, right=16, bottom=8)
     page.theme_mode = ft.ThemeMode.SYSTEM
+    # Icons scale with OS text-size via icon_theme.apply_text_scaling — helps
+    # low-vision users without touching every Icon() call site.
     page.theme = ft.Theme(
         color_scheme_seed=ft.Colors.BLUE,
+        icon_theme=ft.IconTheme(apply_text_scaling=True),
     )
+
+    def _current_dashboard() -> DashboardView | None:
+        """Return the mounted dashboard view, if any, for shortcut dispatch."""
+        for ctrl in page.controls:
+            if isinstance(ctrl, DashboardView):
+                return ctrl
+        return None
+
+    def handle_keyboard(e: ft.KeyboardEvent) -> None:
+        """Global keyboard shortcuts.
+
+        - Escape closes any open dialog (Flet's AlertDialog does not bind
+          Escape by default, so keyboard-only users would otherwise be
+          stuck inside a modal).
+        - Cmd/Ctrl+R refreshes data.
+        - Cmd/Ctrl+1/2/3 switch between Overview / Transactions /
+          Adjustments tabs.
+        """
+        if e.key == "Escape":
+            try:
+                page.pop_dialog()
+            except Exception:
+                pass  # No dialog open — harmless.
+            return
+
+        # Cmd on macOS is surfaced as `meta`, Ctrl on Windows/Linux as `ctrl`.
+        if not (e.ctrl or e.meta):
+            return
+
+        dashboard = _current_dashboard()
+        if dashboard is None:
+            return
+
+        if e.key in ("R", "r"):
+            dashboard.trigger_refresh()
+        elif e.key == "1":
+            dashboard.switch_to_tab(0)
+        elif e.key == "2":
+            dashboard.switch_to_tab(1)
+        elif e.key == "3":
+            dashboard.switch_to_tab(2)
+
+    page.on_keyboard_event = handle_keyboard
 
     session_manager = SessionManager()
 
@@ -52,12 +98,15 @@ async def main(page: ft.Page) -> None:
         )
         page.update()
 
-    # Try restoring saved session first
-    page.splash = ft.ProgressBar()
+    # Try restoring saved session first. Show an inline progress bar while
+    # we wait — `page.splash` was removed in Flet 0.80+, so we just append
+    # a ProgressBar and clear it when the restore completes.
+    splash = ft.ProgressBar()
+    page.controls.append(splash)
     page.update()
 
     restored = await session_manager.try_restore_session()
-    page.splash = None
+    page.controls.remove(splash)
 
     if restored:
         await show_dashboard()

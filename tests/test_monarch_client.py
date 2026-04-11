@@ -112,6 +112,86 @@ class TestGetCreditCardAccounts:
         assert len(cards) == 1
         assert cards[0]["name"] == "Visa"
 
+    async def test_excludes_closed_and_hidden(self):
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Active CC",
+                        "currentBalance": -100.0,
+                        "type": {"name": "credit"},
+                        "subtype": {"name": "credit card"},
+                    },
+                    {
+                        "id": "2",
+                        "displayName": "Closed CC",
+                        "currentBalance": 0.0,
+                        "type": {"name": "credit"},
+                        "subtype": {"name": "credit card"},
+                        "deactivatedAt": "2025-08-01T00:00:00Z",
+                    },
+                    {
+                        "id": "3",
+                        "displayName": "Hidden CC",
+                        "currentBalance": -50.0,
+                        "type": {"name": "credit"},
+                        "subtype": {"name": "credit card"},
+                        "isHidden": True,
+                    },
+                    {
+                        "id": "4",
+                        "displayName": "Hide-From-List CC",
+                        "currentBalance": -25.0,
+                        "type": {"name": "credit"},
+                        "subtype": {"name": "credit card"},
+                        "hideFromList": True,
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        cards = await client.get_credit_card_accounts()
+        assert [c["name"] for c in cards] == ["Active CC"]
+
+
+class TestGetCheckingAccountsActiveVisible:
+    async def test_excludes_closed_and_hidden(self):
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Active Checking",
+                        "currentBalance": 2000.0,
+                        "type": {"name": "depository"},
+                        "subtype": {"name": "checking"},
+                    },
+                    {
+                        "id": "2",
+                        "displayName": "Closed Checking",
+                        "currentBalance": 0.0,
+                        "type": {"name": "depository"},
+                        "subtype": {"name": "checking"},
+                        "deactivatedAt": "2025-06-01T00:00:00Z",
+                    },
+                    {
+                        "id": "3",
+                        "displayName": "Hidden Checking",
+                        "currentBalance": 100.0,
+                        "type": {"name": "depository"},
+                        "subtype": {"name": "checking"},
+                        "isHidden": True,
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        accounts = await client.get_checking_accounts()
+        assert [a["name"] for a in accounts] == ["Active Checking"]
+
 
 class TestGetRecurringItems:
     async def test_parses_recurring(self):

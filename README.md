@@ -81,7 +81,7 @@ uv run flet run -r src/main.py   # run with hot reload (auto-restarts on file ch
 uv run pytest                    # run tests
 uv run ruff check                # lint
 uv run ruff format               # format
-uv run ty check                  # type check (informational — Flet stubs are incomplete)
+uv run ty check                  # type check
 ```
 
 Set up pre-commit hooks (ruff lint/format + ty on every commit):
@@ -117,6 +117,23 @@ src/
 ├── utils/                  # Date helpers, GitHub release update checker
 └── views/                  # Dashboard, chart, alerts, adjustments, update banner
 ```
+
+## Accessibility
+
+Monarch Forecast is built to be usable with a screen reader, keyboard only, at increased text size, or in high-contrast themes. Known support level:
+
+- **Screen readers** — Every icon-only button carries a descriptive label, the balance chart exposes a text summary (start balance, ending balance, lowest point, threshold crossings), form errors are announced via live regions, and the Alerts banner is a live region so new shortfall/overdraft notices are spoken when they appear. Best-tested with **VoiceOver on macOS**; **Narrator on Windows** works for buttons and form fields. **Orca on Linux** has uneven support in Flutter desktop today — if you rely on Orca, expect gaps and please open an issue with what you hit.
+- **Keyboard** — `Tab`/`Shift+Tab` moves between controls, `Esc` closes any open dialog, and global shortcuts work from anywhere in the dashboard:
+  - `⌘R` / `Ctrl+R` — refresh data
+  - `⌘1` / `Ctrl+1` — Overview tab
+  - `⌘2` / `Ctrl+2` — Transactions tab
+  - `⌘3` / `Ctrl+3` — Adjustments tab
+  Switching tabs auto-focuses the first meaningful control of the new tab. Date fields in the one-off transaction forms accept typed input (`YYYY-MM-DD`, `Jan 05, 2026`, `01/05/2026`), so you never have to open the calendar popover with a mouse.
+- **Text scaling** — Icons grow with the OS text size (via the app's Material icon theme). Secondary text uses the theme-aware `ON_SURFACE_VARIANT` color so it remains readable in both light and dark modes.
+- **Reduce motion** — On platforms that expose the "reduce motion" accessibility flag, the balance chart draws as straight line segments instead of a curved spline.
+- **Alternative to the chart** — If you can't use the balance chart, the **Transactions** tab is a full text equivalent: every projected transaction with date, description, amount, and running balance, in a screen-reader-friendly data table.
+
+**Reporting an accessibility bug:** open an issue at [GitHub Issues](https://github.com/rlorenzo/Monarch-Forecast/issues) with the label `accessibility`. Include your platform, your assistive technology (e.g. VoiceOver, NVDA, Narrator, Orca), and what you expected vs what happened — even small reports help.
 
 ## Troubleshooting
 

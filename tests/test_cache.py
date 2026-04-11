@@ -1,6 +1,7 @@
 """Tests for the data cache."""
 
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from src.data.cache import DataCache
 
 
 @pytest.fixture()
-def cache(tmp_path: Path) -> DataCache:
+def cache(tmp_path: Path) -> Iterator[DataCache]:
     c = DataCache(db_path=tmp_path / "test_cache.db")
     yield c
     c.close()

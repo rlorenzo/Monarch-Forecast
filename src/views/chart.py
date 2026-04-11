@@ -20,11 +20,59 @@ _GREEN = "#2E7D32"
 _RED = "#C62828"
 
 
+def build_forecast_chart_summary(result: ForecastResult) -> str:
+    """Build a screen-reader friendly summary of the forecast chart.
+
+    The LineChart itself ships no accessible metadata, so we expose the key
+    data points (start, end, low, threshold crossings, shortfalls) as a
+    single descriptive string that is attached to a wrapping Semantics node.
+    """
+    if not result.days:
+        return "Balance projection chart is empty."
+
+    first = result.days[0]
+    last = result.days[-1]
+    total_days = (last.date - first.date).days + 1
+    low = result.lowest_balance
+    low_date = result.lowest_balance_date
+    parts = [
+        f"Balance projection over {total_days} days: "
+        f"starts at ${first.ending_balance:,.2f} on "
+        f"{first.date.strftime('%b %d')}, "
+        f"ends at ${last.ending_balance:,.2f} on "
+        f"{last.date.strftime('%b %d')}."
+    ]
+    if low_date is not None:
+        parts.append(f"Lowest projected balance is ${low:,.2f} on {low_date.strftime('%b %d')}.")
+    if result.safety_threshold > 0:
+        if result.has_shortfall:
+            first_short = result.shortfall_dates[0]
+            parts.append(
+                f"Drops below the ${result.safety_threshold:,.0f} safety "
+                f"threshold on {first_short.strftime('%b %d')}, "
+                f"{len(result.shortfall_dates)} day(s) below threshold."
+            )
+        else:
+            parts.append(
+                f"Stays above the ${result.safety_threshold:,.0f} safety "
+                f"threshold for the entire window."
+            )
+    parts.append("See the Transactions tab for a full day-by-day text breakdown.")
+    return " ".join(parts)
+
+
 def build_forecast_chart(
     result: ForecastResult,
     height: float = 400,
+    reduce_motion: bool = False,
 ) -> LineChart:
-    """Create an interactive line chart with a blue balance line and green/red point coloring."""
+    """Create an interactive line chart with a blue balance line and green/red point coloring.
+
+    When ``reduce_motion`` is True the balance line is drawn as straight
+    segments instead of a curved spline — helpful for users who set the OS
+    "reduce motion" accessibility flag and for anyone with vestibular
+    sensitivity.
+    """
     if not result.days:
         return LineChart(height=height)
 
@@ -59,9 +107,35 @@ def build_forecast_chart(
         points=points,
         color=_BLUE,
         stroke_width=2.5,
-        curved=True,
+        curved=not reduce_motion,
         prevent_curve_over_shooting=True,
     )
+
+    data_series: list[LineChartData] = [balance_series]
+
+    # Optional dashed reference line at the user's safety threshold.
+    threshold = result.safety_threshold
+    if threshold > 0 and result.days:
+        x_start = 0
+        x_end = (result.days[-1].date - start_date).days
+        threshold_series = LineChartData(
+            points=[
+                LineChartDataPoint(
+                    x=x_start,
+                    y=threshold,
+                    point=ChartCirclePoint(radius=0, color=_RED),
+                ),
+                LineChartDataPoint(
+                    x=x_end,
+                    y=threshold,
+                    point=ChartCirclePoint(radius=0, color=_RED),
+                ),
+            ],
+            color=ft.Colors.with_opacity(0.7, _RED),
+            stroke_width=1.5,
+            dash_pattern=[6, 4],
+        )
+        data_series.append(threshold_series)
 
     # X-axis labels
     total_days = (result.days[-1].date - start_date).days
@@ -73,7 +147,7 @@ def build_forecast_chart(
             x_labels.append(
                 ChartAxisLabel(
                     value=day_offset,
-                    label=ft.Text(day.date.strftime("%b %d"), size=10),
+                    label=ft.Text(day.date.strftime("%b %d"), size=12),
                 )
             )
 
@@ -84,6 +158,11 @@ def build_forecast_chart(
     # Using abs() ensures the padding always moves in the right direction regardless of sign.
     min_y = min(0, min_bal - abs(min_bal) * 0.1)
     max_y = max_bal + abs(max_bal) * 0.1
+    # Make sure the threshold line stays visible even when it sits outside the
+    # balance range (e.g. balance never drops that low).
+    if threshold > 0:
+        min_y = min(min_y, threshold - 50)
+        max_y = max(max_y, threshold + 50)
     # Ensure non-zero vertical span (e.g. all-zero or constant-balance forecasts).
     # $200 gives a readable chart scale when the account is flat.
     if min_y == max_y:
@@ -91,7 +170,7 @@ def build_forecast_chart(
         max_y += 100
     y_range = max_y - min_y
     return LineChart(
-        data_series=[balance_series],
+        data_series=data_series,
         interactive=True,
         left_axis=ChartAxis(
             title=ft.Text("Balance ($)", size=12),

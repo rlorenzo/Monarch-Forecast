@@ -37,15 +37,29 @@ jobs:
         run: uv sync --frozen
 
       - name: Build for ${{ matrix.platform }}
+        shell: bash
+        # --compile-app/--compile-packages ship .pyc instead of .py source,
+        # and --cleanup-app/--cleanup-packages strip the leftover .py files,
+        # tests, docs, and dist-info chaff from the bundled site-packages.
+        # Together they trim the shipped .app / installer by ~20-30%.
         run: |
           BUILD_VERSION="${{ github.ref_name }}"
           BUILD_VERSION="${BUILD_VERSION#v}"
+          # Manual dispatch (no tag) falls back to the version from
+          # pyproject.toml so the build still succeeds.
+          if [ -z "$BUILD_VERSION" ] || [ "$BUILD_VERSION" = "${{ github.ref_name }}" ]; then
+            BUILD_VERSION=$(uv run python -c "import importlib.metadata; print(importlib.metadata.version('monarch-forecast'))")
+          fi
           uv run flet build ${{ matrix.platform }} \
             --project "Monarch Forecast" \
             --org "com.monarchforecast" \
             --product "Monarch Forecast" \
             --description "Financial forecasting powered by Monarch Money" \
-            --build-version "$BUILD_VERSION"
+            --build-version "$BUILD_VERSION" \
+            --compile-app \
+            --compile-packages \
+            --cleanup-app \
+            --cleanup-packages
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

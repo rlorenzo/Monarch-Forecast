@@ -1,6 +1,7 @@
 """Tests for session manager (auth)."""
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -73,8 +74,11 @@ class TestSessionRestore:
         session_file.write_bytes(b"fake")
 
         sm = SessionManager()
-        sm._mm.load_session = MagicMock()
-        sm._mm.get_subscription_details = AsyncMock(return_value={})
+        # Cast to Any so static type checkers don't trip on assigning
+        # MagicMock/AsyncMock to methods typed as MonarchMoney methods.
+        mm = cast(Any, sm._mm)
+        mm.load_session = MagicMock()
+        mm.get_subscription_details = AsyncMock(return_value={})
 
         assert await sm.try_restore_session() is True
         assert sm.is_authenticated is True
@@ -85,7 +89,7 @@ class TestSessionRestore:
         session_file.write_bytes(b"fake")
 
         sm = SessionManager()
-        sm._mm.load_session = MagicMock(side_effect=Exception("bad session"))
+        cast(Any, sm._mm).load_session = MagicMock(side_effect=Exception("bad session"))
 
         assert await sm.try_restore_session() is False
         assert sm.is_authenticated is False
@@ -97,19 +101,21 @@ class TestLogin:
     async def test_login_success(self, mock_keyring, tmp_session, tmp_path):
         session_file = tmp_path / "session.pickle"
         sm = SessionManager()
-        sm._mm.login = AsyncMock()
-        sm._mm.save_session = MagicMock(side_effect=lambda _: session_file.write_bytes(b"s"))
+        mm = cast(Any, sm._mm)
+        mm.login = AsyncMock()
+        mm.save_session = MagicMock(side_effect=lambda _: session_file.write_bytes(b"s"))
 
         await sm.login("user@test.com", "pass")
         assert sm.is_authenticated is True
-        sm._mm.login.assert_awaited_once_with(email="user@test.com", password="pass")
+        mm.login.assert_awaited_once_with(email="user@test.com", password="pass")
 
     @patch("src.auth.session_manager.keyring")
     async def test_login_with_mfa(self, mock_keyring, tmp_session, tmp_path):
         session_file = tmp_path / "session.pickle"
         sm = SessionManager()
-        sm._mm.multi_factor_authenticate = AsyncMock()
-        sm._mm.save_session = MagicMock(side_effect=lambda _: session_file.write_bytes(b"s"))
+        mm = cast(Any, sm._mm)
+        mm.multi_factor_authenticate = AsyncMock()
+        mm.save_session = MagicMock(side_effect=lambda _: session_file.write_bytes(b"s"))
 
         await sm.login_with_mfa("user@test.com", "pass", "123456")
         assert sm.is_authenticated is True

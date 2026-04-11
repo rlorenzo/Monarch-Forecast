@@ -50,7 +50,10 @@ class TestAlertsSmoke:
         from src.views.alerts import build_alerts_banner
 
         result = build_alerts_banner([])
-        assert isinstance(result, ft.Column)
+        # When there are no alerts we return a bare empty Container — a
+        # Semantics node with an empty Column would collapse to zero size
+        # and Flet rejects that.
+        assert isinstance(result, ft.Container)
 
     def test_build_alerts_banner_with_alerts(self):
         from src.views.alerts import Alert, build_alerts_banner
@@ -61,8 +64,12 @@ class TestAlertsSmoke:
             Alert(severity="info", title="Large outflow", message="$3000 going out"),
         ]
         result = build_alerts_banner(alerts)
-        assert isinstance(result, ft.Column)
-        assert len(result.controls) == 3
+        assert isinstance(result, ft.Semantics)
+        assert result.live_region is True
+        assert result.label  # non-empty screen reader summary
+        inner = result.content
+        assert isinstance(inner, ft.Column)
+        assert len(inner.controls) == 3
 
 
 class TestTransactionsTableSmoke:

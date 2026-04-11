@@ -30,6 +30,7 @@ class TestNextOccurrenceWeekly:
         base = date(2026, 1, 7)  # Wednesday
         result = next_occurrence(base, "weekly", date(2026, 1, 8))
         assert result == date(2026, 1, 14)
+        assert result is not None
         assert result.weekday() == base.weekday()
 
 
@@ -61,6 +62,7 @@ class TestNextOccurrenceMonthly:
     def test_day_capped_at_28(self):
         # Base on the 31st gets capped to 28 for safety
         result = next_occurrence(date(2026, 1, 31), "monthly", date(2026, 2, 1))
+        assert result is not None
         assert result.day == 28
 
 

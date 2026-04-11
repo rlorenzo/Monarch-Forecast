@@ -148,15 +148,18 @@ class TestScrollableColumnLayout:
         sm = SessionManager()
         dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
 
-        # Check the scrollable content area's children
-        content = dashboard._content_area
-        if content.scroll:
-            for i, control in enumerate(content.controls):
-                expand = getattr(control, "expand", None)
-                assert not expand, (
-                    f"content_area.controls[{i}] ({type(control).__name__}) has expand=True "
-                    f"inside a scrollable Column — this causes layout overlap"
-                )
+        # Check the scrollable tab content area's children. The content area
+        # itself is a Stack (sticky controls + scroll area + loading overlay);
+        # the scrollable region lives in `_scroll_area`, a Column with
+        # scroll=ScrollMode.AUTO.
+        scroll_area = dashboard._scroll_area
+        assert scroll_area.scroll is not None
+        for i, control in enumerate(scroll_area.controls):
+            expand = getattr(control, "expand", None)
+            assert not expand, (
+                f"_scroll_area.controls[{i}] ({type(control).__name__}) has expand=True "
+                f"inside a scrollable Column — this causes layout overlap"
+            )
 
 
 class TestViewBuildersSmoke:
@@ -175,11 +178,20 @@ class TestViewBuildersSmoke:
         assert isinstance(table, ft.DataTable)
 
     def test_build_alerts_banner(self):
-        from src.views.alerts import build_alerts_banner, generate_alerts
+        from src.views.alerts import Alert, build_alerts_banner
 
-        alerts = generate_alerts(_make_forecast(), safety_threshold=500.0)
+        # With alerts present, the banner is a Semantics live region
+        # wrapping a Column of alert rows.
+        alerts = [Alert(severity="critical", title="Overdraft", message="msg")]
         banner = build_alerts_banner(alerts)
-        assert isinstance(banner, ft.Column)
+        assert isinstance(banner, ft.Semantics)
+        assert banner.live_region is True
+        assert isinstance(banner.content, ft.Column)
+        # With zero alerts, we return a bare Container (a Semantics with
+        # an empty Column would collapse to zero size and Flet rejects
+        # that at render time).
+        empty = build_alerts_banner([])
+        assert isinstance(empty, ft.Container)
 
     def test_build_update_banner(self):
         from src.views.update_banner import build_update_banner

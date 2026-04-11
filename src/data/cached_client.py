@@ -43,10 +43,14 @@ class CachedMonarchClient:
                 try:
                     return [
                         RecurringItem(
-                            **{
-                                **item,
-                                "base_date": date.fromisoformat(item["base_date"]),
-                            }
+                            name=item["name"],
+                            amount=item["amount"],
+                            frequency=item["frequency"],
+                            base_date=date.fromisoformat(item["base_date"]),
+                            category=item.get("category", ""),
+                            account_id=item.get("account_id", ""),
+                            account_name=item.get("account_name", ""),
+                            is_credit_card_payment=item.get("is_credit_card_payment", False),
                         )
                         for item in cached
                     ]

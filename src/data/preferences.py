@@ -63,7 +63,7 @@ class Preferences:
     def selected_account_id(self) -> str | None:
         return self._data.get("selected_account_id")
 
-    def set_selected_account_id(self, account_id: str) -> None:
+    def set_selected_account_id(self, account_id: str | None) -> None:
         self._data["selected_account_id"] = account_id
         self._save()
 
@@ -82,6 +82,33 @@ class Preferences:
         overrides = dict(self._data.get("amount_overrides", {}))
         overrides.pop(name, None)
         self._data["amount_overrides"] = overrides
+        self._save()
+
+    @property
+    def forecast_days(self) -> int:
+        """Forecast window in days. Clamped to the slider range (14-90)."""
+        raw = self._data.get("forecast_days", 45)
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return 45
+        return max(14, min(90, value))
+
+    def set_forecast_days(self, days: int) -> None:
+        self._data["forecast_days"] = int(days)
+        self._save()
+
+    @property
+    def safety_threshold(self) -> float:
+        """Balance level below which days are flagged as shortfalls (default $200)."""
+        raw = self._data.get("safety_threshold", 200.0)
+        try:
+            return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            return 200.0
+
+    def set_safety_threshold(self, amount: float) -> None:
+        self._data["safety_threshold"] = float(amount)
         self._save()
 
     @property
@@ -145,6 +172,7 @@ class Preferences:
                     amount=float(raw.get("amount", 0.0)),
                     category=raw.get("category", "Adjustment"),
                     is_recurring=False,
+                    id=str(raw.get("id", "")),
                 )
             )
         return result
@@ -156,6 +184,7 @@ class Preferences:
                 "name": txn.name,
                 "amount": txn.amount,
                 "category": txn.category,
+                "id": txn.id,
             }
             for txn in transactions
         ]

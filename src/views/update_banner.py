@@ -23,11 +23,11 @@ def build_update_banner(update_info: dict) -> ft.Container:
     version = update_info["version"]
     download_target = update_info.get("download_url", update_info.get("html_url", ""))
 
-    def open_download(_: ft.ControlEvent) -> None:
+    def open_download(_: ft.Event[ft.TextButton]) -> None:
         if download_target:
             webbrowser.open(download_target)
 
-    def dismiss(e: ft.ControlEvent) -> None:
+    def dismiss(_: ft.Event[ft.IconButton]) -> None:
         banner.visible = False
         banner.update()
 
@@ -52,11 +52,15 @@ def build_update_banner(update_info: dict) -> ft.Container:
                     expand=True,
                 ),
                 ft.TextButton("Download", on_click=open_download),
-                ft.IconButton(
-                    icon=ft.Icons.CLOSE,
-                    icon_size=18,
-                    on_click=dismiss,
-                    tooltip="Dismiss",
+                ft.Semantics(
+                    button=True,
+                    label="Dismiss update notification",
+                    content=ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_size=18,
+                        on_click=dismiss,
+                        tooltip="Dismiss",
+                    ),
                 ),
             ],
             spacing=12,
