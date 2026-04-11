@@ -29,8 +29,8 @@ uv run ty check                      # type check (blocking; zero diagnostics ex
 
 ## Key conventions
 
-- **Python 3.10+**. Use `from __future__ import annotations` in any file where a dataclass field name shadows its type (e.g., `date: date | None`). This was a runtime crash source.
-- **Flet 0.84 API**: Charts use `PlotlyChart` from `flet-charts` (`from flet_charts import PlotlyChart`) — NOT `MatplotlibChart` (which has canvas manager bugs). Use `ft.Border.all()` not `ft.border.all()`. Dialogs: `page.show_dialog()` / `page.pop_dialog()`, not `page.open()` / `page.close()`.
+- **Python 3.10+**. When a dataclass field name would shadow a type name, always use a qualified/aliased type such as `_dt.date` (see `src/views/alerts.py::Alert.date`). `from __future__ import annotations` alone is not enough — it postpones evaluation, but decorators like `@dataclass` and runtime resolvers (`typing.get_type_hints()`) still look the name up in the class namespace where the field default has already shadowed it.
+- **Flet 0.84 API**: Charts use `LineChart` from `flet-charts` (`from flet_charts import LineChart`) — NOT `MatplotlibChart` (canvas manager bugs). Use `ft.Border.all()` not `ft.border.all()`. Dialogs: `page.show_dialog()` / `page.pop_dialog()`, not `page.open()` / `page.close()`.
 - **Imports**: `src` is the package root. Use `from src.data.preferences import ...` style. isort configured with `known-first-party = ["src"]`.
 - **Line length**: 100 characters.
 - **Pre-commit hooks**: ruff check (with `--fix`), ruff format, and ty (strict — any diagnostic blocks the commit). Hooks run automatically on commit.
@@ -38,7 +38,6 @@ uv run ty check                      # type check (blocking; zero diagnostics ex
 - **`page.run_task` is only on `ft.Page`, not `ft.BasePage`.** `BaseControl.page` is typed as `Page | BasePage`, so you need to narrow before calling `run_task`/`register_service`/etc. `DashboardView` has `_run_task` and `_register_service` helpers that `assert isinstance(self.page, ft.Page)`. Dialog helpers that take `page` accept `ft.Page | ft.BasePage` and use `isinstance` narrowing internally.
 - **Flet services attach via `page.services = [...]`, not `page.register_service(...)`.** The latter doesn't exist; use list assignment against the root view's service list.
 - **`Control.focus()` is async and isn't on the base `Control` class** — it's defined per-subclass (Button, FormFieldControl, …). From a sync handler, use `_schedule_focus(page, control)` in `src/views/adjustments.py` (routes through `page.run_task`). From an async handler, `getattr(control, "focus", None)` then await — see `DashboardView._focus_control`.
-- **Dataclass fields that shadow their type still need `_dt.date` (or similar) even with `from __future__ import annotations`.** The decorator evaluates the stringified annotation in the class scope where the field's default (`None`) has already shadowed the type name. See `src/views/alerts.py::Alert.date` for the pattern.
 
 ## Accessibility
 

@@ -4,10 +4,6 @@ A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that pro
 
 ## Screenshots
 
-<!-- Replace with actual screenshots -->
-
-![Dashboard](docs/screenshots/dashboard.png)
-
 > *Screenshots coming soon. Run `uv run monarch-forecast` to see the app in action.*
 
 ## Features
