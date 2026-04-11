@@ -37,7 +37,7 @@ def build_forecast_chart_summary(result: ForecastResult) -> str:
     low_date = result.lowest_balance_date
     parts = [
         f"Balance projection over {total_days} days: "
-        f"starts at ${first.ending_balance:,.2f} on "
+        f"starts at ${result.starting_balance:,.2f} on "
         f"{first.date.strftime('%b %d')}, "
         f"ends at ${last.ending_balance:,.2f} on "
         f"{last.date.strftime('%b %d')}."

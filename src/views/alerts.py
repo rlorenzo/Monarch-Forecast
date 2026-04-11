@@ -157,22 +157,35 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
     if not alerts:
         return ft.Container()
 
+    # Mutable copy so the live-region label can be recomputed from the
+    # currently-visible alerts after a dismiss. Index into `current_alerts`
+    # stays in sync with `result_column.controls` because banners are
+    # appended in the same order below.
+    current_alerts = list(alerts)
     result_column = ft.Column(controls=[], spacing=8)
     wrapper = ft.Semantics(
         content=result_column,
         container=True,
         live_region=True,
-        label=build_alerts_summary(alerts),
+        label=build_alerts_summary(current_alerts),
     )
 
     def make_dismiss(banner_control: ft.Container) -> Callable[[ft.Event[ft.IconButton]], None]:
         def handle(_: ft.Event[ft.IconButton]) -> None:
             try:
-                result_column.controls.remove(banner_control)
+                index = result_column.controls.index(banner_control)
             except ValueError:
                 return
+            result_column.controls.pop(index)
+            if index < len(current_alerts):
+                current_alerts.pop(index)
+            wrapper.label = build_alerts_summary(current_alerts)
             try:
                 result_column.update()
+            except RuntimeError:
+                pass
+            try:
+                wrapper.update()
             except RuntimeError:
                 pass
 

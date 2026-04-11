@@ -17,7 +17,7 @@ A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that pro
 ### How it works
 
 - **Recurring transactions** are detected by analyzing 90 days of transaction history — the app groups by merchant, checks amount consistency, and infers frequency (weekly, biweekly, monthly, or yearly)
-- **Credit card payments** are estimated using each card's current balance and either its existing recurring payment date or a default 25-day billing cycle
+- **Credit card payments** are estimated by inferring each card's statement close and due days (from user settings or payment history) and summing charges across the current billing cycle, falling back to the card's recurring payment or current balance when history is insufficient
 - Only **checking accounts** are forecasted — credit card, savings, and investment accounts are not included in projections
 
 ## Installation

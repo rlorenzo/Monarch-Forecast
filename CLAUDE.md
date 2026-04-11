@@ -22,7 +22,7 @@ uv run ty check                      # type check (blocking; zero diagnostics ex
 - **`src/auth/`** — Login UI and session management. Credentials stored in OS keychain via `keyring`. Session tokens persisted to `~/.monarch-forecast/session.pickle`.
 - **`src/data/`** — Monarch Money API client (`monarch_client.py`), SQLite caching layer (`cache.py`, `cached_client.py`), credit card payment estimation (`credit_cards.py`).
 - **`src/forecast/`** — Core engine (`engine.py`) projects balance day-by-day. Data models in `models.py` (RecurringItem, ForecastDay, ForecastResult, ForecastTransaction).
-- **`src/views/`** — Flet UI components: dashboard (tabbed: Overview/Transactions/Adjustments), chart (Plotly interactive), alerts, adjustments panel (ExpansionTile), transactions table, update banner.
+- **`src/views/`** — Flet UI components: dashboard (tabbed: Overview/Transactions/Adjustments), chart (`flet-charts` `LineChart`), alerts, adjustments panel (ExpansionTile), transactions table, update banner.
 - **`src/data/preferences.py`** — JSON-backed user preferences (excluded items, CC selections, overrides, account selection). Stored at `~/.monarch-forecast/preferences.json`.
 - **`src/data/recurring_detector.py`** — Detects recurring transactions from 90 days of history (replaces Monarch's recurring API).
 - **`src/utils/`** — Date recurrence calculations (`date_helpers.py`), GitHub release update checker (`updater.py`).
