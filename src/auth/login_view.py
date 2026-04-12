@@ -1,6 +1,7 @@
 """Login view with email/password and MFA support."""
 
 from collections.abc import Callable
+from typing import Any
 
 import flet as ft
 from monarchmoney import LoginFailedException, RequireMFAException
@@ -14,7 +15,10 @@ class LoginView(ft.Column):
     def __init__(
         self,
         session_manager: SessionManager,
-        on_login_success: Callable[[], None],
+        # Accept any return type — callers typically pass a lambda that
+        # calls ``page.run_task(...)``, which returns a Future. The return
+        # value is unused either way.
+        on_login_success: Callable[[], Any],
     ) -> None:
         super().__init__()
         self.session_manager = session_manager
@@ -41,8 +45,14 @@ class LoginView(ft.Column):
             label="Remember credentials",
             value=True,
         )
-        self.login_button = ft.ElevatedButton(
-            text="Sign In",
+        self.login_text = ft.Text("Sign In")
+        self.progress = ft.ProgressRing(visible=False, width=18, height=18, stroke_width=2)
+        self.login_button = ft.Button(
+            content=ft.Row(
+                [self.login_text, self.progress],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=8,
+            ),
             width=350,
             on_click=self._handle_login,
             style=ft.ButtonStyle(
@@ -54,7 +64,15 @@ class LoginView(ft.Column):
             color=ft.Colors.RED_400,
             size=13,
         )
-        self.progress = ft.ProgressRing(visible=False, width=24, height=24)
+        # Wrap the status text in a Semantics live region so assistive tech
+        # announces login failures / MFA prompts when status_text.value
+        # changes. The inner Container reserves height so the Semantics node
+        # has visible content even when status_text is empty (Flet rejects a
+        # Semantics whose content collapses to zero size).
+        self._status_live_region = ft.Semantics(
+            live_region=True,
+            content=ft.Container(content=self.status_text, height=18),
+        )
 
         # Pre-fill saved credentials
         email, password = self.session_manager.load_credentials()
@@ -65,45 +83,112 @@ class LoginView(ft.Column):
 
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
         self.alignment = ft.MainAxisAlignment.CENTER
-        self.spacing = 16
+        self.spacing = 0
         self.controls = [
-            ft.Container(height=40),
-            ft.Icon(ft.Icons.ACCOUNT_BALANCE, size=64, color=ft.Colors.PRIMARY),
-            ft.Text("Monarch Forecast", size=28, weight=ft.FontWeight.BOLD),
-            ft.Text("Sign in with your Monarch Money account", size=14, color=ft.Colors.OUTLINE),
-            ft.Container(height=8),
-            self.email_field,
-            self.password_field,
-            self.mfa_field,
-            self.remember_me,
-            self.status_text,
-            ft.Row(
-                [self.login_button, self.progress],
-                alignment=ft.MainAxisAlignment.CENTER,
+            # Header with gradient background
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Icon(ft.Icons.ACCOUNT_BALANCE, size=56, color=ft.Colors.WHITE),
+                        ft.Text(
+                            "Monarch Forecast",
+                            size=28,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
+                        ft.Text(
+                            "See where your money is headed",
+                            size=14,
+                            color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE),
+                        ),
+                        ft.Container(height=4),
+                        ft.Text(
+                            "Project your checking account balance day-by-day using\n"
+                            "your Monarch Money data. Spot shortfalls before they happen.",
+                            size=12,
+                            color=ft.Colors.with_opacity(0.7, ft.Colors.WHITE),
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=6,
+                ),
+                padding=ft.Padding.symmetric(vertical=40, horizontal=24),
+                gradient=ft.LinearGradient(
+                    begin=ft.Alignment(-1, -1),
+                    end=ft.Alignment(1, 1),
+                    colors=["#1565C0", "#1E88E5", "#42A5F5"],
+                ),
+                border_radius=16,
+                width=450,
+            ),
+            # Login form card
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Container(height=8),
+                        self.email_field,
+                        self.password_field,
+                        self.mfa_field,
+                        ft.Row(
+                            [self.remember_me],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            width=350,
+                        ),
+                        self._status_live_region,
+                        self.login_button,
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=12,
+                ),
+                padding=ft.Padding.symmetric(vertical=24, horizontal=24),
+            ),
+            # Security note
+            ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.LOCK_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Text(
+                            "Credentials are stored in your OS keychain "
+                            "(macOS Keychain, Windows Credential Locker, or Linux SecretService). "
+                            "Nothing is sent to third parties.",
+                            size=11,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                            width=340,
+                        ),
+                    ],
+                    spacing=8,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.only(bottom=16),
             ),
         ]
 
-    async def _handle_login(self, e: ft.ControlEvent) -> None:
-        email = self.email_field.value.strip()
-        password = self.password_field.value.strip()
+    async def _handle_login(self, e: ft.Event[ft.Button]) -> None:
+        email = (self.email_field.value or "").strip()
+        password = (self.password_field.value or "").strip()
 
         if not email or not password:
             self.status_text.value = "Please enter email and password."
             self.status_text.update()
+            # Flet 0.84 made Control.focus() async — await inside this
+            # already-async handler.
+            await (self.email_field if not email else self.password_field).focus()
             return
 
         self.login_button.disabled = True
+        self.login_text.value = "Signing in..."
         self.progress.visible = True
         self.status_text.value = ""
         self.login_button.update()
-        self.progress.update()
         self.status_text.update()
 
         try:
             if self._needs_mfa:
-                mfa_code = self.mfa_field.value.strip()
+                mfa_code = (self.mfa_field.value or "").strip()
                 if not mfa_code:
                     self.status_text.value = "Please enter your MFA code."
+                    await self.mfa_field.focus()
                     return
                 await self.session_manager.login_with_mfa(email, password, mfa_code)
             else:
@@ -121,10 +206,12 @@ class LoginView(ft.Column):
             self.status_text.value = "MFA required. Enter your code below."
             self.status_text.color = ft.Colors.ORANGE_400
             self.mfa_field.update()
+            await self.mfa_field.focus()
 
         except LoginFailedException:
             self.status_text.value = "Login failed. Check your credentials."
             self.status_text.color = ft.Colors.RED_400
+            await self.password_field.focus()
 
         except Exception as ex:
             self.status_text.value = f"Error: {ex}"
@@ -132,7 +219,7 @@ class LoginView(ft.Column):
 
         finally:
             self.login_button.disabled = False
+            self.login_text.value = "Sign In"
             self.progress.visible = False
             self.login_button.update()
-            self.progress.update()
             self.status_text.update()

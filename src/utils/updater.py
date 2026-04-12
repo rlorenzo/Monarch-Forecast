@@ -1,11 +1,21 @@
 """Auto-update checker using GitHub releases."""
 
 import json
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-CURRENT_VERSION = "0.1.0"
+try:
+    CURRENT_VERSION = version("monarch-forecast")
+    _VERSION_KNOWN = True
+except PackageNotFoundError:
+    # Running from source without installed metadata (e.g. pytest, bare
+    # `python -m src.main`). Use a neutral sentinel and skip remote update
+    # checks so we never report spurious "update available" banners against
+    # whatever the real shipping version is.
+    CURRENT_VERSION = "0.0.0"
+    _VERSION_KNOWN = False
 GITHUB_REPO = "rlorenzo/Monarch-Forecast"
 RELEASES_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -21,6 +31,8 @@ def check_for_update() -> dict[str, Any] | None:
         Dict with 'version', 'download_url', 'release_notes' if update available,
         None if current version is latest or check fails.
     """
+    if not _VERSION_KNOWN:
+        return None
     try:
         req = Request(
             RELEASES_URL,

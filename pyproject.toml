@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monarch-forecast"
-version = "0.1.0"
+version = "1.0.0"
 description = "Financial forecasting desktop app powered by Monarch Money"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
-    "flet>=0.25.0",
+    "flet>=0.84.0",
     "monarchmoneycommunity>=1.3.0",
     "keyring>=25.0.0",
-    "matplotlib>=3.8.0",
+    "flet-charts>=0.84.0",
 ]
 
 [dependency-groups]
@@ -24,6 +24,10 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "pre-commit>=4.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
 
 [project.scripts]
 monarch-forecast = "src.main:run"
@@ -55,13 +59,12 @@ ignore = [
 known-first-party = ["src"]
 
 [tool.ty.rules]
-# Flet's type stubs are incomplete — these rules produce only false positives
-unknown-argument = "warn"
-invalid-argument-type = "warn"
-missing-argument = "warn"
-unresolved-attribute = "warn"
+# Flet ships py.typed as of 0.80 and strongly-typed event generics as of
+# 0.84, so we treat ty's findings as real. All Flet-facing handlers use
+# `ft.Event[SpecificControl]` rather than the legacy `ft.ControlEvent`.
+# If a new rule starts firing on Flet stub gaps, open a ticket on
+# flet-dev/flet rather than demoting the rule here.
 unresolved-import = "warn"
-invalid-assignment = "warn"
 
 [tool.ty.environment]
 python-version = "3.10"

@@ -15,7 +15,7 @@ class MonarchClient:
         self._mm = mm
 
     async def get_checking_accounts(self) -> list[dict[str, Any]]:
-        """Return all checking/depository accounts with id, name, balance."""
+        """Return all active, visible checking/depository accounts."""
         data = await self._mm.get_accounts()
         accounts = data.get("accounts", [])
         return [
@@ -30,12 +30,11 @@ class MonarchClient:
                 else "",
             }
             for a in accounts
-            if a.get("type", {}).get("name", "").lower() in ("depository", "checking")
-            or a.get("subtype", {}).get("name", "").lower() == "checking"
+            if _is_checking_account(a) and _is_active_visible(a)
         ]
 
     async def get_credit_card_accounts(self) -> list[dict[str, Any]]:
-        """Return all credit card accounts."""
+        """Return all active, visible credit card accounts."""
         data = await self._mm.get_accounts()
         accounts = data.get("accounts", [])
         return [
@@ -48,8 +47,11 @@ class MonarchClient:
                 else "",
             }
             for a in accounts
-            if a.get("type", {}).get("name", "").lower() == "credit"
-            or a.get("subtype", {}).get("name", "").lower() == "credit card"
+            if (
+                a.get("type", {}).get("name", "").lower() == "credit"
+                or a.get("subtype", {}).get("name", "").lower() == "credit card"
+            )
+            and _is_active_visible(a)
         ]
 
     async def get_all_accounts(self) -> list[dict[str, Any]]:
@@ -78,28 +80,33 @@ class MonarchClient:
             start_date=today.isoformat(), end_date=end.isoformat()
         )
 
-        items: list[RecurringItem] = []
-        recurring_list = data.get("recurringTransactions", [])
+        # The API returns recurringTransactionItems — each is an occurrence
+        # with a shared `stream` object containing frequency/merchant info.
+        # Deduplicate by stream ID to get unique recurring items.
+        raw_items = data.get("recurringTransactionItems", [])
 
-        for r in recurring_list:
-            stream = r.get("stream", [])
-            if not stream:
+        # Group by stream ID to deduplicate
+        seen_streams: dict[str, dict] = {}
+        for item in raw_items:
+            stream = item.get("stream") or {}
+            stream_id = stream.get("id")
+            if not stream_id:
                 continue
+            if stream_id not in seen_streams:
+                seen_streams[stream_id] = item
 
-            merchant = r.get("merchant", {}) or {}
-            name = merchant.get("name", r.get("name", "Unknown"))
-            amount = r.get("amount", 0.0)
-            frequency = _parse_frequency(r.get("frequency", "monthly"))
+        items: list[RecurringItem] = []
+        for r in seen_streams.values():
+            stream = r.get("stream") or {}
+            merchant = stream.get("merchant", {}) or {}
+            name = merchant.get("name", "Unknown")
+            amount = r.get("amount", stream.get("amount", 0.0))
+            frequency = _parse_frequency(stream.get("frequency", "monthly"))
 
-            # Determine if this is income or expense
-            is_income = r.get("isIncome", False)
-            if not is_income and amount > 0:
-                amount = -amount  # expenses should be negative
-
-            # Use the first upcoming date as base
-            first_date_str = stream[0].get("date", today.isoformat())
+            # Use the item's date as the base occurrence
+            date_str = r.get("date", today.isoformat())
             try:
-                base_date = date.fromisoformat(first_date_str)
+                base_date = date.fromisoformat(date_str)
             except (ValueError, TypeError):
                 base_date = today
 
@@ -107,6 +114,10 @@ class MonarchClient:
             cat_data = r.get("category", {})
             if cat_data:
                 category = cat_data.get("name", "")
+
+            account_data = r.get("account", {}) or {}
+            account_id = account_data.get("id", "")
+            account_name = account_data.get("displayName", "")
 
             is_cc_payment = _is_credit_card_payment(name, category)
 
@@ -117,16 +128,51 @@ class MonarchClient:
                     frequency=frequency,
                     base_date=base_date,
                     category=category,
+                    account_id=account_id,
+                    account_name=account_name,
                     is_credit_card_payment=is_cc_payment,
                 )
             )
 
         return items
 
+    async def get_transactions(
+        self,
+        account_ids: list[str] | None = None,
+        lookback_days: int = 90,
+    ) -> list[dict[str, Any]]:
+        """Fetch transaction history for the given accounts."""
+        today = date.today()
+        start = (today - timedelta(days=lookback_days)).isoformat()
+        end = today.isoformat()
+
+        all_txns: list[dict] = []
+        offset = 0
+        limit = 500
+        while True:
+            data = await self._mm.get_transactions(
+                limit=limit,
+                offset=offset,
+                start_date=start,
+                end_date=end,
+                account_ids=account_ids or [],
+            )
+            results = data.get("allTransactions", {}).get("results", [])
+            all_txns.extend(results)
+            if len(results) < limit:
+                break
+            offset += limit
+
+        return all_txns
+
     async def refresh_accounts(self) -> bool:
-        """Trigger an account refresh and wait for completion."""
+        """Trigger a bank sync and wait for completion.
+
+        Capped at 60s because institutions that stall past a minute typically
+        don't finish at all on this request; a fresh retry works better.
+        """
         try:
-            return await self._mm.request_accounts_refresh_and_wait(timeout=120)
+            return await self._mm.request_accounts_refresh_and_wait(timeout=60)
         except Exception:
             return False
 
@@ -148,6 +194,33 @@ def _parse_frequency(raw: str) -> str:
         "every_year": "yearly",
     }
     return mapping.get(raw_lower, "monthly")
+
+
+def _is_active_visible(account: dict) -> bool:
+    """Exclude closed and user-hidden Monarch accounts.
+
+    Monarch sets `deactivatedAt` when an account is closed, and exposes
+    `isHidden` / `hideFromList` for user visibility toggles. Any of these
+    being truthy means the user doesn't want the account showing up.
+    """
+    if account.get("deactivatedAt"):
+        return False
+    if account.get("isHidden"):
+        return False
+    return not account.get("hideFromList")
+
+
+def _is_checking_account(account: dict) -> bool:
+    """Filter for checking accounts only, excluding savings."""
+    acct_type = account.get("type", {}).get("name", "").lower()
+    subtype = account.get("subtype", {}).get("name", "").lower()
+    savings_subtypes = {"savings", "money market", "cd", "certificate of deposit"}
+    if subtype in savings_subtypes:
+        return False
+    if subtype == "checking":
+        return True
+    # Depository without a specific subtype — include it
+    return acct_type in ("depository", "checking")
 
 
 def _is_credit_card_payment(name: str, category: str) -> bool:

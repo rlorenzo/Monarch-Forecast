@@ -14,3 +14,6 @@ env/
 *.pickle
 .monarch-forecast/
 .mm/
+.coverage
+.pytest_cache/
+.ruff_cache/
