@@ -17,9 +17,14 @@ def _session_file_is_safe_to_load(path: Path) -> bool:
     """Refuse to deserialize session pickle if filesystem permissions are loose.
 
     The MonarchMoney library uses pickle, so loading an attacker-writable file
-    is RCE. On POSIX systems we require the file to be owned by the current
-    user and not group/world-writable. On Windows these checks are skipped
-    (NTFS ACLs are not reflected in stat mode bits).
+    is RCE. This gate only defends against cross-user tampering: on POSIX we
+    require the file to be owned by the current uid and not group- or
+    world-writable. It does NOT mitigate a malicious process running as the
+    same user — that attacker can write a 0o600 file owned by the user that
+    will pass this check. Removing pickle from the persistence format (or
+    adding a keyring-backed HMAC over the blob) is the only real fix for
+    that threat model. On Windows, mode bits don't reflect NTFS ACLs, so
+    this check is skipped entirely.
     """
     if sys.platform == "win32":
         return True
@@ -30,6 +35,14 @@ def _session_file_is_safe_to_load(path: Path) -> bool:
     if st.st_uid != os.getuid():
         return False
     return not st.st_mode & 0o022
+
+
+def _chmod_session_file() -> None:
+    """Tighten session file perms to 0o600, tolerating non-POSIX filesystems."""
+    try:
+        SESSION_FILE.chmod(0o600)
+    except OSError:
+        pass
 
 
 class SessionManager:
@@ -93,14 +106,14 @@ class SessionManager:
         """Login with email/password. Raises RequireMFAException if MFA needed."""
         await self._mm.login(email=email, password=password)
         self._mm.save_session(str(SESSION_FILE))
-        SESSION_FILE.chmod(0o600)
+        _chmod_session_file()
         self._authenticated = True
 
     async def login_with_mfa(self, email: str, password: str, mfa_code: str) -> None:
         """Login with email/password/MFA code."""
         await self._mm.multi_factor_authenticate(email, password, mfa_code)
         self._mm.save_session(str(SESSION_FILE))
-        SESSION_FILE.chmod(0o600)
+        _chmod_session_file()
         self._authenticated = True
 
     def logout(self) -> None:

@@ -1,6 +1,7 @@
 """Simple SQLite cache for Monarch data to support offline/fast access."""
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -16,11 +17,20 @@ class DataCache:
 
     def __init__(self, db_path: Path = CACHE_DB) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Create the DB file with 0o600 up front so there's no window
+        # where sqlite3.connect() creates it with the current umask
+        # (typically 0o644) before a follow-up chmod tightens it.
+        if not db_path.exists():
+            try:
+                fd = os.open(str(db_path), os.O_CREAT | os.O_WRONLY | os.O_EXCL, 0o600)
+                os.close(fd)
+            except (FileExistsError, OSError):
+                pass
         self._conn = sqlite3.connect(str(db_path))
         try:
             db_path.chmod(0o600)
         except OSError:
-            pass  # chmod not supported on all platforms (e.g. Windows)
+            pass  # chmod semantics differ across platforms (e.g. Windows)
         self._conn.execute(
             """CREATE TABLE IF NOT EXISTS cache (
                 key TEXT PRIMARY KEY,

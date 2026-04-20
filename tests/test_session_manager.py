@@ -1,5 +1,6 @@
 """Tests for session manager (auth)."""
 
+import sys
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -93,6 +94,50 @@ class TestSessionRestore:
 
         assert await sm.try_restore_session() is False
         assert sm.is_authenticated is False
+        assert not session_file.exists()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
+    @patch("src.auth.session_manager.keyring")
+    async def test_restore_refuses_world_writable_pickle(self, mock_keyring, tmp_session, tmp_path):
+        """A session file with group/world-write bits must NOT be unpickled
+        (defense against cross-user tampering; regression for PR #5)."""
+        session_file = tmp_path / "session.pickle"
+        session_file.write_bytes(b"fake")
+        session_file.chmod(0o666)
+
+        sm = SessionManager()
+        load_session = MagicMock()
+        cast(Any, sm._mm).load_session = load_session
+
+        assert await sm.try_restore_session() is False
+        assert sm.is_authenticated is False
+        # Unsafe file is deleted so we don't keep tripping the check.
+        assert not session_file.exists()
+        # Crucially, load_session must never have been called on the
+        # attacker-writable blob.
+        load_session.assert_not_called()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
+    @patch("src.auth.session_manager.keyring")
+    async def test_restore_refuses_foreign_owned_pickle(
+        self, mock_keyring, tmp_session, tmp_path, monkeypatch
+    ):
+        """A session file owned by a different uid must NOT be unpickled."""
+        session_file = tmp_path / "session.pickle"
+        session_file.write_bytes(b"fake")
+        session_file.chmod(0o600)
+
+        import os as _os
+
+        real_uid = _os.getuid()
+        monkeypatch.setattr("src.auth.session_manager.os.getuid", lambda: real_uid + 1)
+
+        sm = SessionManager()
+        load_session = MagicMock()
+        cast(Any, sm._mm).load_session = load_session
+
+        assert await sm.try_restore_session() is False
+        load_session.assert_not_called()
         assert not session_file.exists()
 
 

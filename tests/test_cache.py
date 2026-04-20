@@ -1,5 +1,8 @@
 """Tests for the data cache."""
 
+import os
+import stat
+import sys
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -46,3 +49,31 @@ class TestDataCache:
         data = [{"id": 1, "name": "test"}, {"id": 2, "values": [1, 2, 3]}]
         cache.set("list", data)
         assert cache.get("list") == data
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
+    def test_db_file_has_restrictive_permissions(self, tmp_path: Path):
+        """The cache DB must be 0o600 so other local users can't read
+        cached balances / transactions (regression for PR #5 review)."""
+        db_path = tmp_path / "perms.db"
+        c = DataCache(db_path=db_path)
+        try:
+            mode = stat.S_IMODE(db_path.stat().st_mode)
+            assert mode == 0o600, f"expected 0o600, got {oct(mode)}"
+        finally:
+            c.close()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
+    def test_db_file_created_restrictive_even_with_loose_umask(self, tmp_path: Path):
+        """Simulate a loose umask (0o000 → world-writable default) and
+        confirm the pre-create step still lands on 0o600 from the start."""
+        old_umask = os.umask(0)
+        try:
+            db_path = tmp_path / "umask.db"
+            c = DataCache(db_path=db_path)
+            try:
+                mode = stat.S_IMODE(db_path.stat().st_mode)
+                assert mode == 0o600
+            finally:
+                c.close()
+        finally:
+            os.umask(old_umask)
