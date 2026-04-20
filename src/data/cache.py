@@ -17,6 +17,10 @@ class DataCache:
     def __init__(self, db_path: Path = CACHE_DB) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._conn = sqlite3.connect(str(db_path))
+        try:
+            db_path.chmod(0o600)
+        except OSError:
+            pass  # chmod not supported on all platforms (e.g. Windows)
         self._conn.execute(
             """CREATE TABLE IF NOT EXISTS cache (
                 key TEXT PRIMARY KEY,

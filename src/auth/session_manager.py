@@ -1,5 +1,7 @@
 """Manages Monarch Money authentication and session persistence."""
 
+import os
+import sys
 from pathlib import Path
 
 import keyring
@@ -9,6 +11,25 @@ from monarchmoney import MonarchMoney
 SERVICE_NAME = "monarch-forecast"
 SESSION_DIR = Path.home() / ".monarch-forecast"
 SESSION_FILE = SESSION_DIR / "session.pickle"
+
+
+def _session_file_is_safe_to_load(path: Path) -> bool:
+    """Refuse to deserialize session pickle if filesystem permissions are loose.
+
+    The MonarchMoney library uses pickle, so loading an attacker-writable file
+    is RCE. On POSIX systems we require the file to be owned by the current
+    user and not group/world-writable. On Windows these checks are skipped
+    (NTFS ACLs are not reflected in stat mode bits).
+    """
+    if sys.platform == "win32":
+        return True
+    try:
+        st = path.stat()
+    except OSError:
+        return False
+    if st.st_uid != os.getuid():
+        return False
+    return not st.st_mode & 0o022
 
 
 class SessionManager:
@@ -46,6 +67,12 @@ class SessionManager:
     async def try_restore_session(self) -> bool:
         """Attempt to restore a saved session. Returns True if successful."""
         if not SESSION_FILE.exists():
+            return False
+        if not _session_file_is_safe_to_load(SESSION_FILE):
+            try:
+                SESSION_FILE.unlink()
+            except OSError:
+                pass
             return False
         try:
             self._mm.load_session(str(SESSION_FILE))
