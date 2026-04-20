@@ -1,6 +1,7 @@
 """Manages Monarch Money authentication and session persistence."""
 
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -14,24 +15,34 @@ SESSION_FILE = SESSION_DIR / "session.pickle"
 
 
 def _session_file_is_safe_to_load(path: Path) -> bool:
-    """Refuse to deserialize session pickle if filesystem permissions are loose.
+    """Refuse to deserialize session pickle if filesystem metadata is loose.
 
     The MonarchMoney library uses pickle, so loading an attacker-writable file
     is RCE. This gate only defends against cross-user tampering: on POSIX we
-    require the file to be owned by the current uid and not group- or
-    world-writable. It does NOT mitigate a malicious process running as the
-    same user — that attacker can write a 0o600 file owned by the user that
-    will pass this check. Removing pickle from the persistence format (or
-    adding a keyring-backed HMAC over the blob) is the only real fix for
-    that threat model. On Windows, mode bits don't reflect NTFS ACLs, so
-    this check is skipped entirely.
+    require the path to be a non-symlink regular file owned by the current
+    uid and not group- or world-writable. It does NOT mitigate a malicious
+    process running as the same user — that attacker can write a 0o600 file
+    owned by the user that will pass this check. Removing pickle from the
+    persistence format (or adding a keyring-backed HMAC over the blob) is the
+    only real fix for that threat model. On Windows, mode bits don't reflect
+    NTFS ACLs, so permission checks are skipped, but we still require a
+    regular (non-symlink) file.
     """
-    if sys.platform == "win32":
-        return True
     try:
-        st = path.stat()
+        st = path.lstat()
     except OSError:
         return False
+    if stat.S_ISLNK(st.st_mode):
+        # Reject symlinks outright: a symlink owned by us could point at
+        # an attacker-controlled pickle, and the mode bits on the link
+        # itself aren't meaningful.
+        return False
+    if not stat.S_ISREG(st.st_mode):
+        # Directories, FIFOs, sockets, devices — none of these can be
+        # safely unpickled, and unlink() won't even clean up directories.
+        return False
+    if sys.platform == "win32":
+        return True
     if st.st_uid != os.getuid():
         return False
     return not st.st_mode & 0o022

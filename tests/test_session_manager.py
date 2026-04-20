@@ -140,6 +140,43 @@ class TestSessionRestore:
         load_session.assert_not_called()
         assert not session_file.exists()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
+    @patch("src.auth.session_manager.keyring")
+    async def test_restore_refuses_symlink_pickle(self, mock_keyring, tmp_session, tmp_path):
+        """Even a symlink owned by us must not be unpickled — it could
+        point at attacker-controlled content."""
+        real_target = tmp_path / "real.pickle"
+        real_target.write_bytes(b"fake")
+        session_file = tmp_path / "session.pickle"
+        session_file.symlink_to(real_target)
+
+        sm = SessionManager()
+        load_session = MagicMock()
+        cast(Any, sm._mm).load_session = load_session
+
+        assert await sm.try_restore_session() is False
+        load_session.assert_not_called()
+
+    @patch("src.auth.session_manager.keyring")
+    async def test_restore_refuses_directory_at_session_path(
+        self, mock_keyring, tmp_session, tmp_path
+    ):
+        """If the path is a directory (not a regular file), the safety
+        gate must fail-closed without calling load_session — unlink()
+        can't remove a directory, so we must never reach it."""
+        session_file = tmp_path / "session.pickle"
+        session_file.mkdir(mode=0o700)
+
+        sm = SessionManager()
+        load_session = MagicMock()
+        cast(Any, sm._mm).load_session = load_session
+
+        assert await sm.try_restore_session() is False
+        load_session.assert_not_called()
+        # Directory should still exist — unlink() can't delete it, but the
+        # OSError is swallowed so we don't crash the caller.
+        assert session_file.is_dir()
+
 
 class TestLogin:
     @patch("src.auth.session_manager.keyring")
