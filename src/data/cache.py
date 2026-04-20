@@ -19,12 +19,15 @@ class DataCache:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         # Create the DB file with 0o600 up front so there's no window
         # where sqlite3.connect() creates it with the current umask
-        # (typically 0o644) before a follow-up chmod tightens it.
+        # (typically 0o644) before a follow-up chmod tightens it. We only
+        # swallow FileExistsError (the race between exists() and O_EXCL);
+        # any other OSError (EACCES, ENOSPC, …) must propagate so we
+        # don't silently fall back to umask-default perms.
         if not db_path.exists():
             try:
                 fd = os.open(str(db_path), os.O_CREAT | os.O_WRONLY | os.O_EXCL, 0o600)
                 os.close(fd)
-            except (FileExistsError, OSError):
+            except FileExistsError:
                 pass
         self._conn = sqlite3.connect(str(db_path))
         try:
