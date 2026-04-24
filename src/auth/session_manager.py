@@ -56,6 +56,25 @@ def _chmod_session_file() -> None:
         pass
 
 
+def _prepare_session_file_for_write() -> None:
+    """Clear any planted symlink / non-regular file before save_session.
+
+    MonarchMoney's save_session() writes through whatever is at the path,
+    so a symlink there would redirect the pickle (and the follow-up
+    chmod) outside our intended location. If SESSION_FILE is missing or
+    already a regular file there's nothing to do; anything else gets
+    unlinked, and if unlink fails (e.g. a directory was planted) the
+    OSError propagates and save fails closed.
+    """
+    try:
+        st = SESSION_FILE.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISREG(st.st_mode):
+        return
+    SESSION_FILE.unlink()
+
+
 class SessionManager:
     """Handles login, MFA, and session token persistence."""
 
@@ -119,6 +138,7 @@ class SessionManager:
     async def login(self, email: str, password: str) -> None:
         """Login with email/password. Raises RequireMFAException if MFA needed."""
         await self._mm.login(email=email, password=password)
+        _prepare_session_file_for_write()
         self._mm.save_session(str(SESSION_FILE))
         _chmod_session_file()
         self._authenticated = True
@@ -126,6 +146,7 @@ class SessionManager:
     async def login_with_mfa(self, email: str, password: str, mfa_code: str) -> None:
         """Login with email/password/MFA code."""
         await self._mm.multi_factor_authenticate(email, password, mfa_code)
+        _prepare_session_file_for_write()
         self._mm.save_session(str(SESSION_FILE))
         _chmod_session_file()
         self._authenticated = True
@@ -133,10 +154,10 @@ class SessionManager:
     def logout(self) -> None:
         self._authenticated = False
         self.clear_credentials()
-        # Unconditional unlink so a dangling symlink at SESSION_FILE gets
-        # removed too — Path.exists() would report False and leave the
-        # redirect in place.
+        # Best-effort cleanup. Catching OSError (not just FileNotFoundError)
+        # so a planted directory at SESSION_FILE doesn't crash logout —
+        # unlink() can't remove dirs and raises IsADirectoryError.
         try:
             SESSION_FILE.unlink()
-        except FileNotFoundError:
+        except OSError:
             pass

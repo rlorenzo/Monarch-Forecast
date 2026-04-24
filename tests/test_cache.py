@@ -91,3 +91,30 @@ class TestDataCache:
 
         with pytest.raises(OSError, match="non-regular"):
             DataCache(db_path=db_path)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
+    def test_db_path_revalidates_after_file_exists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Simulate the TOCTOU race: os.open raises FileExistsError (a file
+        was there), but by the time we sqlite3.connect the path could be
+        a symlink. The post-create lstat re-check must catch that."""
+        target = tmp_path / "elsewhere" / "victim.db"
+        target.parent.mkdir()
+        target.write_bytes(b"")
+        db_path = tmp_path / "cache.db"
+
+        real_open = os.open
+
+        def racy_open(*_args, **_kwargs):
+            # Swap in a symlink between pre-create and the re-validation.
+            # Real attack would be an inter-process race; this monkeypatch
+            # reproduces the same end state deterministically.
+            db_path.symlink_to(target)
+            raise FileExistsError
+
+        monkeypatch.setattr("src.data.cache.os.open", racy_open)
+        with pytest.raises(OSError, match="non-regular"):
+            DataCache(db_path=db_path)
+        # Restore so pytest's teardown doesn't trip.
+        monkeypatch.setattr("src.data.cache.os.open", real_open)

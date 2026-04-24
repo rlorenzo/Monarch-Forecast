@@ -232,3 +232,38 @@ class TestLogin:
 
         assert sm.is_authenticated is False
         assert not session_file.exists()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
+    @patch("src.auth.session_manager.keyring")
+    async def test_login_clears_planted_symlink_before_save(
+        self, mock_keyring, tmp_session, tmp_path
+    ):
+        """A symlink planted at SESSION_FILE (e.g. between logout and next
+        login) must be removed before save_session — otherwise the pickle
+        write would follow the symlink out of the intended directory."""
+        target = tmp_path / "elsewhere.pickle"
+        session_file = tmp_path / "session.pickle"
+        session_file.symlink_to(target)
+
+        sm = SessionManager()
+        mm = cast(Any, sm._mm)
+        mm.login = AsyncMock()
+        mm.save_session = MagicMock()
+
+        await sm.login("user@test.com", "pass")
+
+        assert not session_file.is_symlink()
+        assert not target.exists()
+        mm.save_session.assert_called_once()
+
+    @patch("src.auth.session_manager.keyring")
+    def test_logout_survives_directory_at_session_path(self, mock_keyring, tmp_session, tmp_path):
+        """If a directory is sitting at SESSION_FILE, unlink() raises
+        IsADirectoryError. logout() must survive that — catching OSError,
+        not just FileNotFoundError."""
+        session_file = tmp_path / "session.pickle"
+        session_file.mkdir()
+
+        sm = SessionManager()
+        sm.logout()  # must not raise
+        assert session_file.is_dir()
