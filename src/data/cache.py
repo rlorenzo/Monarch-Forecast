@@ -21,12 +21,13 @@ class DataCache:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         # Idempotent pre-create at 0o600 so there's no umask-default
         # window where sqlite3.connect() creates the file with loose
-        # perms. Only run this path when O_NOFOLLOW is available:
-        # without it, O_CREAT could in theory follow a planted symlink
-        # and create/affect the target before the lstat gate below sees
-        # it. Platforms without O_NOFOLLOW are effectively Windows, where
-        # creating symlinks requires admin and the umask-default window
-        # doesn't carry the same meaning (NTFS ACLs, not POSIX mode).
+        # perms. Only run this path when O_NOFOLLOW is available: without
+        # it, O_CREAT could in theory follow a planted symlink and
+        # create/affect the target before the lstat gate below sees it.
+        # On platforms without O_NOFOLLOW (effectively Windows), skip
+        # the pre-create — we can't express "create without following
+        # symlinks", and the umask-default window doesn't carry the same
+        # meaning there (NTFS ACLs, not POSIX mode bits).
         # FileExistsError covers the pre-existing regular-file case
         # (legitimate prior run, or a race). Other OSErrors (EACCES,
         # ENOSPC, ELOOP from a symlink) propagate.
