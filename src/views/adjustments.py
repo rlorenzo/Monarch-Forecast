@@ -7,8 +7,8 @@ from datetime import date, datetime, timedelta
 
 import flet as ft
 
+from src.data.models import ForecastTransaction, RecurringItem
 from src.data.preferences import Preferences
-from src.forecast.models import ForecastTransaction, RecurringItem
 from src.views.calendar_popover import show_calendar_popover
 
 # Formats accepted when a user types a date into the one-off date TextField.

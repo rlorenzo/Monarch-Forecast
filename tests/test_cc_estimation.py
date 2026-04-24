@@ -13,7 +13,7 @@ from datetime import date
 
 import pytest
 
-from src.data.credit_cards import estimate_cc_payments
+from src.forecast.credit_cards import estimate_cc_payments
 
 # --- Helpers ---
 
@@ -357,7 +357,7 @@ class TestEdgeCases:
 
     def test_no_history_no_settings_falls_back_to_recurring(self):
         """Without history or settings, use recurring item amount."""
-        from src.forecast.models import RecurringItem
+        from src.data.models import RecurringItem
 
         cc = _cc("Amex", -2000.0)
         recurring = [

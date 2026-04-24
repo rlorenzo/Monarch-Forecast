@@ -2,12 +2,8 @@
 
 from datetime import date, timedelta
 
-from src.forecast.models import (
-    ForecastDay,
-    ForecastResult,
-    ForecastTransaction,
-    RecurringItem,
-)
+from src.data.models import ForecastTransaction, RecurringItem
+from src.forecast.models import ForecastDay, ForecastResult
 from src.utils.date_helpers import occurrences_in_range
 
 

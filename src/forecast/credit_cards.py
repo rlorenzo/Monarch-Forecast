@@ -13,7 +13,7 @@ import calendar
 from datetime import date, timedelta
 from typing import Any
 
-from src.forecast.models import ForecastTransaction, RecurringItem
+from src.data.models import ForecastTransaction, RecurringItem
 
 # Default grace period assumption when inferring statement close from due date
 DEFAULT_GRACE_PERIOD = 25

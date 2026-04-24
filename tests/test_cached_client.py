@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
-from src.forecast.models import RecurringItem
+from src.data.models import RecurringItem
 
 
 def _make_client(cache: DataCache) -> tuple[CachedMonarchClient, MagicMock]:

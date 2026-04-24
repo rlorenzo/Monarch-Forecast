@@ -2,7 +2,8 @@
 
 from datetime import date
 
-from src.forecast.models import ForecastDay, ForecastResult, ForecastTransaction
+from src.data.models import ForecastTransaction
+from src.forecast.models import ForecastDay, ForecastResult
 from src.views.alerts import generate_alerts
 
 

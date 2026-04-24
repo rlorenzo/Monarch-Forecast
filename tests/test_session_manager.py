@@ -27,7 +27,7 @@ class TestCredentials:
 
     @patch("src.auth.session_manager.keyring")
     def test_load_credentials(self, mock_keyring, tmp_session):
-        mock_keyring.get_password.side_effect = lambda svc, key: {
+        mock_keyring.get_password.side_effect = lambda _svc, key: {
             "email": "user@test.com",
             "password": "secret",
         }.get(key)

@@ -1,6 +1,6 @@
 """Utilities for categorizing and summarizing recurring transactions."""
 
-from src.forecast.models import RecurringItem, TransactionType
+from src.data.models import RecurringItem, TransactionType
 
 
 def group_by_type(

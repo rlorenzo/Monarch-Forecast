@@ -2,8 +2,8 @@
 
 from datetime import date
 
+from src.data.models import ForecastTransaction, RecurringItem
 from src.forecast.engine import build_forecast
-from src.forecast.models import ForecastTransaction, RecurringItem
 
 
 class TestBuildForecast:

@@ -11,23 +11,7 @@ from unittest.mock import patch
 
 import flet as ft
 
-from src.forecast.models import ForecastDay, ForecastResult, ForecastTransaction
-
-
-def _make_forecast(balance: float = 5000.0, days_out: int = 7) -> ForecastResult:
-    from datetime import date
-
-    days = []
-    b = balance
-    for i in range(days_out):
-        d = date(2026, 1, 1 + i)
-        txns = []
-        if i == 2:
-            txns = [ForecastTransaction(date=d, name="Rent", amount=-1500.0, category="Housing")]
-        day = ForecastDay(date=d, starting_balance=b, transactions=txns)
-        b = day.ending_balance
-        days.append(day)
-    return ForecastResult(days=days, starting_balance=balance, safety_threshold=500.0)
+from tests.factories import make_forecast
 
 
 class TestNoDeprecationWarnings:
@@ -76,17 +60,10 @@ class TestNoDeprecationWarnings:
 class TestLoginViewInit:
     """LoginView instantiation catches API breakage (wrong kwargs, removed attrs)."""
 
-    @patch("src.auth.session_manager.keyring")
-    def test_creates_without_error(self, mock_keyring, tmp_path: Path, monkeypatch):
+    def test_creates_without_error(self, patched_session_manager):
         from src.auth.login_view import LoginView
-        from src.auth.session_manager import SessionManager
 
-        monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
-        monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
-        mock_keyring.get_password.return_value = None
-
-        sm = SessionManager()
-        view = LoginView(session_manager=sm, on_login_success=lambda: None)
+        view = LoginView(session_manager=patched_session_manager, on_login_success=lambda: None)
         assert isinstance(view, ft.Column)
         assert len(view.controls) > 0
 
@@ -94,31 +71,17 @@ class TestLoginViewInit:
 class TestDashboardViewInit:
     """DashboardView instantiation catches API breakage."""
 
-    @patch("src.auth.session_manager.keyring")
-    def test_creates_without_error(self, mock_keyring, tmp_path: Path, monkeypatch):
-        from src.auth.session_manager import SessionManager
+    def test_creates_without_error(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
-        monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
-        monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-
-        sm = SessionManager()
-        dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
+        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
         assert isinstance(dashboard, ft.Column)
         assert len(dashboard.controls) > 0
 
-    @patch("src.auth.session_manager.keyring")
-    def test_has_navigation_rail(self, mock_keyring, tmp_path: Path, monkeypatch):
-        from src.auth.session_manager import SessionManager
+    def test_has_navigation_rail(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
-        monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
-        monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-
-        sm = SessionManager()
-        dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
+        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
         assert dashboard._nav_rail is not None
         assert len(dashboard._nav_rail.destinations) == 4
 
@@ -136,17 +99,10 @@ class TestAdjustmentsPanelInit:
 class TestScrollableColumnLayout:
     """Catch layout issues: expand=True inside scrollable columns causes overlap."""
 
-    @patch("src.auth.session_manager.keyring")
-    def test_no_expand_in_scrollable_content(self, mock_keyring, tmp_path: Path, monkeypatch):
-        from src.auth.session_manager import SessionManager
+    def test_no_expand_in_scrollable_content(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
-        monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
-        monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-
-        sm = SessionManager()
-        dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
+        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
 
         # Check the scrollable tab content area's children. The content area
         # itself is a Stack (sticky controls + scroll area + loading overlay);
@@ -168,13 +124,13 @@ class TestViewBuildersSmoke:
     def test_build_forecast_chart(self):
         from src.views.chart import build_forecast_chart
 
-        chart = build_forecast_chart(_make_forecast())
+        chart = build_forecast_chart(make_forecast())
         assert chart is not None
 
     def test_build_transactions_table(self):
         from src.views.transactions_table import build_transactions_table
 
-        table = build_transactions_table(_make_forecast())
+        table = build_transactions_table(make_forecast())
         assert isinstance(table, ft.DataTable)
 
     def test_build_alerts_banner(self):

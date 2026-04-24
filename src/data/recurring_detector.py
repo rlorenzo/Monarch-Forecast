@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from statistics import median
 
-from src.forecast.models import RecurringItem
+from src.data.models import RecurringItem
 
 
 def detect_recurring(

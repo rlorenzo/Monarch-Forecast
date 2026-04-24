@@ -20,8 +20,8 @@ uv run ty check                      # type check (blocking; zero diagnostics ex
 
 - **Entry point**: `src/main.py` (Flet async app). `main.py` at project root is a thin wrapper for `flet build`.
 - **`src/auth/`** — Login UI and session management. Credentials stored in OS keychain via `keyring`. Session tokens persisted to `~/.monarch-forecast/session.pickle`.
-- **`src/data/`** — Monarch Money API client (`monarch_client.py`), SQLite caching layer (`cache.py`, `cached_client.py`), credit card payment estimation (`credit_cards.py`).
-- **`src/forecast/`** — Core engine (`engine.py`) projects balance day-by-day. Data models in `models.py` (RecurringItem, ForecastDay, ForecastResult, ForecastTransaction).
+- **`src/data/`** — Monarch Money API client (`monarch_client.py`), SQLite caching layer (`cache.py`, `cached_client.py`), domain models (`models.py`: `RecurringItem`, `ForecastTransaction`, `TransactionType`). These are input/IO types the forecast engine builds on, so `src.data` sits below `src.forecast` in the tach layering (see `tach.toml`).
+- **`src/forecast/`** — Core engine (`engine.py`) projects balance day-by-day. Credit card payment estimation (`credit_cards.py`) lives here because it's forecast logic, not raw data fetching. Output models in `models.py` (`ForecastDay`, `ForecastResult`).
 - **`src/views/`** — Flet UI components: dashboard (tabbed: Overview/Transactions/Adjustments), chart (`flet-charts` `LineChart`), alerts, adjustments panel (ExpansionTile), transactions table, update banner.
 - **`src/data/preferences.py`** — JSON-backed user preferences (excluded items, CC selections, overrides, account selection). Stored at `~/.monarch-forecast/preferences.json`.
 - **`src/data/recurring_detector.py`** — Detects recurring transactions from 90 days of history (replaces Monarch's recurring API).

@@ -5,8 +5,8 @@ from datetime import date
 from typing import Any
 
 from src.data.cache import DataCache
+from src.data.models import RecurringItem
 from src.data.monarch_client import MonarchClient
-from src.forecast.models import RecurringItem
 
 
 class CachedMonarchClient:

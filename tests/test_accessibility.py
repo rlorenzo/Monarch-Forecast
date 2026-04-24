@@ -12,12 +12,11 @@ with the path to any icon button that lacks an accessible name.
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
-from unittest.mock import patch
 
 import flet as ft
 
-from src.forecast.models import ForecastDay, ForecastResult, ForecastTransaction
+from src.data.models import ForecastTransaction
+from src.forecast.models import ForecastDay, ForecastResult
 
 
 def _make_forecast(balance: float = 5000.0, days_out: int = 7) -> ForecastResult:
@@ -163,7 +162,7 @@ class TestIconButtonLabels:
         _assert_every_icon_button_is_labeled(banner, "build_update_banner")
 
     def test_adjustments_panel_icon_buttons(self):
-        from src.forecast.models import RecurringItem
+        from src.data.models import RecurringItem
         from src.views.adjustments import AdjustmentsPanel
 
         items = [
@@ -180,31 +179,16 @@ class TestIconButtonLabels:
         panel._rebuild_override_rows()
         _assert_every_icon_button_is_labeled(panel, "AdjustmentsPanel")
 
-    @patch("src.auth.session_manager.keyring")
-    def test_dashboard_icon_buttons(self, mock_keyring, tmp_path: Path, monkeypatch):
-        from src.auth.session_manager import SessionManager
+    def test_dashboard_icon_buttons(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
-        monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
-        monkeypatch.setattr("src.data.cache.CACHE_DB", tmp_path / "cache.db")
-        mock_keyring.get_password.return_value = None
-
-        sm = SessionManager()
-        dashboard = DashboardView(session_manager=sm, on_logout=lambda: None)
+        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
         _assert_every_icon_button_is_labeled(dashboard, "DashboardView")
 
-    @patch("src.auth.session_manager.keyring")
-    def test_login_view_icon_buttons(self, mock_keyring, tmp_path: Path, monkeypatch):
+    def test_login_view_icon_buttons(self, patched_session_manager):
         from src.auth.login_view import LoginView
-        from src.auth.session_manager import SessionManager
 
-        monkeypatch.setattr("src.auth.session_manager.SESSION_DIR", tmp_path)
-        monkeypatch.setattr("src.auth.session_manager.SESSION_FILE", tmp_path / "s.pickle")
-        mock_keyring.get_password.return_value = None
-
-        sm = SessionManager()
-        view = LoginView(session_manager=sm, on_login_success=lambda: None)
+        view = LoginView(session_manager=patched_session_manager, on_login_success=lambda: None)
         _assert_every_icon_button_is_labeled(view, "LoginView")
 
 

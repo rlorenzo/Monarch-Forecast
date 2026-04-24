@@ -10,12 +10,13 @@ import flet as ft
 from src.auth.session_manager import SessionManager
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
-from src.data.credit_cards import DEFAULT_GRACE_PERIOD, estimate_cc_payments, infer_due_day
+from src.data.models import ForecastTransaction, RecurringItem
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
 from src.data.recurring_detector import detect_recurring
+from src.forecast.credit_cards import DEFAULT_GRACE_PERIOD, estimate_cc_payments, infer_due_day
 from src.forecast.engine import build_forecast
-from src.forecast.models import ForecastResult, ForecastTransaction, RecurringItem
+from src.forecast.models import ForecastResult
 from src.views.adjustments import (
     AdjustmentsPanel,
     show_add_one_off_dialog,
