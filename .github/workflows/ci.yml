@@ -26,6 +26,22 @@ jobs:
       - name: Type check
         run: uv run ty check
 
+  dead-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Dead code scan
+        run: uv run vulture
+
+  architecture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Module boundary check
+        run: uv run tach check
+
   test:
     runs-on: ubuntu-latest
     steps:
