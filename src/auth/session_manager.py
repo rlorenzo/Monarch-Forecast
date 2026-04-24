@@ -62,12 +62,15 @@ def _prepare_session_file_for_write() -> None:
     MonarchMoney's save_session() writes through whatever is at the path,
     so a planted filesystem object there can redirect or expose the
     pickle. An existing regular file is kept only when it's safe: on
-    POSIX, owned by the current uid and not group- or world-writable —
-    otherwise another uid could pre-create the file and collect our
-    next session write. On Windows we accept any regular file because
-    POSIX uid/mode bits don't map to NTFS ACLs. Anything else gets
-    unlinked, and if unlink fails (e.g. a directory was planted) the
-    OSError propagates and save fails closed.
+    POSIX, owned by the current uid and with no group or world
+    permission bits set at all (mask 0o077) — otherwise another uid
+    could pre-create the file or leave it group/world-readable before
+    our next save writes secrets into it, and _chmod_session_file()'s
+    0o600 tighten wouldn't close that read window in time. On Windows
+    we accept any regular file because POSIX uid/mode bits don't map
+    to NTFS ACLs. Anything else gets unlinked, and if unlink fails
+    (e.g. a directory was planted) the OSError propagates and save
+    fails closed.
     """
     try:
         st = SESSION_FILE.lstat()

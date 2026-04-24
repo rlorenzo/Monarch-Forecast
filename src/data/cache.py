@@ -19,35 +19,38 @@ class DataCache:
 
     def __init__(self, db_path: Path = CACHE_DB) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        # Idempotent pre-create at 0o600 so there's no umask-default window
-        # where sqlite3.connect() creates the file with loose perms.
-        # O_NOFOLLOW rejects symlinks atomically (raises ELOOP as OSError,
-        # which propagates). FileExistsError covers the pre-existing
-        # regular-file case (legitimate prior run, or a race). Other
-        # OSErrors (EACCES, ENOSPC, ELOOP) propagate.
-        flags = os.O_CREAT | os.O_WRONLY | os.O_EXCL
+        # Idempotent pre-create at 0o600 so there's no umask-default
+        # window where sqlite3.connect() creates the file with loose
+        # perms. Only run this path when O_NOFOLLOW is available:
+        # without it, O_CREAT could in theory follow a planted symlink
+        # and create/affect the target before the lstat gate below sees
+        # it. Platforms without O_NOFOLLOW are effectively Windows, where
+        # creating symlinks requires admin and the umask-default window
+        # doesn't carry the same meaning (NTFS ACLs, not POSIX mode).
+        # FileExistsError covers the pre-existing regular-file case
+        # (legitimate prior run, or a race). Other OSErrors (EACCES,
+        # ENOSPC, ELOOP from a symlink) propagate.
         if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        try:
-            fd = os.open(str(db_path), flags, 0o600)
-            os.close(fd)
-        except FileExistsError:
-            pass
+            flags = os.O_CREAT | os.O_WRONLY | os.O_EXCL | os.O_NOFOLLOW
+            try:
+                fd = os.open(str(db_path), flags, 0o600)
+                os.close(fd)
+            except FileExistsError:
+                pass
         # Authoritative validation immediately before sqlite3.connect —
         # closes the TOCTOU window where a symlink could be swapped in
-        # between the pre-create and connect. lstat() so a planted
-        # symlink is seen as a symlink, not followed. We also require
-        # current-uid ownership on POSIX: if the cache dir is ever
-        # writable by another uid, an attacker could pre-create a
-        # regular DB file they own, and sqlite3.connect() would dump
-        # cached data into their file (chmod(0o600) would then fail
-        # silently, not owning the file). Windows lacks POSIX uid, so
-        # skip that arm there.
-        st = db_path.lstat()
-        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
-            raise OSError(f"refusing to use non-regular cache DB path: {db_path}")
-        if sys.platform != "win32" and st.st_uid != os.getuid():
-            raise OSError(f"refusing to use cache DB not owned by current uid: {db_path}")
+        # between pre-create and connect. lstat() so a planted symlink
+        # is seen as a symlink, not followed. On Windows (no pre-create)
+        # the file may not exist yet — let sqlite3.connect create it.
+        try:
+            st = db_path.lstat()
+        except FileNotFoundError:
+            st = None
+        if st is not None:
+            if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+                raise OSError(f"refusing to use non-regular cache DB path: {db_path}")
+            if sys.platform != "win32" and st.st_uid != os.getuid():
+                raise OSError(f"refusing to use cache DB not owned by current uid: {db_path}")
         # Tighten perms BEFORE sqlite3.connect — a pre-existing 0o644 DB
         # would otherwise be read/written with loose perms in the window
         # before a post-connect chmod. For a just-pre-created file this
