@@ -89,7 +89,11 @@ class TestDataCache:
         db_path = tmp_path / "cache.db"
         db_path.symlink_to(target)
 
-        with pytest.raises(OSError, match="non-regular"):
+        # Match OSError generally (not the specific message): O_NOFOLLOW and
+        # O_EXCL can race on different platforms — macOS raises EEXIST
+        # (caught, then the lstat gate raises "non-regular"), Linux can
+        # raise ELOOP from os.open directly. Both are correct rejections.
+        with pytest.raises(OSError):
             DataCache(db_path=db_path)
 
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
