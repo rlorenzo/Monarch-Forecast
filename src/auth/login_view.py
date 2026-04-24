@@ -1,5 +1,6 @@
 """Login view with email/password and MFA support."""
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -7,6 +8,8 @@ import flet as ft
 from monarchmoney import LoginFailedException, RequireMFAException
 
 from src.auth.session_manager import SessionManager
+
+logger = logging.getLogger(__name__)
 
 
 class LoginView(ft.Column):
@@ -213,8 +216,9 @@ class LoginView(ft.Column):
             self.status_text.color = ft.Colors.RED_400
             await self.password_field.focus()
 
-        except Exception as ex:
-            self.status_text.value = f"Error: {ex}"
+        except Exception:
+            logger.exception("Unexpected error during login")
+            self.status_text.value = "Sign-in failed. Please try again."
             self.status_text.color = ft.Colors.RED_400
 
         finally:
