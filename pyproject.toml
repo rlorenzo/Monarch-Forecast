@@ -23,6 +23,8 @@ dev = [
     "pytest-cov>=6.0",
     "pytest-asyncio>=0.25.0",
     "pre-commit>=4.0",
+    "vulture>=2.14",
+    "tach>=0.34",
 ]
 
 [tool.setuptools.packages.find]
@@ -69,6 +71,12 @@ unresolved-import = "warn"
 [tool.ty.environment]
 python-version = "3.10"
 
+[tool.ty.src]
+# The vulture whitelist is synthetic — it references names from other modules
+# to suppress vulture false-positives, so it looks like unresolved-reference
+# noise to every other tool.
+exclude = ["vulture_whitelist.py"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
@@ -80,3 +88,11 @@ omit = ["src/__init__.py", "src/**/__init__.py"]
 [tool.coverage.report]
 show_missing = true
 fail_under = 0
+
+[tool.vulture]
+# 80% confidence skips the noisy Flet/mock attribute false positives at 60%
+# (things like `on_click`, `return_value`, `content` — consumed by the Flet
+# runtime or mock framework, not by Python code) without needing a sprawling
+# whitelist. Genuine dead code still surfaces at 80%+.
+paths = ["src", "tests", "vulture_whitelist.py"]
+min_confidence = 80

@@ -15,3 +15,17 @@ repos:
         types: [python]
         pass_filenames: false
         verbose: true
+      - id: vulture
+        name: vulture (dead code)
+        entry: uv run vulture
+        language: system
+        types: [python]
+        pass_filenames: false
+        verbose: true
+      - id: tach
+        name: tach (module boundaries)
+        entry: uv run tach check
+        language: system
+        types: [python]
+        pass_filenames: false
+        verbose: true

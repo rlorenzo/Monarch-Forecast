@@ -4,7 +4,8 @@ from collections.abc import Callable
 
 import flet as ft
 
-from src.forecast.models import ForecastResult, ForecastTransaction
+from src.data.models import ForecastTransaction
+from src.forecast.models import ForecastResult
 
 
 def build_transactions_table(

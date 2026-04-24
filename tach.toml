@@ -1,0 +1,26 @@
+source_roots = ["."]
+exclude = ["tests", "build", "dist", ".venv"]
+
+[[modules]]
+path = "src.utils"
+depends_on = []
+
+[[modules]]
+path = "src.data"
+depends_on = ["src.utils"]
+
+[[modules]]
+path = "src.forecast"
+depends_on = ["src.data", "src.utils"]
+
+[[modules]]
+path = "src.auth"
+depends_on = []
+
+[[modules]]
+path = "src.views"
+depends_on = ["src.auth", "src.data", "src.forecast", "src.utils"]
+
+[[modules]]
+path = "src.main"
+depends_on = ["src.auth", "src.utils", "src.views"]

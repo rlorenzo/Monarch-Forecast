@@ -5,7 +5,7 @@ from typing import Any
 
 from monarchmoney import MonarchMoney
 
-from src.forecast.models import RecurringItem
+from src.data.models import RecurringItem
 
 
 class MonarchClient:
@@ -17,59 +17,19 @@ class MonarchClient:
     async def get_checking_accounts(self) -> list[dict[str, Any]]:
         """Return all active, visible checking/depository accounts."""
         data = await self._mm.get_accounts()
-        accounts = data.get("accounts", [])
         return [
-            {
-                "id": a["id"],
-                "name": a.get("displayName", a.get("name", "Unknown")),
-                "balance": a.get("currentBalance", 0.0),
-                "type": a.get("type", {}).get("name", ""),
-                "subtype": a.get("subtype", {}).get("name", ""),
-                "institution": a.get("institution", {}).get("name", "")
-                if a.get("institution")
-                else "",
-            }
-            for a in accounts
+            _normalize_account(a, include_type=True)
+            for a in data.get("accounts", [])
             if _is_checking_account(a) and _is_active_visible(a)
         ]
 
     async def get_credit_card_accounts(self) -> list[dict[str, Any]]:
         """Return all active, visible credit card accounts."""
         data = await self._mm.get_accounts()
-        accounts = data.get("accounts", [])
         return [
-            {
-                "id": a["id"],
-                "name": a.get("displayName", a.get("name", "Unknown")),
-                "balance": a.get("currentBalance", 0.0),
-                "institution": a.get("institution", {}).get("name", "")
-                if a.get("institution")
-                else "",
-            }
-            for a in accounts
-            if (
-                a.get("type", {}).get("name", "").lower() == "credit"
-                or a.get("subtype", {}).get("name", "").lower() == "credit card"
-            )
-            and _is_active_visible(a)
-        ]
-
-    async def get_all_accounts(self) -> list[dict[str, Any]]:
-        """Return all accounts."""
-        data = await self._mm.get_accounts()
-        accounts = data.get("accounts", [])
-        return [
-            {
-                "id": a["id"],
-                "name": a.get("displayName", a.get("name", "Unknown")),
-                "balance": a.get("currentBalance", 0.0),
-                "type": a.get("type", {}).get("name", ""),
-                "subtype": a.get("subtype", {}).get("name", ""),
-                "institution": a.get("institution", {}).get("name", "")
-                if a.get("institution")
-                else "",
-            }
-            for a in accounts
+            _normalize_account(a)
+            for a in data.get("accounts", [])
+            if _is_credit_card(a) and _is_active_visible(a)
         ]
 
     async def get_recurring_items(self) -> list[RecurringItem]:
@@ -221,6 +181,34 @@ def _is_checking_account(account: dict) -> bool:
         return True
     # Depository without a specific subtype — include it
     return acct_type in ("depository", "checking")
+
+
+def _is_credit_card(account: dict) -> bool:
+    """Filter for credit card accounts."""
+    acct_type = account.get("type", {}).get("name", "").lower()
+    subtype = account.get("subtype", {}).get("name", "").lower()
+    return acct_type == "credit" or subtype == "credit card"
+
+
+def _normalize_account(account: dict, *, include_type: bool = False) -> dict[str, Any]:
+    """Normalize a raw Monarch account dict into our summary shape.
+
+    `include_type` is on for checking accounts (consumers use type/subtype to
+    distinguish depository variants) and off for credit cards (no meaningful
+    subtyping we surface in the UI).
+    """
+    out: dict[str, Any] = {
+        "id": account["id"],
+        "name": account.get("displayName", account.get("name", "Unknown")),
+        "balance": account.get("currentBalance", 0.0),
+        "institution": (
+            account.get("institution", {}).get("name", "") if account.get("institution") else ""
+        ),
+    }
+    if include_type:
+        out["type"] = account.get("type", {}).get("name", "")
+        out["subtype"] = account.get("subtype", {}).get("name", "")
+    return out
 
 
 def _is_credit_card_payment(name: str, category: str) -> bool:

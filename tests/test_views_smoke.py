@@ -1,46 +1,22 @@
 """Smoke tests for view modules — verify they don't crash on construction."""
 
-from datetime import date
-
 import flet as ft
 
-from src.forecast.models import (
-    ForecastDay,
-    ForecastResult,
-    ForecastTransaction,
-)
-
-
-def _make_forecast(
-    balance: float = 5000.0,
-    days_out: int = 7,
-    threshold: float = 500.0,
-) -> ForecastResult:
-    days = []
-    b = balance
-    for i in range(days_out):
-        d = date(2026, 1, 1 + i)
-        txns = []
-        if i == 2:
-            txns = [ForecastTransaction(date=d, name="Rent", amount=-1500.0, category="Housing")]
-        day = ForecastDay(date=d, starting_balance=b, transactions=txns)
-        b = day.ending_balance
-        days.append(day)
-    return ForecastResult(days=days, starting_balance=balance, safety_threshold=threshold)
+from tests.factories import make_forecast
 
 
 class TestChartSmoke:
     def test_builds_chart(self):
         from src.views.chart import build_forecast_chart
 
-        forecast = _make_forecast()
+        forecast = make_forecast()
         chart = build_forecast_chart(forecast)
         assert chart is not None
 
     def test_chart_with_threshold(self):
         from src.views.chart import build_forecast_chart
 
-        forecast = _make_forecast(balance=1000.0, threshold=2000.0)
+        forecast = make_forecast(balance=1000.0, threshold=2000.0)
         chart = build_forecast_chart(forecast)
         assert chart is not None
 
@@ -76,7 +52,7 @@ class TestTransactionsTableSmoke:
     def test_builds_table(self):
         from src.views.transactions_table import build_transactions_table
 
-        forecast = _make_forecast()
+        forecast = make_forecast()
         table = build_transactions_table(forecast)
         assert isinstance(table, ft.DataTable)
         assert len(table.columns) == 5

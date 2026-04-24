@@ -4,7 +4,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from src.forecast.models import ForecastTransaction
+from src.data.models import ForecastTransaction
 
 PREFS_DIR = Path.home() / ".monarch-forecast"
 PREFS_FILE = PREFS_DIR / "preferences.json"

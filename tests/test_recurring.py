@@ -4,8 +4,8 @@ from datetime import date
 
 import pytest
 
+from src.data.models import RecurringItem
 from src.data.recurring import group_by_type, monthly_total
-from src.forecast.models import RecurringItem
 
 
 def _item(

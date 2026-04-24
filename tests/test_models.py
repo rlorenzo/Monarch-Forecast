@@ -2,13 +2,8 @@
 
 from datetime import date
 
-from src.forecast.models import (
-    ForecastDay,
-    ForecastResult,
-    ForecastTransaction,
-    RecurringItem,
-    TransactionType,
-)
+from src.data.models import ForecastTransaction, RecurringItem, TransactionType
+from src.forecast.models import ForecastDay, ForecastResult
 
 
 class TestRecurringItem:
