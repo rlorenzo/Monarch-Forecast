@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -41,6 +44,16 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Module boundary check
         run: uv run tach check
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install semgrep
+      - run: semgrep scan --error --config=p/python --config=p/security-audit --config=p/owasp-top-ten src/
 
   test:
     runs-on: ubuntu-latest

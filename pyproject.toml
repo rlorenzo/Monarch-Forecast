@@ -25,6 +25,7 @@ dev = [
     "pre-commit>=4.0",
     "vulture>=2.14",
     "tach>=0.34",
+    "bandit>=1.9",
 ]
 
 [tool.setuptools.packages.find]

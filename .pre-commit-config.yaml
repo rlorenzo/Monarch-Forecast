@@ -29,3 +29,10 @@ repos:
         types: [python]
         pass_filenames: false
         verbose: true
+      - id: bandit
+        name: bandit (security scan, medium+)
+        entry: uv run bandit -r -ll src
+        language: system
+        types: [python]
+        pass_filenames: false
+        verbose: true
