@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import stat
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -35,10 +36,18 @@ class DataCache:
         # Authoritative validation immediately before sqlite3.connect —
         # closes the TOCTOU window where a symlink could be swapped in
         # between the pre-create and connect. lstat() so a planted
-        # symlink is seen as a symlink, not followed.
+        # symlink is seen as a symlink, not followed. We also require
+        # current-uid ownership on POSIX: if the cache dir is ever
+        # writable by another uid, an attacker could pre-create a
+        # regular DB file they own, and sqlite3.connect() would dump
+        # cached data into their file (chmod(0o600) would then fail
+        # silently, not owning the file). Windows lacks POSIX uid, so
+        # skip that arm there.
         st = db_path.lstat()
         if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
             raise OSError(f"refusing to use non-regular cache DB path: {db_path}")
+        if sys.platform != "win32" and st.st_uid != os.getuid():
+            raise OSError(f"refusing to use cache DB not owned by current uid: {db_path}")
         self._conn = sqlite3.connect(str(db_path))
         try:
             db_path.chmod(0o600)

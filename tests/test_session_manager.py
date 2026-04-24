@@ -267,3 +267,62 @@ class TestLogin:
         sm = SessionManager()
         sm.logout()  # must not raise
         assert session_file.is_dir()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX uid")
+    @patch("src.auth.session_manager.keyring")
+    async def test_login_unlinks_foreign_owned_regular_file(
+        self, mock_keyring, tmp_session, tmp_path, monkeypatch
+    ):
+        """An attacker-owned regular file at SESSION_FILE must be unlinked
+        before save_session, so the next pickle write isn't captured by a
+        file owned by another uid (who could pre-create it in a
+        loosely-permissioned parent dir)."""
+        import os as _os
+
+        session_file = tmp_path / "session.pickle"
+        session_file.write_bytes(b"attacker content")
+        session_file.chmod(0o600)
+        real_uid = _os.getuid()
+        monkeypatch.setattr("src.auth.session_manager.os.getuid", lambda: real_uid + 1)
+
+        sm = SessionManager()
+        mm = cast(Any, sm._mm)
+        mm.login = AsyncMock()
+
+        def fake_save(path: str) -> None:
+            with open(path, "wb") as f:
+                f.write(b"our session")
+
+        mm.save_session = MagicMock(side_effect=fake_save)
+
+        await sm.login("user@test.com", "pass")
+
+        assert session_file.read_bytes() == b"our session"
+        mm.save_session.assert_called_once()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
+    @patch("src.auth.session_manager.keyring")
+    async def test_login_unlinks_world_writable_regular_file(
+        self, mock_keyring, tmp_session, tmp_path
+    ):
+        """Same class: a world-writable regular file is suspect even if
+        we own it (any other process could write into it) — must be
+        unlinked before save, so save_session produces a fresh 0o600
+        file."""
+        session_file = tmp_path / "session.pickle"
+        session_file.write_bytes(b"suspect")
+        session_file.chmod(0o666)
+
+        sm = SessionManager()
+        mm = cast(Any, sm._mm)
+        mm.login = AsyncMock()
+
+        def fake_save(path: str) -> None:
+            with open(path, "wb") as f:
+                f.write(b"fresh")
+
+        mm.save_session = MagicMock(side_effect=fake_save)
+
+        await sm.login("user@test.com", "pass")
+
+        assert session_file.read_bytes() == b"fresh"

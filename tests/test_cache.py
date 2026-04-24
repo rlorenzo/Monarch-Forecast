@@ -118,3 +118,17 @@ class TestDataCache:
             DataCache(db_path=db_path)
         # Restore so pytest's teardown doesn't trip.
         monkeypatch.setattr("src.data.cache.os.open", real_open)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX uid")
+    def test_db_path_refuses_foreign_owned(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """If a regular file at db_path is owned by another uid, refuse to
+        use it — another uid with dir-write access could pre-create a DB
+        owned by them, and sqlite3.connect() would dump cached data into
+        their file (chmod would silently no-op for a non-owned file)."""
+        db_path = tmp_path / "cache.db"
+        db_path.write_bytes(b"")  # regular file, owned by us
+        real_uid = os.getuid()
+        monkeypatch.setattr("src.data.cache.os.getuid", lambda: real_uid + 1)
+
+        with pytest.raises(OSError, match="not owned by current uid"):
+            DataCache(db_path=db_path)

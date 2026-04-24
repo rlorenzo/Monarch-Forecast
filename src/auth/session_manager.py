@@ -57,12 +57,15 @@ def _chmod_session_file() -> None:
 
 
 def _prepare_session_file_for_write() -> None:
-    """Clear any planted symlink / non-regular file before save_session.
+    """Clear any unsafe existing file before save_session.
 
     MonarchMoney's save_session() writes through whatever is at the path,
-    so a symlink there would redirect the pickle (and the follow-up
-    chmod) outside our intended location. If SESSION_FILE is missing or
-    already a regular file there's nothing to do; anything else gets
+    so a planted filesystem object there can redirect or expose the
+    pickle. An existing regular file is kept only when it's safe: on
+    POSIX, owned by the current uid and not group- or world-writable —
+    otherwise another uid could pre-create the file and collect our
+    next session write. On Windows we accept any regular file because
+    POSIX uid/mode bits don't map to NTFS ACLs. Anything else gets
     unlinked, and if unlink fails (e.g. a directory was planted) the
     OSError propagates and save fails closed.
     """
@@ -71,7 +74,10 @@ def _prepare_session_file_for_write() -> None:
     except FileNotFoundError:
         return
     if stat.S_ISREG(st.st_mode):
-        return
+        if sys.platform == "win32":
+            return
+        if st.st_uid == os.getuid() and not st.st_mode & 0o022:
+            return
     SESSION_FILE.unlink()
 
 
