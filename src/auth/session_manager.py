@@ -76,7 +76,13 @@ def _prepare_session_file_for_write() -> None:
     if stat.S_ISREG(st.st_mode):
         if sys.platform == "win32":
             return
-        if st.st_uid == os.getuid() and not st.st_mode & 0o022:
+        # Reject any group/other perms (0o077), not just writable bits.
+        # Otherwise a pre-existing 0o644 file (e.g. from a stale login
+        # with a loose umask) leaves a world-readable window between
+        # save_session() writing the pickle and _chmod_session_file()
+        # tightening it. Safer to unlink + let save_session create a
+        # fresh file that hits 0o600 immediately via our chmod.
+        if st.st_uid == os.getuid() and not st.st_mode & 0o077:
             return
     SESSION_FILE.unlink()
 

@@ -48,11 +48,16 @@ class DataCache:
             raise OSError(f"refusing to use non-regular cache DB path: {db_path}")
         if sys.platform != "win32" and st.st_uid != os.getuid():
             raise OSError(f"refusing to use cache DB not owned by current uid: {db_path}")
-        self._conn = sqlite3.connect(str(db_path))
+        # Tighten perms BEFORE sqlite3.connect — a pre-existing 0o644 DB
+        # would otherwise be read/written with loose perms in the window
+        # before a post-connect chmod. For a just-pre-created file this
+        # is a no-op (os.open already set 0o600). chmod() semantics vary
+        # on Windows, hence the swallow.
         try:
             db_path.chmod(0o600)
         except OSError:
-            pass  # chmod semantics differ across platforms (e.g. Windows)
+            pass
+        self._conn = sqlite3.connect(str(db_path))
         self._conn.execute(
             """CREATE TABLE IF NOT EXISTS cache (
                 key TEXT PRIMARY KEY,
