@@ -54,14 +54,25 @@ class DataCache:
                 raise OSError(f"refusing to use cache DB not owned by current uid: {db_path}")
         # Tighten perms BEFORE sqlite3.connect — a pre-existing 0o644 DB
         # would otherwise be read/written with loose perms in the window
-        # before a post-connect chmod. For a just-pre-created file this
-        # is a no-op (os.open already set 0o600). chmod() semantics vary
-        # on Windows, hence the swallow.
+        # before our chmod. For a just-pre-created file this is a no-op
+        # (os.open already set 0o600). On platforms where we skipped the
+        # pre-create (no O_NOFOLLOW) and the DB doesn't exist yet, this
+        # chmod will FileNotFoundError — swallowed — and sqlite3.connect
+        # below creates the file with umask defaults; the post-connect
+        # chmod catches that case. chmod() semantics vary on Windows,
+        # hence the broad except.
         try:
             db_path.chmod(0o600)
         except OSError:
             pass
         self._conn = sqlite3.connect(str(db_path))
+        # Second chmod so a freshly-created-by-sqlite DB (the no-O_NOFOLLOW
+        # first-run case) lands on 0o600 rather than whatever the umask
+        # produced. No-op when the pre-connect chmod already succeeded.
+        try:
+            db_path.chmod(0o600)
+        except OSError:
+            pass
         self._conn.execute(
             """CREATE TABLE IF NOT EXISTS cache (
                 key TEXT PRIMARY KEY,
