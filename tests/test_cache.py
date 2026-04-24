@@ -77,3 +77,17 @@ class TestDataCache:
                 c.close()
         finally:
             os.umask(old_umask)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
+    def test_db_path_refuses_symlink(self, tmp_path: Path):
+        """A symlink planted at db_path must be rejected outright —
+        otherwise sqlite3.connect() would follow it and we'd chmod a
+        file outside the cache dir."""
+        target = tmp_path / "elsewhere" / "victim.db"
+        target.parent.mkdir()
+        target.write_bytes(b"")
+        db_path = tmp_path / "cache.db"
+        db_path.symlink_to(target)
+
+        with pytest.raises(OSError, match="non-regular"):
+            DataCache(db_path=db_path)

@@ -3,6 +3,7 @@
 import json
 import os
 import sqlite3
+import stat
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -17,18 +18,28 @@ class DataCache:
 
     def __init__(self, db_path: Path = CACHE_DB) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        # Create the DB file with 0o600 up front so there's no window
-        # where sqlite3.connect() creates it with the current umask
-        # (typically 0o644) before a follow-up chmod tightens it. We only
-        # swallow FileExistsError (the race between exists() and O_EXCL);
-        # any other OSError (EACCES, ENOSPC, …) must propagate so we
-        # don't silently fall back to umask-default perms.
-        if not db_path.exists():
+        # lstat() rather than exists(): if another uid planted a symlink at
+        # db_path pointing outside the cache dir, exists() would follow it
+        # and sqlite3.connect() would end up reading/writing the target.
+        try:
+            st = db_path.lstat()
+        except FileNotFoundError:
+            # No file yet — create with 0o600 up front so there's no
+            # window where sqlite3.connect() uses umask-default perms.
+            # O_NOFOLLOW is belt-and-braces against a symlink planted
+            # between our lstat() and os.open(). Only FileExistsError
+            # is swallowed (the race); other OSErrors must propagate.
+            flags = os.O_CREAT | os.O_WRONLY | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
             try:
-                fd = os.open(str(db_path), os.O_CREAT | os.O_WRONLY | os.O_EXCL, 0o600)
+                fd = os.open(str(db_path), flags, 0o600)
                 os.close(fd)
             except FileExistsError:
                 pass
+        else:
+            if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+                raise OSError(f"refusing to use non-regular cache DB path: {db_path}")
         self._conn = sqlite3.connect(str(db_path))
         try:
             db_path.chmod(0o600)

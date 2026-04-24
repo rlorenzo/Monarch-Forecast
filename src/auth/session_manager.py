@@ -90,8 +90,11 @@ class SessionManager:
 
     async def try_restore_session(self) -> bool:
         """Attempt to restore a saved session. Returns True if successful."""
-        if not SESSION_FILE.exists():
-            return False
+        # No early `SESSION_FILE.exists()` check — it returns False for
+        # dangling symlinks, which would skip the safety gate and leave a
+        # planted symlink in place for a later `save_session()` to follow.
+        # The safety gate handles missing files correctly (lstat → OSError
+        # → False); unlink() below handles "not there" via OSError.
         if not _session_file_is_safe_to_load(SESSION_FILE):
             try:
                 SESSION_FILE.unlink()
@@ -130,5 +133,10 @@ class SessionManager:
     def logout(self) -> None:
         self._authenticated = False
         self.clear_credentials()
-        if SESSION_FILE.exists():
+        # Unconditional unlink so a dangling symlink at SESSION_FILE gets
+        # removed too — Path.exists() would report False and leave the
+        # redirect in place.
+        try:
             SESSION_FILE.unlink()
+        except FileNotFoundError:
+            pass

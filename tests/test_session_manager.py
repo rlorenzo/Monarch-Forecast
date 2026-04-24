@@ -177,6 +177,25 @@ class TestSessionRestore:
         # OSError is swallowed so we don't crash the caller.
         assert session_file.is_dir()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
+    @patch("src.auth.session_manager.keyring")
+    async def test_restore_removes_dangling_symlink(self, mock_keyring, tmp_session, tmp_path):
+        """A dangling symlink at SESSION_FILE must be removed — not left
+        in place for a subsequent save_session() to follow. Path.exists()
+        returns False for dangling symlinks, so the safety gate has to
+        run unconditionally."""
+        session_file = tmp_path / "session.pickle"
+        session_file.symlink_to(tmp_path / "does-not-exist")
+
+        sm = SessionManager()
+        load_session = MagicMock()
+        cast(Any, sm._mm).load_session = load_session
+
+        assert await sm.try_restore_session() is False
+        load_session.assert_not_called()
+        assert not session_file.is_symlink()
+        assert not session_file.exists()
+
 
 class TestLogin:
     @patch("src.auth.session_manager.keyring")
