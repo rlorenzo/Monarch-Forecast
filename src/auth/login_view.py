@@ -22,10 +22,12 @@ class LoginView(ft.Column):
         # calls ``page.run_task(...)``, which returns a Future. The return
         # value is unused either way.
         on_login_success: Callable[[], Any],
+        on_demo: Callable[[], Any],
     ) -> None:
         super().__init__()
         self.session_manager = session_manager
         self.on_login_success = on_login_success
+        self.on_demo = on_demo
         self._needs_mfa = False
 
         self.email_field = ft.TextField(
@@ -58,6 +60,15 @@ class LoginView(ft.Column):
             ),
             width=350,
             on_click=self._handle_login,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=8),
+            ),
+        )
+        self.demo_button = ft.OutlinedButton(
+            content=ft.Text("Try Demo Mode"),
+            width=350,
+            on_click=lambda _: self.on_demo(),
+            tooltip="Explore the app with sample data before signing in",
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=8),
             ),
@@ -140,6 +151,13 @@ class LoginView(ft.Column):
                         ),
                         self._status_live_region,
                         self.login_button,
+                        ft.Container(height=4),
+                        ft.Text(
+                            "Want to try the app before signing in?",
+                            size=11,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                        ),
+                        self.demo_button,
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=12,

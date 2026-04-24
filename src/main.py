@@ -1,11 +1,20 @@
 """Monarch Forecast - Financial forecasting desktop app."""
 
+from pathlib import Path
+
 import flet as ft
 
 from src.auth.login_view import LoginView
-from src.auth.session_manager import SessionManager
+from src.auth.session_manager import DemoSessionManager, SessionManager
+from src.data.cache import DataCache
+from src.data.demo_client import DemoClient
+from src.data.preferences import Preferences
 from src.utils.updater import get_current_version
 from src.views.dashboard import DashboardView
+
+_DATA_DIR = Path.home() / ".monarch-forecast"
+DEMO_CACHE_DB = _DATA_DIR / "demo-cache.db"
+DEMO_PREFS_FILE = _DATA_DIR / "demo-preferences.json"
 
 
 async def main(page: ft.Page) -> None:
@@ -83,11 +92,30 @@ async def main(page: ft.Page) -> None:
         page.update()
         await dashboard.load_data()
 
+    async def show_demo_dashboard() -> None:
+        """Open the dashboard with synthetic data — no Monarch account needed.
+
+        Logging out of demo mode returns to the login screen rather than
+        clearing real credentials, since there are none to clear.
+        """
+        page.controls.clear()
+        dashboard = DashboardView(
+            session_manager=DemoSessionManager(),
+            on_logout=lambda: page.run_task(show_login),
+            raw_client=DemoClient(),
+            cache=DataCache(db_path=DEMO_CACHE_DB),
+            preferences=Preferences(path=DEMO_PREFS_FILE),
+        )
+        page.controls.append(dashboard)
+        page.update()
+        await dashboard.load_data()
+
     async def show_login() -> None:
         page.controls.clear()
         login_view = LoginView(
             session_manager=session_manager,
             on_login_success=lambda: page.run_task(show_dashboard),
+            on_demo=lambda: page.run_task(show_demo_dashboard),
         )
         page.controls.append(
             ft.Container(

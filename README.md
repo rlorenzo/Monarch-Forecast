@@ -124,11 +124,36 @@ Set up pre-commit hooks (ruff lint/format + ty on every commit):
 uv run pre-commit install
 ```
 
+To run the hooks without committing — useful for verifying staged work
+before you create the commit — use:
+
+```bash
+uv run pre-commit run              # only the currently-staged files
+uv run pre-commit run --all-files  # every file in the repo
+```
+
 Tests are expected to pass before opening a PR. CI runs lint, type check,
 and pytest on all pull requests.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution and testing
 policy, and [SECURITY.md](SECURITY.md) if you've found a vulnerability.
+
+### Demo mode
+
+The login screen has a **Try Demo Mode** button that opens the dashboard
+against synthetic data, so you can explore the app before entering your
+Monarch credentials. Useful for evaluating the app before connecting real
+financial data, taking screenshots, and reproducing bug reports.
+
+The demo fixture is a designed forecast: one checking account, one credit
+card, a biweekly paycheck, monthly rent and bills, weekly groceries, and
+current-cycle credit-card charges. Dates are generated relative to today,
+so the forecast is always fresh. Demo state is stored separately at
+`~/.monarch-forecast/demo-cache.db` and
+`~/.monarch-forecast/demo-preferences.json`, so experimenting with demo
+mode will not touch your real preferences or cached data.
+
+Signing out of demo mode returns to the login screen.
 
 ### Building desktop packages locally
 

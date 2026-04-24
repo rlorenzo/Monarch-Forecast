@@ -12,6 +12,7 @@ from monarchmoney import MonarchMoney
 SERVICE_NAME = "monarch-forecast"
 SESSION_DIR = Path.home() / ".monarch-forecast"
 SESSION_FILE = SESSION_DIR / "session.pickle"
+DEMO_EMAIL = "demo@example.com"
 
 
 def _session_file_is_safe_to_load(path: Path) -> bool:
@@ -176,3 +177,27 @@ class SessionManager:
             SESSION_FILE.unlink()
         except OSError:
             pass
+
+
+class DemoSessionManager(SessionManager):
+    """Session manager for the login screen's "Try Demo Mode" button.
+
+    Bypasses the real MonarchMoney client and keychain — all data comes from
+    `src.data.demo_client.DemoClient`. The dashboard only reads `.client`
+    when constructing its own MonarchClient, so demo mode must always pass
+    its own `raw_client` override to DashboardView.
+    """
+
+    def __init__(self) -> None:
+        # Skip super().__init__ — no MonarchMoney, no keychain, no filesystem.
+        self._mm = None  # type: ignore[assignment]
+        self._authenticated = True
+
+    def load_credentials(self) -> tuple[str | None, str | None]:
+        return (DEMO_EMAIL, None)
+
+    def logout(self) -> None:
+        pass
+
+    async def try_restore_session(self) -> bool:
+        return True

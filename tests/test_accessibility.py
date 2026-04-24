@@ -188,7 +188,11 @@ class TestIconButtonLabels:
     def test_login_view_icon_buttons(self, patched_session_manager):
         from src.auth.login_view import LoginView
 
-        view = LoginView(session_manager=patched_session_manager, on_login_success=lambda: None)
+        view = LoginView(
+            session_manager=patched_session_manager,
+            on_login_success=lambda: None,
+            on_demo=lambda: None,
+        )
         _assert_every_icon_button_is_labeled(view, "LoginView")
 
 
