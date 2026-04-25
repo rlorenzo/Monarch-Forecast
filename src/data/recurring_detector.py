@@ -27,12 +27,16 @@ def detect_recurring(
     """
     cutoff = date.today() - timedelta(days=lookback_days)
 
-    # Group by merchant name
-    by_merchant: dict[str, list[dict]] = defaultdict(list)
+    # Group by (merchant name, account id). A merchant string like "Ameriprise"
+    # can cover independent recurring streams on different accounts (e.g. two
+    # household members' insurance debits) — merging them produces a polluted
+    # bag whose median amount and average interval describe neither stream.
+    by_group: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for txn in transactions:
         merchant = (txn.get("merchant") or {}).get("name", "")
         if not merchant:
             continue
+        account_id = (txn.get("account") or {}).get("id", "")
         txn_date_str = txn.get("date", "")
         try:
             txn_date = date.fromisoformat(txn_date_str[:10])
@@ -40,10 +44,10 @@ def detect_recurring(
             continue
         if txn_date < cutoff:
             continue
-        by_merchant[merchant].append(txn)
+        by_group[(merchant, account_id)].append(txn)
 
     items: list[RecurringItem] = []
-    for merchant, txns in by_merchant.items():
+    for (merchant, _account_id), txns in by_group.items():
         if len(txns) < min_occurrences:
             continue
 

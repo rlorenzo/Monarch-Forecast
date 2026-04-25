@@ -86,6 +86,28 @@ class TestDetectRecurring:
         assert items[0].frequency == "biweekly"
         assert items[0].amount == 2000.0
 
+    def test_same_merchant_on_different_accounts_stays_split(self):
+        # Two genuinely-monthly Ameriprise streams on different accounts —
+        # one on the 16th for $1100, one on the 25th for $1000. Grouping by
+        # merchant alone would interleave them into a bag whose median is
+        # $1050 and whose avg interval lands in the biweekly bucket.
+        today = date.today()
+        txns = [
+            _make_txn("Ameriprise", -1000.0, today - timedelta(days=89), account_id="karen"),
+            _make_txn("Ameriprise", -1100.0, today - timedelta(days=66), account_id="rex"),
+            _make_txn("Ameriprise", -1000.0, today - timedelta(days=58), account_id="karen"),
+            _make_txn("Ameriprise", -1100.0, today - timedelta(days=39), account_id="rex"),
+            _make_txn("Ameriprise", -1000.0, today - timedelta(days=30), account_id="karen"),
+            _make_txn("Ameriprise", -1100.0, today - timedelta(days=8), account_id="rex"),
+        ]
+        items = detect_recurring(txns)
+        assert len(items) == 2
+        by_account = {item.account_id: item for item in items}
+        assert by_account["karen"].frequency == "monthly"
+        assert by_account["karen"].amount == -1000.0
+        assert by_account["rex"].frequency == "monthly"
+        assert by_account["rex"].amount == -1100.0
+
     def test_includes_account_info(self):
         today = date.today()
         txns = [
