@@ -64,13 +64,21 @@ def _safe_update(control: ft.Control) -> None:
 class DashboardView(ft.Column):
     """Main dashboard showing forecast summary, chart, transactions, alerts, and adjustments."""
 
-    def __init__(self, session_manager: SessionManager, on_logout: Callable[[], Any]) -> None:
+    def __init__(
+        self,
+        session_manager: SessionManager,
+        on_logout: Callable[[], Any],
+        *,
+        raw_client: MonarchClient | None = None,
+        cache: DataCache | None = None,
+        preferences: Preferences | None = None,
+    ) -> None:
         super().__init__()
         self.session_manager = session_manager
-        self._raw_client = MonarchClient(session_manager.client)
-        self._cache = DataCache()
+        self._raw_client = raw_client or MonarchClient(session_manager.client)
+        self._cache = cache or DataCache()
         self.monarch = CachedMonarchClient(self._raw_client, self._cache)
-        self._prefs = Preferences()
+        self._prefs = preferences or Preferences()
         self.on_logout = on_logout
 
         self.expand = True

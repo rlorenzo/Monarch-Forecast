@@ -23,4 +23,4 @@ depends_on = ["src.auth", "src.data", "src.forecast", "src.utils"]
 
 [[modules]]
 path = "src.main"
-depends_on = ["src.auth", "src.utils", "src.views"]
+depends_on = ["src.auth", "src.data", "src.utils", "src.views"]

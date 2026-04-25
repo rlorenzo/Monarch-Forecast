@@ -52,7 +52,11 @@ class TestNoDeprecationWarnings:
         with warnings.catch_warnings():
             warnings.filterwarnings("error", category=DeprecationWarning)
             sm = SessionManager()
-            LoginView(session_manager=sm, on_login_success=lambda: None)
+            LoginView(
+                session_manager=sm,
+                on_login_success=lambda: None,
+                on_demo=lambda: None,
+            )
             DashboardView(session_manager=sm, on_logout=lambda: None)
             AdjustmentsPanel(recurring_items=[], on_change=lambda: None)
 
@@ -63,7 +67,11 @@ class TestLoginViewInit:
     def test_creates_without_error(self, patched_session_manager):
         from src.auth.login_view import LoginView
 
-        view = LoginView(session_manager=patched_session_manager, on_login_success=lambda: None)
+        view = LoginView(
+            session_manager=patched_session_manager,
+            on_login_success=lambda: None,
+            on_demo=lambda: None,
+        )
         assert isinstance(view, ft.Column)
         assert len(view.controls) > 0
 
