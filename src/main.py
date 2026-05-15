@@ -10,6 +10,7 @@ from src.data.cache import DataCache
 from src.data.demo_client import DemoClient
 from src.data.preferences import Preferences
 from src.utils.updater import get_current_version
+from src.views import tokens
 from src.views.dashboard import DashboardView
 
 _DATA_DIR = Path.home() / ".monarch-forecast"
@@ -26,11 +27,35 @@ async def main(page: ft.Page) -> None:
     page.window.icon = "assets/icon.png"
     page.padding = ft.Padding.only(left=0, top=8, right=16, bottom=8)
     page.theme_mode = ft.ThemeMode.SYSTEM
-    # Icons scale with OS text-size via icon_theme.apply_text_scaling — helps
-    # low-vision users without touching every Icon() call site.
+    page.fonts = tokens.FONT_URLS
+
+    _icon_theme = ft.IconTheme(apply_text_scaling=True)
+
+    # Step 5 of bisect: explicit ColorScheme replaces color_scheme_seed.
+    # Light theme only for now; dark theme stays Material default.
     page.theme = ft.Theme(
-        color_scheme_seed=ft.Colors.BLUE,
-        icon_theme=ft.IconTheme(apply_text_scaling=True),
+        color_scheme=ft.ColorScheme(
+            primary=tokens.CORAL,
+            on_primary=tokens.PAPER,
+            primary_container=tokens.CORAL_TINT,
+            on_primary_container=tokens.CORAL_DEEP,
+            secondary=tokens.INK_2,
+            on_secondary=tokens.PAPER,
+            tertiary=tokens.SIGNAL_THRESHOLD,
+            on_tertiary=tokens.INK,
+            error=tokens.SIGNAL_NEGATIVE,
+            on_error=tokens.PAPER,
+            surface=tokens.PAPER,
+            on_surface=tokens.INK,
+            on_surface_variant=tokens.INK_2,
+            surface_container_low=tokens.PAPER,
+            surface_container=tokens.PAPER_2,
+            surface_container_high=tokens.PAPER_2,
+            surface_container_highest=tokens.PAPER_3,
+            outline=tokens.RULE,
+            outline_variant=tokens.RULE,
+        ),
+        icon_theme=_icon_theme,
     )
 
     def _current_dashboard() -> DashboardView | None:

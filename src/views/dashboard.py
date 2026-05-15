@@ -17,6 +17,7 @@ from src.data.recurring_detector import detect_recurring
 from src.forecast.credit_cards import DEFAULT_GRACE_PERIOD, estimate_cc_payments, infer_due_day
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult
+from src.views import tokens
 from src.views.adjustments import (
     AdjustmentsPanel,
     show_add_one_off_dialog,
@@ -963,54 +964,117 @@ class DashboardView(ft.Column):
         )
 
     def _update_summary(self, account: dict) -> None:
+        """Step 6 of bisect: replace the 4 summary cards with a single
+        Fraunces verdict block. Stays inside the existing summary_row
+        (Row wrap=True) so the layout cross-axis behavior the working
+        version relied on is preserved.
+        """
         f = self._forecast
-        if not f:
+        if not f or not f.days:
             return
 
-        start_date = f.days[0].date if f.days else None
-        end_date = f.days[-1].date if f.days else None
+        low = f.lowest_balance
+        low_date = f.lowest_balance_date
+        breaches = self._safety_threshold > 0 and low < self._safety_threshold
+        value_color = tokens.SIGNAL_NEGATIVE if breaches else tokens.SIGNAL_POSITIVE
+        value_text = f"${low:,.2f}"
+        date_str = low_date.strftime("%a, %b %d") if low_date else "today"
+        if breaches:
+            n_short = len(f.shortfall_dates)
+            day_plural = "day" if n_short == 1 else "days"
+            subtitle = (
+                f"on {date_str}  ·  {n_short} {day_plural} below "
+                f"your ${self._safety_threshold:,.0f} threshold"
+            )
+            sr_status = "below threshold"
+        elif self._safety_threshold > 0:
+            subtitle = f"on {date_str}  ·  above your ${self._safety_threshold:,.0f} threshold"
+            sr_status = "above threshold"
+        else:
+            subtitle = f"on {date_str}"
+            sr_status = ""
+        sr_label = (
+            f"Projected low {value_text} on {date_str}{', ' + sr_status if sr_status else ''}"
+        )
 
-        lowest_breaches_threshold = f.lowest_balance < self._safety_threshold
-        cards: list[ft.Control] = [
-            self._balance_trajectory_card(
-                current_balance=account["balance"],
-                current_date=start_date,
-                ending_balance=f.ending_balance,
-                ending_date=end_date,
-            ),
-            self._summary_card(
-                "Lowest Point",
-                f"${f.lowest_balance:,.2f}",
-                ft.Icons.TRENDING_DOWN,
-                ft.Colors.RED if lowest_breaches_threshold else ft.Colors.GREEN,
-                subtitle=f.lowest_balance_date.strftime("%b %d") if f.lowest_balance_date else "",
-                status_label=(
-                    "Warning — lowest point below safety threshold"
-                    if lowest_breaches_threshold
-                    else "OK — lowest point above safety threshold"
+        # Wrap verdict and ledger in `ft.Card` with explicit widths to
+        # mirror the pre-craft summary cards' structural pattern (which
+        # we've confirmed works without triggering the chart re-mount
+        # bug). The summary_row stays a Row(wrap=True) with both cards
+        # as children — same exact shape as pre-craft, different content.
+        verdict = ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text("PROJECTED LOW", style=tokens.label_style()),
+                        ft.Text(
+                            value_text,
+                            style=tokens.display_style(value_color),
+                            semantics_label=sr_label,
+                        ),
+                        ft.Text(subtitle, style=tokens.body_style(tokens.INK_2)),
+                    ],
+                    spacing=4,
+                    tight=True,
+                    alignment=ft.MainAxisAlignment.CENTER,
                 ),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=12),
+                width=420,
+                height=110,
             ),
-            self._cash_flow_card(
-                income=f.total_income,
-                expenses=f.total_expenses,
-            ),
-        ]
+        )
 
-        if f.has_shortfall:
-            first_shortfall = f.shortfall_dates[0]
-            cards.insert(
-                2,
-                self._summary_card(
-                    "Shortfall",
-                    first_shortfall.strftime("%b %d"),
-                    ft.Icons.WARNING,
-                    ft.Colors.RED,
-                    subtitle=f"{len(f.shortfall_dates)} day(s) below threshold",
-                    status_label="Warning — shortfall projected",
-                ),
+        net = f.total_income + f.total_expenses
+        net_sign = "+" if net >= 0 else "−"
+        net_color = tokens.SIGNAL_POSITIVE if net >= 0 else tokens.SIGNAL_NEGATIVE
+        net_sr = f"Net {'positive' if net >= 0 else 'negative'} {net_sign}${abs(net):,.2f}"
+
+        def _pair(
+            label: str,
+            value: str,
+            value_color: str = tokens.INK,
+            value_sr: str | None = None,
+        ) -> ft.Control:
+            value_style = ft.TextStyle(
+                font_family=tokens.FONT_BODY,
+                size=22,
+                weight=ft.FontWeight.W_600,
+                color=value_color,
+                height=1.1,
+            )
+            return ft.Column(
+                controls=[
+                    ft.Text(label, style=tokens.label_style()),
+                    ft.Text(value, style=value_style, semantics_label=value_sr),
+                ],
+                spacing=4,
+                tight=True,
             )
 
-        self.summary_row.controls = cards
+        ledger = ft.Card(
+            content=ft.Container(
+                content=ft.Row(
+                    controls=[
+                        _pair("STARTING", f"${account['balance']:,.2f}"),
+                        _pair(
+                            "NET",
+                            f"{net_sign}${abs(net):,.2f}",
+                            value_color=net_color,
+                            value_sr=net_sr,
+                        ),
+                        _pair("ENDING", f"${f.ending_balance:,.2f}"),
+                    ],
+                    spacing=32,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=12),
+                width=420,
+                height=110,
+                alignment=ft.Alignment(0, 0),
+            ),
+        )
+
+        self.summary_row.controls = [verdict, ledger]
         _safe_update(self.summary_row)
 
     def _balance_trajectory_card(

@@ -10,6 +10,7 @@ from datetime import date
 import flet as ft
 
 from src.forecast.models import ForecastResult
+from src.views import tokens
 
 
 @dataclass
@@ -193,21 +194,20 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
         return handle
 
     for alert in alerts:
+        # Step 2 of bisect: token-backed colors but no structure change.
+        bg_color = tokens.PAPER_2
         if alert.severity == "critical":
             icon = ft.Icons.ERROR
-            bg_color = ft.Colors.RED_50
-            icon_color = ft.Colors.RED
-            border_color = ft.Colors.RED_200
+            icon_color = tokens.SIGNAL_NEGATIVE
+            border_color = tokens.SIGNAL_NEGATIVE
         elif alert.severity == "warning":
-            icon = ft.Icons.WARNING
-            bg_color = ft.Colors.ORANGE_50
-            icon_color = ft.Colors.ORANGE
-            border_color = ft.Colors.ORANGE_200
+            icon = ft.Icons.WARNING_AMBER
+            icon_color = tokens.SIGNAL_THRESHOLD
+            border_color = tokens.SIGNAL_THRESHOLD
         else:
             icon = ft.Icons.INFO_OUTLINE
-            bg_color = ft.Colors.BLUE_50
-            icon_color = ft.Colors.BLUE
-            border_color = ft.Colors.BLUE_200
+            icon_color = tokens.INK_2
+            border_color = tokens.RULE
 
         severity_word = _severity_word(alert.severity)
         # Hold a direct reference to the IconButton so we can attach the

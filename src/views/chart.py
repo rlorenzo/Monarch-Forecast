@@ -13,11 +13,13 @@ from flet_charts import (
 )
 
 from src.forecast.models import ForecastResult
+from src.views import tokens
 
-# Accessible colors with good contrast
-_BLUE = "#1976D2"
-_GREEN = "#2E7D32"
-_RED = "#C62828"
+# Step 3 of bisect: chart line / threshold / point colors use tokens.
+# Structure (LineChart args, height, expand=True) unchanged.
+_BLUE = tokens.CORAL
+_GREEN = tokens.SIGNAL_POSITIVE
+_RED = tokens.SIGNAL_NEGATIVE
 
 
 def build_forecast_chart_summary(result: ForecastResult) -> str:
