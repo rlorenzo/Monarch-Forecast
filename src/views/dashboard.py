@@ -28,7 +28,7 @@ from src.views.adjustments import (
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart, build_forecast_chart_summary
 from src.views.side_nav import NavDestination, SideNav
-from src.views.transactions_table import build_transactions_table
+from src.views.transactions_table import TransactionsView
 from src.views.update_banner import build_update_banner, check_update_async
 
 
@@ -173,7 +173,16 @@ class DashboardView(ft.Column):
         self.alerts_container = ft.Container()
         self.summary_row = ft.Row(spacing=20, wrap=True, run_spacing=16)
         self.chart_container = ft.Container(height=400)
-        self.table_container = ft.Container()
+        # Stateful Transactions tab (filter strip + editorial day-block ledger).
+        # Held as an attribute so its search/filter state survives the per-
+        # forecast rebuilds that fire on account / threshold / window /
+        # adjustment changes — set_forecast() swaps the data without
+        # reconstructing the input controls.
+        self.transactions_view = TransactionsView(
+            on_edit_cc=self._on_edit_cc_amount_request,
+            on_edit_oneoff=self._on_edit_oneoff_request,
+            on_edit_recurring=self._on_edit_recurring_amount_request,
+        )
         self.adjustments_panel = AdjustmentsPanel(
             recurring_items=[],
             on_change=lambda: self._run_task(self._on_adjustment_change),
@@ -205,14 +214,12 @@ class DashboardView(ft.Column):
             spacing=12,
         )
 
-        # Held as an attribute so we can programmatically focus it when the
-        # user switches to the Transactions tab via keyboard shortcut.
-        self._add_one_off_button = ft.FilledTonalButton(
-            content=ft.Text("Add One-Off"),
-            icon=ft.Icons.ADD,
-            tooltip="Add a one-off transaction",
-            on_click=lambda _: self._open_add_one_off_dialog(),
-        )
+        # Editorial primary action button — coral fill, paper text, 6px
+        # radius. Built from a Container + Semantics rather than
+        # ft.FilledButton to avoid Material's tonal elevation chrome
+        # (DESIGN.md "Flat-By-Default Rule"). Held as an attribute so
+        # ⌘2 can move keyboard focus to it on tab switch.
+        self._add_one_off_button = self._build_add_one_off_button()
         self._transactions_content = ft.Column(
             controls=[
                 ft.Row(
@@ -220,18 +227,16 @@ class DashboardView(ft.Column):
                         ft.Column(
                             [
                                 ft.Text(
-                                    "Upcoming Transactions",
-                                    size=18,
-                                    weight=ft.FontWeight.W_600,
+                                    "Upcoming",
+                                    style=tokens.headline_style(tokens.INK),
                                 ),
                                 ft.Text(
-                                    "All projected transactions showing date, amount, "
-                                    "and running balance impact.",
-                                    size=12,
-                                    color=ft.Colors.ON_SURFACE_VARIANT,
+                                    "Every projected transaction in this window, "
+                                    "grouped by day with running balance.",
+                                    style=tokens.body_style(tokens.INK_2),
                                 ),
                             ],
-                            spacing=4,
+                            spacing=2,
                             expand=True,
                         ),
                         self._add_one_off_button,
@@ -239,7 +244,7 @@ class DashboardView(ft.Column):
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 ft.Container(height=4),
-                self.table_container,
+                self.transactions_view,
             ],
             spacing=12,
         )
@@ -458,7 +463,7 @@ class DashboardView(ft.Column):
             self.account_dropdown.options = [
                 ft.dropdown.Option(
                     key=a["id"],
-                    text=f"{a['name']} — ${a['balance']:,.2f}",
+                    text=f"{a['name']}: ${a['balance']:,.2f}",
                 )
                 for a in self._checking_accounts
             ]
@@ -488,8 +493,7 @@ class DashboardView(ft.Column):
                 _safe_update(self.summary_row)
                 self.chart_container.content = None
                 _safe_update(self.chart_container)
-                self.table_container.content = None
-                _safe_update(self.table_container)
+                self.transactions_view.clear()
                 self.alerts_container.content = None
                 _safe_update(self.alerts_container)
 
@@ -509,8 +513,7 @@ class DashboardView(ft.Column):
             _safe_update(self.summary_row)
             self.chart_container.content = None
             _safe_update(self.chart_container)
-            self.table_container.content = None
-            _safe_update(self.table_container)
+            self.transactions_view.clear()
             self.alerts_container.content = None
             _safe_update(self.alerts_container)
             self.cc_info_container.content = None
@@ -541,21 +544,21 @@ class DashboardView(ft.Column):
                     ft.Row(
                         [
                             ft.Icon(ft.Icons.DASHBOARD, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Overview — Balance summary and projection chart"),
+                            ft.Text("Overview: balance summary and projection chart"),
                         ],
                         spacing=12,
                     ),
                     ft.Row(
                         [
                             ft.Icon(ft.Icons.TABLE_CHART, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Transactions — Every projected transaction listed"),
+                            ft.Text("Transactions: every projected transaction listed"),
                         ],
                         spacing=12,
                     ),
                     ft.Row(
                         [
                             ft.Icon(ft.Icons.TUNE, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Adjustments — Add one-off items, toggle recurring items"),
+                            ft.Text("Adjustments: add one-off items, toggle recurring items"),
                         ],
                         spacing=12,
                     ),
@@ -714,6 +717,106 @@ class DashboardView(ft.Column):
             ),
         )
         _safe_update(self.cc_info_container)
+
+    def _build_add_one_off_button(self) -> ft.Control:
+        """Editorial primary action — coral fill, paper text, 6px radius.
+
+        Built as a hover-styled Container (not ``ft.FilledButton``) so we
+        sidestep Material's tonal-elevation chrome and keep the
+        Flat-By-Default Rule from DESIGN.md. Wrapped in
+        ``ft.Semantics(button=True, label=...)`` to keep screen-reader
+        affordance — the same contract the accessibility regression test
+        enforces.
+        """
+        label = ft.Text(
+            "Add One-Off",
+            style=ft.TextStyle(
+                font_family=tokens.FONT_BODY,
+                size=14,
+                weight=ft.FontWeight.W_600,
+                color=tokens.PAPER,
+                height=1.2,
+            ),
+        )
+        icon = ft.Icon(ft.Icons.ADD, size=18, color=tokens.PAPER)
+        body = ft.Row(
+            controls=[icon, label],
+            spacing=8,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        button = ft.Container(
+            content=body,
+            bgcolor=tokens.CORAL,
+            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+            border_radius=ft.BorderRadius.all(6),
+            on_click=lambda _: self._open_add_one_off_dialog(),
+            on_hover=self._on_add_one_off_hover,
+            tooltip="Add a one-off transaction",
+            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT_QUART),
+        )
+
+        return ft.Semantics(
+            button=True,
+            label="Add a one-off transaction",
+            content=button,
+        )
+
+    def _on_add_one_off_hover(self, e: ft.Event[ft.Container]) -> None:
+        """Swap coral and coral-deep on hover. 150ms ease-out per DESIGN.md."""
+        is_in = e.data == "true"
+        e.control.bgcolor = tokens.CORAL_DEEP if is_in else tokens.CORAL
+        try:
+            e.control.update()
+        except (RuntimeError, AssertionError):
+            pass
+
+    def _build_dialog_dismiss_button(
+        self,
+        label: str,
+        *,
+        on_click: Callable[[ft.Event[ft.Container]], Any],
+    ) -> ft.Control:
+        """Filled INK button used for dialog confirm/dismiss actions.
+
+        Built from a Container so the explicit bgcolor lands without
+        Material's surface-tint blending swallowing it (which is what
+        ``ft.FilledButton`` does by default in Flet 0.84). INK on PAPER
+        gives roughly 13:1 contrast, well above WCAG AA's 4.5:1 floor.
+        Wrapped in ``ft.Semantics(button=True, label=...)`` so screen
+        readers announce it as a button, matching the rest of the
+        accessibility contract.
+        """
+        text = ft.Text(
+            label,
+            style=ft.TextStyle(
+                font_family=tokens.FONT_BODY,
+                size=14,
+                weight=ft.FontWeight.W_600,
+                color=tokens.PAPER,
+                height=1.2,
+            ),
+        )
+        button = ft.Container(
+            content=text,
+            bgcolor=tokens.INK,
+            padding=ft.Padding.symmetric(horizontal=18, vertical=10),
+            border_radius=ft.BorderRadius.all(6),
+            on_click=on_click,
+            on_hover=self._on_dismiss_button_hover,
+            tooltip=label,
+        )
+        return ft.Semantics(button=True, label=label, content=button)
+
+    def _on_dismiss_button_hover(self, e: ft.Event[ft.Container]) -> None:
+        """INK to INK_2 on hover. Subtle lift, same dark family."""
+        is_in = e.data == "true"
+        e.control.bgcolor = tokens.INK_2 if is_in else tokens.INK
+        try:
+            e.control.update()
+        except (RuntimeError, AssertionError):
+            pass
 
     def _build_cc_billing_card(
         self,
@@ -1237,14 +1340,10 @@ class DashboardView(ft.Column):
     def _update_table(self) -> None:
         if not self._forecast:
             return
-        table = build_transactions_table(
-            self._forecast,
-            on_edit_cc=self._on_edit_cc_amount_request,
-            on_edit_oneoff=self._on_edit_oneoff_request,
-            on_edit_recurring=self._on_edit_recurring_amount_request,
-        )
-        self.table_container.content = table
-        _safe_update(self.table_container)
+        # The view owns the input controls (search + chips); set_forecast
+        # only swaps the data, so search focus and filter selection
+        # survive the rebuild.
+        self.transactions_view.set_forecast(self._forecast)
 
     def _find_cc_for_txn(self, txn: ForecastTransaction) -> dict | None:
         """Match a 'Credit Card Payment' forecast transaction back to its account."""
@@ -1352,7 +1451,7 @@ class DashboardView(ft.Column):
         try:
             value = max(0.0, float(raw))
         except ValueError:
-            self._show_snackbar("Invalid amount — not a number", success=False)
+            self._show_snackbar("Invalid amount. Not a number.", success=False)
             return
         self._safety_threshold = value
         self._prefs.set_safety_threshold(value)
@@ -1368,8 +1467,8 @@ class DashboardView(ft.Column):
             content=ft.Column(
                 [
                     ft.Text(
-                        "The minimum checking balance you want to stay above \u2014 think "
-                        "of it as your cash cushion for unexpected expenses.",
+                        "The minimum checking balance you want to stay above. "
+                        "Think of it as your cash cushion for unexpected expenses.",
                         size=13,
                     ),
                     ft.Container(height=4),
@@ -1395,10 +1494,9 @@ class DashboardView(ft.Column):
                 width=420,
             ),
             actions=[
-                ft.TextButton(
+                self._build_dialog_dismiss_button(
                     "Got it",
                     on_click=lambda _: self.page.pop_dialog(),
-                    autofocus=True,
                 ),
             ],
         )
@@ -1549,7 +1647,10 @@ class DashboardView(ft.Column):
         if index == 0:  # Overview
             target = self.account_dropdown
         elif index == 1:  # Transactions
-            target = self._add_one_off_button
+            # Land in the search field — primary entry point for
+            # keyboard users scanning the ledger. The Add-One-Off button
+            # sits one Tab away.
+            target = self.transactions_view.search_field
         elif index == 2:  # Adjustments
             target = self.adjustments_panel._oneoff_name
         if target is not None:

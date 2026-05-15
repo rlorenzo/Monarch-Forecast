@@ -49,13 +49,25 @@ class TestAlertsSmoke:
 
 
 class TestTransactionsTableSmoke:
-    def test_builds_table(self):
+    def test_builds_ledger(self):
         from src.views.transactions_table import build_transactions_table
 
         forecast = make_forecast()
-        table = build_transactions_table(forecast)
-        assert isinstance(table, ft.DataTable)
-        assert len(table.columns) == 5
+        ledger = build_transactions_table(forecast)
+        # The editorial ledger is a Column of (header, day-blocks...).
+        # The legacy DataTable was replaced with a typographic day-block
+        # layout — see DESIGN.md and src/views/transactions_table.py.
+        assert isinstance(ledger, ft.Column)
+        assert len(ledger.controls) >= 1  # at least the header
+
+    def test_builds_view_with_filter_strip(self):
+        from src.views.transactions_table import TransactionsView
+
+        view = TransactionsView()
+        view.set_forecast(make_forecast())
+        # Filter strip + ledger container.
+        assert isinstance(view, ft.Column)
+        assert len(view.controls) == 2
 
 
 class TestUpdateBannerSmoke:

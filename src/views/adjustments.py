@@ -914,7 +914,7 @@ class AdjustmentsPanel(ft.Column):
 
             today = date.today()
             next_date = next_occurrence(item.base_date, item.frequency, today)
-            next_date_str = next_date.strftime("%b %d") if next_date else "—"
+            next_date_str = next_date.strftime("%b %d") if next_date else "–"
 
             rows.append(
                 ft.Row(

@@ -137,7 +137,7 @@ def build_alerts_summary(alerts: list[Alert]) -> str:
         return ""
     parts = [f"{len(alerts)} alert{'s' if len(alerts) != 1 else ''}:"]
     for alert in alerts:
-        parts.append(f"{_severity_word(alert.severity)} — {alert.title}. {alert.message}")
+        parts.append(f"{_severity_word(alert.severity)}: {alert.title}. {alert.message}")
     return " ".join(parts)
 
 

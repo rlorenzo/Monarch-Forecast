@@ -177,8 +177,11 @@ class TestViewBuildersSmoke:
     def test_build_transactions_table(self):
         from src.views.transactions_table import build_transactions_table
 
-        table = build_transactions_table(make_forecast())
-        assert isinstance(table, ft.DataTable)
+        # Editorial day-block ledger is a Column, not a DataTable. The
+        # DataTable was replaced when Transactions adopted the paper-and-
+        # ink design system (see src/views/transactions_table.py).
+        ledger = build_transactions_table(make_forecast())
+        assert isinstance(ledger, ft.Column)
 
     def test_build_alerts_banner(self):
         from src.views.alerts import Alert, build_alerts_banner
