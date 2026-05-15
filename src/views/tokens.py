@@ -80,13 +80,40 @@ _BODY_FALLBACK = ["Helvetica Neue", "system-ui", "sans-serif"]
 
 
 def display_style(color: str = INK) -> ft.TextStyle:
-    """38pt Fraunces. Used once or twice per screen, never more."""
+    """38pt Fraunces. Used once or twice per screen, never more.
+
+    Reserved for editorial moments (the wordmark "Forecast", chapter
+    titles) where the serif's character belongs. Never use this for
+    numerical data — see ``figure_style`` for hero ledger figures.
+    """
     return ft.TextStyle(
         font_family=FONT_DISPLAY,
         font_family_fallback=_DISPLAY_FALLBACK,
         size=38,
         weight=ft.FontWeight.W_500,
         letter_spacing=-0.4,
+        height=1.05,
+        color=color,
+    )
+
+
+def figure_style(color: str = INK) -> ft.TextStyle:
+    """38pt Inter 700. The dashboard's hero numerical verdict.
+
+    Inter (not Fraunces) for big ledger figures: Fraunces's wonk/soft
+    axes flatter editorial copy but read informal at headline size,
+    where a financial verdict needs calm authority. Bold weight + tight
+    negative tracking give the figure decisive presence, and the minus
+    glyph renders as a confident bar rather than a sliver. Pairs with
+    Inter 600 used on the secondary ledger values (Starting/Net/Ending)
+    so the two cards share a numerical voice.
+    """
+    return ft.TextStyle(
+        font_family=FONT_BODY,
+        font_family_fallback=_BODY_FALLBACK,
+        size=38,
+        weight=ft.FontWeight.W_700,
+        letter_spacing=-0.8,
         height=1.05,
         color=color,
     )

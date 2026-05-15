@@ -25,7 +25,7 @@ async def main(page: ft.Page) -> None:
     page.window.min_width = 800
     page.window.min_height = 600
     page.window.icon = "assets/icon.png"
-    page.padding = ft.Padding.only(left=0, top=8, right=16, bottom=8)
+    page.padding = ft.Padding.only(left=0, top=0, right=16, bottom=8)
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.fonts = tokens.FONT_URLS
 

@@ -88,10 +88,49 @@ class TestDashboardViewInit:
 
     def test_has_navigation_rail(self, patched_session_manager):
         from src.views.dashboard import DashboardView
+        from src.views.side_nav import SideNav
 
         dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
         assert dashboard._nav_rail is not None
-        assert len(dashboard._nav_rail.destinations) == 4
+        assert isinstance(dashboard._nav_rail, SideNav)
+        # 3 page destinations — Refresh moved out of the destinations list
+        # into its own action row with the timestamp tucked underneath.
+        assert len(dashboard._nav_rail._destinations) == 3
+
+
+class TestIconPathResolution:
+    """``_resolve_icon_path`` must always return something usable.
+
+    Returning an empty string would leave the nav rail without a logo in
+    packaged distributions where ``__file__`` doesn't resolve the dev-tree
+    asset path. The relative ``assets/icon_nav.png`` fallback is what
+    Flet's bundled asset server serves in that mode.
+    """
+
+    def test_resolves_to_data_uri_in_dev_tree(self):
+        from src.views.dashboard import _resolve_icon_path
+
+        result = _resolve_icon_path()
+        # In the dev tree the asset exists, so we embed it as a data URI.
+        assert result.startswith("data:image/png;base64,"), result[:40]
+
+    def test_falls_back_to_relative_path_when_asset_missing(self, monkeypatch, tmp_path):
+        """Simulate the packaged-build case where ``__file__`` lands in a
+        bundle layout that puts assets out of reach. The function must
+        still return a non-empty path so the nav rail renders the logo."""
+        import src.views.dashboard as dashboard_module
+
+        # Point Path(__file__) at a tmp location with no sibling assets/.
+        # ``Path.resolve()`` is called on the literal __file__ string, so
+        # we patch the module's __file__ attribute and force resolution
+        # to a directory tree that doesn't contain icon_nav.png.
+        fake_file = tmp_path / "src" / "views" / "dashboard.py"
+        fake_file.parent.mkdir(parents=True)
+        fake_file.write_text("")
+        monkeypatch.setattr(dashboard_module, "__file__", str(fake_file))
+
+        result = dashboard_module._resolve_icon_path()
+        assert result == "assets/icon_nav.png"
 
 
 class TestAdjustmentsPanelInit:

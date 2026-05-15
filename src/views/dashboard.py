@@ -1,5 +1,6 @@
 """Main dashboard view with summary cards, chart, transaction table, alerts, and adjustments."""
 
+import base64
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -26,19 +27,36 @@ from src.views.adjustments import (
 )
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart, build_forecast_chart_summary
+from src.views.side_nav import NavDestination, SideNav
 from src.views.transactions_table import build_transactions_table
 from src.views.update_banner import build_update_banner, check_update_async
 
 
 def _resolve_icon_path() -> str:
-    """Find the app icon, trying absolute path first then relative.
+    """Best path/URI for the nav-rail seal in the current view mode.
 
-    Absolute path works in dev mode; relative path works in Flet packaged builds.
+    Flet's web/hot-reload server doesn't expose custom asset paths to the
+    Flutter renderer, so neither an absolute filesystem path nor a
+    relative ``icon.png`` resolves in a browser. A base64 data URI works
+    there and avoids the asset-server discrepancy entirely.
+
+    We embed ``assets/icon_nav.png`` — the 256x256 variant — rather than
+    the 1024x1024 ``assets/icon.png`` that the build pipeline ships to
+    macOS / Windows / Linux. 256 is 3.2x the 80px display seal, plenty
+    for HiDPI sharpness; the full 1024 master would balloon the module
+    text by ~125 KB of base64 for no visible gain.
+
+    If ``__file__`` can't reach the dev-tree asset (some Flet ``flet build``
+    layouts put the source under a bundled location with a different
+    relative position to ``assets/``), fall back to the relative
+    ``assets/icon_nav.png`` path that Flet's bundled asset server resolves
+    in packaged desktop mode. Without that fallback the nav rail would
+    silently lose its logo in distributed builds.
     """
-    abs_path = Path(__file__).resolve().parent.parent.parent / "assets" / "icon.png"
-    if abs_path.exists():
-        return str(abs_path)
-    return "assets/icon.png"
+    icon_path = Path(__file__).resolve().parent.parent.parent / "assets" / "icon_nav.png"
+    if icon_path.exists():
+        return "data:image/png;base64," + base64.b64encode(icon_path.read_bytes()).decode("ascii")
+    return "assets/icon_nav.png"
 
 
 _ICON_PATH = _resolve_icon_path()
@@ -145,15 +163,6 @@ class DashboardView(ft.Column):
                 on_click=lambda _: self._show_threshold_help(),
             ),
         )
-        self.logout_button = ft.Semantics(
-            button=True,
-            label="Sign out",
-            content=ft.IconButton(
-                icon=ft.Icons.LOGOUT,
-                tooltip="Sign out",
-                on_click=lambda _: self._handle_logout(),
-            ),
-        )
         self.loading = ft.ProgressRing(width=48, height=48)
         self.loading_stage = ft.Text(
             "",
@@ -162,7 +171,7 @@ class DashboardView(ft.Column):
             text_align=ft.TextAlign.CENTER,
         )
         self.alerts_container = ft.Container()
-        self.summary_row = ft.Row(spacing=12, wrap=True)
+        self.summary_row = ft.Row(spacing=20, wrap=True, run_spacing=16)
         self.chart_container = ft.Container(height=400)
         self.table_container = ft.Container()
         self.adjustments_panel = AdjustmentsPanel(
@@ -178,7 +187,7 @@ class DashboardView(ft.Column):
             controls=[
                 self.alerts_container,
                 self.summary_row,
-                ft.Container(height=8),
+                ft.Container(height=16),
                 ft.Text(
                     "Balance Projection",
                     size=18,
@@ -190,9 +199,10 @@ class DashboardView(ft.Column):
                     size=12,
                     color=ft.Colors.ON_SURFACE_VARIANT,
                 ),
+                ft.Container(height=4),
                 self.chart_container,
             ],
-            spacing=8,
+            spacing=12,
         )
 
         # Held as an attribute so we can programmatically focus it when the
@@ -221,16 +231,17 @@ class DashboardView(ft.Column):
                                     color=ft.Colors.ON_SURFACE_VARIANT,
                                 ),
                             ],
-                            spacing=2,
+                            spacing=4,
                             expand=True,
                         ),
                         self._add_one_off_button,
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
+                ft.Container(height=4),
                 self.table_container,
             ],
-            spacing=8,
+            spacing=12,
         )
 
         self._adjustments_content = ft.Column(
@@ -238,7 +249,7 @@ class DashboardView(ft.Column):
                 self.cc_info_container,
                 self.adjustments_panel,
             ],
-            spacing=8,
+            spacing=16,
         )
 
         self._tab_pages = [
@@ -275,7 +286,7 @@ class DashboardView(ft.Column):
             ],
             alignment=ft.MainAxisAlignment.START,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=20,
+            spacing=28,
         )
 
         # Scrollable tab content area — only the currently active tab page.
@@ -310,13 +321,19 @@ class DashboardView(ft.Column):
             visible=False,
         )
 
-        # Outer layout: pinned controls row + scrollable content, with the
-        # loading overlay stacked on top so it can dim the whole area.
+        # Outer layout: pinned controls row + scrollable content, padded
+        # away from the nav rail so content isn't kissing the 1px rule. The
+        # loading overlay sits outside the padding so its dim covers the
+        # full content rect edge-to-edge.
         self._content_area = ft.Stack(
             [
-                ft.Column(
-                    controls=[self._controls_row, self._scroll_area],
-                    spacing=12,
+                ft.Container(
+                    content=ft.Column(
+                        controls=[self._controls_row, self._scroll_area],
+                        spacing=20,
+                        expand=True,
+                    ),
+                    padding=ft.Padding.only(left=32, right=28, top=24, bottom=12),
                     expand=True,
                 ),
                 self._loading_overlay,
@@ -324,113 +341,48 @@ class DashboardView(ft.Column):
             expand=True,
         )
 
-        # Last refresh indicator
-        self._last_refresh_text = ft.Text(
-            "",
-            size=11,
-            color=ft.Colors.ON_SURFACE_VARIANT,
-            text_align=ft.TextAlign.CENTER,
-        )
-        self._last_refresh_container = ft.Container(
-            content=self._last_refresh_text,
-            width=90,
-            alignment=ft.Alignment(0, 0),
-        )
-
-        # Navigation rail — 3 page destinations + refresh as action
-        self._nav_rail = ft.NavigationRail(
-            destinations=[
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.DASHBOARD_OUTLINED,
-                    selected_icon=ft.Icons.DASHBOARD,
-                    label=ft.Text("Overview", size=12, text_align=ft.TextAlign.CENTER),
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.TABLE_CHART_OUTLINED,
-                    selected_icon=ft.Icons.TABLE_CHART,
-                    label=ft.Text("Transactions", size=12, text_align=ft.TextAlign.CENTER),
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.TUNE_OUTLINED,
-                    selected_icon=ft.Icons.TUNE,
-                    label=ft.Text("Adjustments", size=12, text_align=ft.TextAlign.CENTER),
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.REFRESH_OUTLINED,
-                    selected_icon=ft.Icons.REFRESH,
-                    label=ft.Text("Refresh", size=12, text_align=ft.TextAlign.CENTER),
-                ),
-            ],
-            selected_index=0,
-            label_type=ft.NavigationRailLabelType.ALL,
-            on_change=self._on_nav_change,
-            leading=ft.Column(
-                [
-                    ft.Image(
-                        src=_ICON_PATH,
-                        width=36,
-                        height=36,
-                        semantics_label="Monarch Forecast logo",
-                    ),
-                    ft.Text(
-                        "Monarch\nForecast",
-                        size=11,
-                        text_align=ft.TextAlign.CENTER,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=2,
-            ),
-            min_width=90,
-            group_alignment=-0.85,
-            trailing=self._last_refresh_container,
-        )
-
-        # Get logged-in email for display
+        # Get logged-in email for display in the nav footer
         email, _ = session_manager.load_credentials()
         self._user_email = email or ""
 
-        # Bottom actions below the rail
-        self._nav_column = ft.Column(
-            [
-                ft.Container(content=self._nav_rail, expand=True),
-                ft.Column(
-                    [
-                        self.logout_button,
-                        ft.Text("Sign Out", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
-                        ft.Text(
-                            self._user_email if self._user_email else "",
-                            size=11,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                            text_align=ft.TextAlign.CENTER,
-                            width=82,
-                            max_lines=1,
-                            overflow=ft.TextOverflow.ELLIPSIS,
-                            tooltip=self._user_email or None,
-                        ),
-                        ft.Container(height=4),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=0,
+        # Editorial left-hand nav. Owns its own selection state and the
+        # "Updated HH:MM" timestamp under the Refresh action.
+        self._nav_rail = SideNav(
+            destinations=[
+                NavDestination(
+                    icon=ft.Icons.DASHBOARD_OUTLINED,
+                    selected_icon=ft.Icons.DASHBOARD,
+                    label="Overview",
+                ),
+                NavDestination(
+                    icon=ft.Icons.TABLE_CHART_OUTLINED,
+                    selected_icon=ft.Icons.TABLE_CHART,
+                    label="Transactions",
+                ),
+                NavDestination(
+                    icon=ft.Icons.TUNE_OUTLINED,
+                    selected_icon=ft.Icons.TUNE,
+                    label="Adjustments",
                 ),
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            on_select=self._on_nav_select,
+            on_refresh=self._on_refresh_click,
+            on_logout=self._handle_logout,
+            user_email=self._user_email,
+            icon_path=_ICON_PATH,
         )
 
-        # Final layout: rail + content
+        # Final layout: rail + content. The rail owns its own right-edge
+        # 1px rule, so no VerticalDivider is needed.
         self.controls = [
             self.update_banner_container,
             ft.Row(
                 [
-                    ft.Container(
-                        content=self._nav_column,
-                        width=90,
-                    ),
-                    ft.VerticalDivider(width=1),
+                    self._nav_rail,
                     self._content_area,
                 ],
                 expand=True,
+                spacing=0,
             ),
         ]
 
@@ -439,14 +391,29 @@ class DashboardView(ft.Column):
         coro_fn: Callable[..., Any],
         *args: Any,
     ) -> None:
-        """Schedule ``coro_fn`` on the page's event loop.
+        """Schedule ``coro_fn`` on the page's event loop, tolerating a
+        not-yet-bound session.
 
         ``BaseControl.page`` is typed as ``Page | BasePage``, but ``run_task``
         is only defined on the full ``Page``. The dashboard is only ever
         mounted into a real ``Page`` at runtime, so we assert and narrow.
+
+        Flet's ``page.run_task`` reaches into ``session.connection.loop``,
+        which is briefly ``None`` during initial session bind and after a
+        hot-reload detach. If the scheduler raises in that window, the
+        failure used to propagate up through ``load_data`` and the
+        FastAPI session handler, leaving the browser stuck on the
+        "Loading accounts..." spinner forever (no data load, no error
+        UI). All scheduling failures are now silently dropped: the
+        background fires routed through this method (update check,
+        accessibility query) are best-effort and tolerate being
+        skipped, and the main load path continues instead of dying.
         """
         assert isinstance(self.page, ft.Page), "DashboardView must be mounted on a Page"
-        self.page.run_task(coro_fn, *args)
+        try:
+            self.page.run_task(coro_fn, *args)
+        except (AttributeError, RuntimeError):
+            pass
 
     def _register_service(self, service: Any) -> None:
         """Attach a Flet service to the page's root view.
@@ -462,15 +429,14 @@ class DashboardView(ft.Column):
         """Initial data load after login."""
         self._set_loading_stage("Loading accounts\u2026")
 
-        # Check for updates in background (non-blocking)
-        self._run_task(self._check_for_updates)
-
-        # Best-effort query of platform accessibility features for
-        # reduce-motion. Only supported on some platforms; failures are
-        # silently ignored and we default to animated chart.
-        self._run_task(self._refresh_accessibility_features)
-
         try:
+            # Background fires kept inside the try block so a scheduler
+            # failure (rare; mostly hot-reload races) doesn't skip the
+            # main forecast load below. ``_run_task`` is also defensive
+            # against ``session.connection`` not being bound yet.
+            self._run_task(self._check_for_updates)
+            self._run_task(self._refresh_accessibility_features)
+
             self._checking_accounts = await self.monarch.get_checking_accounts(
                 force_refresh=force_refresh
             )
@@ -528,8 +494,7 @@ class DashboardView(ft.Column):
                 _safe_update(self.alerts_container)
 
             self._update_cc_info()
-            self._last_refresh_text.value = f"Updated {datetime.now().strftime('%I:%M %p')}"
-            _safe_update(self._last_refresh_text)
+            self._nav_rail.set_last_refresh(f"Updated {datetime.now().strftime('%I:%M %p')}")
             self._maybe_show_onboarding()
 
         except Exception as ex:
@@ -902,10 +867,10 @@ class DashboardView(ft.Column):
             return True
 
         # Wire up change + submit handlers after closures exist.
-        def on_change_handler(_e: ft.Event[ft.TextField]) -> None:
+        def on_change_handler(_: ft.Event[ft.TextField]) -> None:
             mark_dirty()
 
-        def on_submit_handler(_e: ft.Event[ft.TextField]) -> None:
+        def on_submit_handler(_: ft.Event[ft.TextField]) -> None:
             save_all()
 
         due_field.on_change = on_change_handler
@@ -919,7 +884,7 @@ class DashboardView(ft.Column):
             content=ft.Text("Save"),
             icon=ft.Icons.SAVE,
             tooltip="Save billing settings for this card",
-            on_click=lambda _e: save_all(),
+            on_click=lambda _: save_all(),
         )
 
         return ft.ExpansionTile(
@@ -1009,18 +974,18 @@ class DashboardView(ft.Column):
                         ft.Text("PROJECTED LOW", style=tokens.label_style()),
                         ft.Text(
                             value_text,
-                            style=tokens.display_style(value_color),
+                            style=tokens.figure_style(value_color),
                             semantics_label=sr_label,
                         ),
                         ft.Text(subtitle, style=tokens.body_style(tokens.INK_2)),
                     ],
-                    spacing=4,
+                    spacing=6,
                     tight=True,
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
-                padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-                width=420,
-                height=110,
+                padding=ft.Padding.symmetric(horizontal=24, vertical=18),
+                width=440,
+                height=132,
             ),
         )
 
@@ -1064,12 +1029,13 @@ class DashboardView(ft.Column):
                         ),
                         _pair("ENDING", f"${f.ending_balance:,.2f}"),
                     ],
-                    spacing=32,
+                    spacing=20,
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-                width=420,
-                height=110,
+                padding=ft.Padding.symmetric(horizontal=24, vertical=18),
+                width=520,
+                height=132,
                 alignment=ft.Alignment(0, 0),
             ),
         )
@@ -1381,7 +1347,7 @@ class DashboardView(ft.Column):
         self._prefs.set_forecast_days(self._days_out)
         await self._run_forecast()
 
-    async def _on_threshold_change(self, e: ft.Event[ft.TextField]) -> None:
+    async def _on_threshold_change(self, _: ft.Event[ft.TextField]) -> None:
         raw = (self.threshold_field.value or "").replace(",", "").replace("$", "").strip()
         try:
             value = max(0.0, float(raw))
@@ -1492,7 +1458,6 @@ class DashboardView(ft.Column):
     def _do_switch_to_tab(self, index: int) -> None:
         """Internal tab switch that bypasses the unsaved-changes guard."""
         self._nav_rail.selected_index = index
-        _safe_update(self._nav_rail)
         self._current_nav_index = index
         self._scroll_area.controls = [self._tab_pages[index]]
         _safe_update(self._scroll_area)
@@ -1519,7 +1484,7 @@ class DashboardView(ft.Column):
                 + "."
             )
 
-        def save_all(_e: ft.Event[ft.Button]) -> None:
+        def save_all(_: ft.Event[ft.Button]) -> None:
             self.page.pop_dialog()
             # Copy values() to a list — save_all closures mutate
             # self._dirty_cc_cards via mark_clean() as they succeed.
@@ -1534,7 +1499,7 @@ class DashboardView(ft.Column):
                 self._proceed_pending_nav()
             # else: validation error, stay put and let the user fix it
 
-        def discard(_e: ft.Event[ft.TextButton]) -> None:
+        def discard(_: ft.Event[ft.TextButton]) -> None:
             self.page.pop_dialog()
             # Clear dirty state without saving. The fields still show the
             # edited values, but the dashboard will rebuild them on the
@@ -1547,12 +1512,11 @@ class DashboardView(ft.Column):
             self._dirty_cc_cards.clear()
             self._proceed_pending_nav()
 
-        def cancel(_e: ft.Event[ft.TextButton]) -> None:
+        def cancel(_: ft.Event[ft.TextButton]) -> None:
             self.page.pop_dialog()
             self._pending_nav_target = None
             # Roll back the visible nav rail selection if it changed.
             self._nav_rail.selected_index = self._current_nav_index
-            _safe_update(self._nav_rail)
 
         dialog = ft.AlertDialog(
             title=ft.Text("Unsaved credit card changes"),
@@ -1610,20 +1574,13 @@ class DashboardView(ft.Column):
         except (AssertionError, RuntimeError):
             pass  # Control not mounted yet — safe to skip.
 
-    def _on_nav_change(self, e: ft.Event[ft.NavigationRail]) -> None:
-        idx = e.control.selected_index
-        # Index 3 = Refresh (action, not a page)
-        if idx == 3:
-            self._nav_rail.selected_index = self._current_nav_index
-            _safe_update(self._nav_rail)
-            if self._dirty_cc_cards:
-                # Warn before blowing away in-flight edits on refresh.
-                self._pending_nav_target = None  # Refresh isn't a tab switch.
-                self._show_unsaved_cc_dialog_for_refresh()
-                return
-            self._run_task(self._on_refresh_action)
-            return
+    def _on_nav_select(self, idx: int) -> None:
+        """Handle a destination click from the SideNav.
 
+        Refresh is no longer a destination — it lives as its own action
+        with ``_on_refresh_click``. This method only handles page
+        switches.
+        """
         if idx == self._current_nav_index:
             return
 
@@ -1634,6 +1591,9 @@ class DashboardView(ft.Column):
             self._show_unsaved_cc_dialog()
             return
 
+        # Optimistically reflect the selection in the rail before the
+        # async content swap completes.
+        self._nav_rail.selected_index = idx
         self._current_nav_index = idx
 
         # Show loading indicator immediately, then swap content on next frame
@@ -1654,6 +1614,14 @@ class DashboardView(ft.Column):
         # Swap in the real content on the next event loop tick
         self._run_task(self._swap_nav_content, idx)
 
+    def _on_refresh_click(self) -> None:
+        """Refresh action from the nav rail. Honours the dirty-CC guard."""
+        if self._dirty_cc_cards:
+            self._pending_nav_target = None  # Refresh isn't a tab switch.
+            self._show_unsaved_cc_dialog_for_refresh()
+            return
+        self._run_task(self._on_refresh_action)
+
     def _show_unsaved_cc_dialog_for_refresh(self) -> None:
         """Variant of the unsaved-CC warning that proceeds with refresh.
 
@@ -1666,7 +1634,7 @@ class DashboardView(ft.Column):
             "Refreshing will reload data and lose those edits."
         )
 
-        def save_all(_e: ft.Event[ft.Button]) -> None:
+        def save_all(_: ft.Event[ft.Button]) -> None:
             self.page.pop_dialog()
             all_saved = True
             for info in list(self._dirty_cc_cards.values()):
@@ -1678,12 +1646,12 @@ class DashboardView(ft.Column):
                 self._show_snackbar("Saved all credit card changes")
                 self._run_task(self._on_refresh_action)
 
-        def discard(_e: ft.Event[ft.TextButton]) -> None:
+        def discard(_: ft.Event[ft.TextButton]) -> None:
             self.page.pop_dialog()
             self._dirty_cc_cards.clear()
             self._run_task(self._on_refresh_action)
 
-        def cancel(_e: ft.Event[ft.TextButton]) -> None:
+        def cancel(_: ft.Event[ft.TextButton]) -> None:
             self.page.pop_dialog()
 
         dialog = ft.AlertDialog(
