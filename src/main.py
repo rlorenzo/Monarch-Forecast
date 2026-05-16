@@ -13,6 +13,55 @@ from src.utils.updater import get_current_version
 from src.views import tokens
 from src.views.dashboard import DashboardView
 
+
+def dispatch_keyboard_shortcut(
+    event: ft.KeyboardEvent,
+    page: ft.Page,
+    dashboard: DashboardView | None,
+) -> bool:
+    """Pure dispatch logic for the global keyboard shortcuts.
+
+    Extracted from the inline ``handle_keyboard`` closure so the routing
+    behavior is exercised in tests without spinning up a Flet event loop.
+
+    Returns ``True`` when the event was handled (a shortcut fired or
+    Escape closed a dialog) and ``False`` when the event should
+    propagate. The caller still owns wiring this onto
+    ``page.on_keyboard_event``.
+
+    - Escape pops the current dialog (Flet's AlertDialog doesn't bind it).
+    - Cmd/Ctrl+R triggers a refresh on the dashboard.
+    - Cmd/Ctrl+1/2/3 jumps to the matching tab.
+    """
+    if event.key == "Escape":
+        try:
+            page.pop_dialog()
+        except Exception:
+            pass  # No dialog open — harmless.
+        return True
+
+    # Cmd on macOS is surfaced as `meta`, Ctrl on Windows/Linux as `ctrl`.
+    if not (event.ctrl or event.meta):
+        return False
+    if dashboard is None:
+        return False
+
+    if event.key in ("R", "r"):
+        dashboard.trigger_refresh()
+        return True
+    if event.key == "1":
+        dashboard.switch_to_tab(0)
+        return True
+    if event.key == "2":
+        dashboard.switch_to_tab(1)
+        return True
+    if event.key == "3":
+        dashboard.switch_to_tab(2)
+        return True
+
+    return False
+
+
 _DATA_DIR = Path.home() / ".monarch-forecast"
 DEMO_CACHE_DB = _DATA_DIR / "demo-cache.db"
 DEMO_PREFS_FILE = _DATA_DIR / "demo-preferences.json"
@@ -66,38 +115,7 @@ async def main(page: ft.Page) -> None:
         return None
 
     def handle_keyboard(e: ft.KeyboardEvent) -> None:
-        """Global keyboard shortcuts.
-
-        - Escape closes any open dialog (Flet's AlertDialog does not bind
-          Escape by default, so keyboard-only users would otherwise be
-          stuck inside a modal).
-        - Cmd/Ctrl+R refreshes data.
-        - Cmd/Ctrl+1/2/3 switch between Overview / Transactions /
-          Adjustments tabs.
-        """
-        if e.key == "Escape":
-            try:
-                page.pop_dialog()
-            except Exception:
-                pass  # No dialog open — harmless.
-            return
-
-        # Cmd on macOS is surfaced as `meta`, Ctrl on Windows/Linux as `ctrl`.
-        if not (e.ctrl or e.meta):
-            return
-
-        dashboard = _current_dashboard()
-        if dashboard is None:
-            return
-
-        if e.key in ("R", "r"):
-            dashboard.trigger_refresh()
-        elif e.key == "1":
-            dashboard.switch_to_tab(0)
-        elif e.key == "2":
-            dashboard.switch_to_tab(1)
-        elif e.key == "3":
-            dashboard.switch_to_tab(2)
+        dispatch_keyboard_shortcut(e, page, _current_dashboard())
 
     page.on_keyboard_event = handle_keyboard
 

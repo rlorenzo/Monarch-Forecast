@@ -21,6 +21,11 @@ from src.forecast.models import ForecastResult
 from src.views import tokens
 from src.views.adjustments import (
     AdjustmentsPanel,
+    _ledger_field,
+    _meta_chip,
+    _section_header,
+    _section_rule,
+    coral_button,
     show_add_one_off_dialog,
     show_amount_edit_dialog,
     show_edit_one_off_dialog,
@@ -125,6 +130,16 @@ class DashboardView(ft.Column):
         # Pending tab switch index held while the unsaved-changes dialog
         # is shown; None when no switch is pending.
         self._pending_nav_target: int | None = None
+        # Credit Cards section collapsed state. Default closed so the
+        # Adjustments tab opens with focus on the one-off form, since CC
+        # payments are estimated automatically and only need attention
+        # when billing dates need correcting. The flag persists across
+        # forecast rebuilds — every ``_update_cc_info`` reads it.
+        self._cc_section_expanded: bool = False
+        # Chevron Icon + cards Container handles, set inside ``_update_cc_info``
+        # so the toggle handler can flip them without rebuilding the section.
+        self._cc_chevron: ft.Icon | None = None
+        self._cc_cards_wrapper: ft.Container | None = None
 
         # --- UI controls ---
         self.account_dropdown = ft.Dropdown(
@@ -249,12 +264,20 @@ class DashboardView(ft.Column):
             spacing=12,
         )
 
+        # Editorial Adjustments page: CC section on top (so users see the
+        # system's auto-estimated card payments before adding their own
+        # one-offs), then the AdjustmentsPanel which holds one-off + recurring
+        # sections, separated by a hairline rule that matches the rule between
+        # one-off and recurring inside the panel. Spacing of 0 because each
+        # section header carries its own top breathing room and the rules own
+        # the vertical margin.
         self._adjustments_content = ft.Column(
             controls=[
                 self.cc_info_container,
+                _section_rule(),
                 self.adjustments_panel,
             ],
-            spacing=16,
+            spacing=0,
         )
 
         self._tab_pages = [
@@ -475,7 +498,7 @@ class DashboardView(ft.Column):
                 else:
                     self._selected_account_id = self._checking_accounts[0]["id"]
                 self.account_dropdown.value = self._selected_account_id
-                self.account_dropdown.update()
+                _safe_update(self.account_dropdown)
 
                 # Update adjustments panel after account is selected
                 self.adjustments_panel.update_recurring_items(
@@ -485,7 +508,7 @@ class DashboardView(ft.Column):
             else:
                 self._selected_account_id = None
                 self.account_dropdown.value = None
-                self.account_dropdown.update()
+                _safe_update(self.account_dropdown)
                 self._forecast = None
                 self.summary_row.controls = [
                     ft.Text("No checking accounts found.", color=ft.Colors.ON_SURFACE_VARIANT)
@@ -649,10 +672,24 @@ class DashboardView(ft.Column):
 
     def _on_cc_toggle(self, cc_id: str, included: bool) -> None:
         self._prefs.set_cc_excluded(cc_id, excluded=not included)
+        # Re-render the CC section so the "X of N included" meta chip,
+        # the name colour, and the status colour all reflect the new
+        # inclusion state. Skip the rebuild when any card has unsaved
+        # edits — rebuilding would discard the pending TextField values
+        # and dirty indicator on those other cards.
+        if not self._dirty_cc_cards:
+            self._update_cc_info()
         self._run_task(self._run_forecast)
 
     def _update_cc_info(self) -> None:
-        """Show credit card cards with expandable billing settings."""
+        """Render the editorial Credit Cards section.
+
+        Each card is a typographic row (checkbox + name + status + chevron)
+        with an inline collapsible body holding the due/close/amount
+        fields and a coral Save button. The outer Material ExpansionTile
+        + Card chrome the section used to wear is gone; depth is carried
+        by hairline rules and tonal layering only.
+        """
         if not self._cc_accounts:
             self.cc_info_container.content = None
             _safe_update(self.cc_info_container)
@@ -661,7 +698,7 @@ class DashboardView(ft.Column):
         excluded = self._prefs.excluded_cc_ids
         billing = self._prefs.cc_billing_settings
         amt_overrides = self._prefs.cc_amount_overrides
-        cards = []
+        cards: list[ft.Control] = []
 
         for cc in self._cc_accounts:
             cc_id = cc.get("id", "")
@@ -692,31 +729,69 @@ class DashboardView(ft.Column):
                     due_day=due_day,
                     close_day=close_day,
                     amt_override=amt_override,
+                    is_first=not cards,
                 )
             )
 
         included_count = sum(1 for cc in self._cc_accounts if cc.get("id", "") not in excluded)
         total_count = len(self._cc_accounts)
 
-        self.cc_info_container.content = ft.Card(
-            content=ft.ExpansionTile(
-                leading=ft.Icon(ft.Icons.CREDIT_CARD, color=ft.Colors.PRIMARY, size=20),
-                title=ft.Text(
-                    f"Credit Cards ({included_count}/{total_count})",
-                    size=16,
-                    weight=ft.FontWeight.W_600,
-                ),
-                subtitle=ft.Text(
-                    "Expand a card to set billing dates for accurate estimates",
-                    size=12,
-                    color=ft.Colors.ON_SURFACE_VARIANT,
-                ),
-                controls=cards,
-                controls_padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-                expanded=False,
+        expanded = self._cc_section_expanded
+        self._cc_chevron = ft.Icon(
+            ft.Icons.KEYBOARD_ARROW_DOWN if expanded else ft.Icons.KEYBOARD_ARROW_RIGHT,
+            color=tokens.INK_3,
+            size=22,
+            semantics_label=(
+                "Collapse credit cards section" if expanded else "Expand credit cards section"
             ),
         )
+        self._cc_cards_wrapper = ft.Container(
+            content=ft.Column(controls=cards, spacing=0, tight=True),
+            visible=expanded,
+        )
+
+        self.cc_info_container.content = ft.Column(
+            controls=[
+                _section_header(
+                    "Credit cards",
+                    "Estimate card payments",
+                    "Uncheck to skip a card's estimate. Open one to set its billing dates.",
+                    meta=_meta_chip(f"{included_count} of {total_count} included"),
+                    trailing=self._cc_chevron,
+                    on_click=self._toggle_cc_section,
+                ),
+                ft.Container(height=12),
+                self._cc_cards_wrapper,
+            ],
+            spacing=0,
+            tight=True,
+        )
         _safe_update(self.cc_info_container)
+
+    def _toggle_cc_section(self, _e: ft.Event[ft.Container]) -> None:
+        """Flip the Credit Cards section open/closed.
+
+        Persists the flag on ``self`` so subsequent ``_update_cc_info``
+        calls (account change, refresh, dirty-CC save) preserve user
+        intent. Mutates the chevron icon and the cards wrapper visibility
+        in place — no full rebuild needed.
+        """
+        self._cc_section_expanded = not self._cc_section_expanded
+        if self._cc_chevron is not None:
+            self._cc_chevron.icon = (
+                ft.Icons.KEYBOARD_ARROW_DOWN
+                if self._cc_section_expanded
+                else ft.Icons.KEYBOARD_ARROW_RIGHT
+            )
+            self._cc_chevron.semantics_label = (
+                "Collapse credit cards section"
+                if self._cc_section_expanded
+                else "Expand credit cards section"
+            )
+            _safe_update(self._cc_chevron)
+        if self._cc_cards_wrapper is not None:
+            self._cc_cards_wrapper.visible = self._cc_section_expanded
+            _safe_update(self._cc_cards_wrapper)
 
     def _build_add_one_off_button(self) -> ft.Control:
         """Editorial primary action — coral fill, paper text, 6px radius.
@@ -827,54 +902,65 @@ class DashboardView(ft.Column):
         due_day: int | str,
         close_day: int | str,
         amt_override: float | str,
-    ) -> ft.ExpansionTile:
-        """Build one CC row's expandable billing-settings panel.
+        is_first: bool = False,
+    ) -> ft.Control:
+        """Build one CC row as an editorial click-to-expand entry.
 
-        Each card owns three TextFields (due day / close day / payment
-        amount) and an explicit Save button. Changes in any field mark the
-        card as dirty (indicator shown, dirty set updated) so the tab-switch
-        guard in ``_on_nav_change`` can warn before the user navigates
-        away with unsaved edits. Enter in any field is a convenience
-        shortcut that also saves.
+        The header row carries the card's name, a status ("$1,247 owed"
+        or "Paid"), and a chevron. Clicking the row (outside the
+        checkbox) toggles the inline billing form. The dirty-state
+        machinery — mark dirty on any field change, mark clean on save,
+        guard tab switches via ``self._dirty_cc_cards`` — is preserved
+        verbatim from the previous ``ft.ExpansionTile`` implementation.
         """
         # Discard any stale dirty state for this cc_id — we're rebuilding.
         self._dirty_cc_cards.pop(cc_id, None)
 
-        due_field = ft.TextField(
-            label="Due day",
+        # --- Form fields (paper-and-ink styled) -------------------------
+        due_field = _ledger_field(
+            label="DUE DAY",
             value=str(due_day) if due_day else "",
-            hint_text="e.g., 1",
+            hint="1",
             width=120,
-            dense=True,
             keyboard_type=ft.KeyboardType.NUMBER,
             tooltip="Day of month payment is due",
-        )
-        close_field = ft.TextField(
-            label="Close day",
-            value=str(close_day) if close_day else "",
-            hint_text="e.g., 4",
-            width=120,
             dense=True,
+        )
+        close_field = _ledger_field(
+            label="CLOSE DAY",
+            value=str(close_day) if close_day else "",
+            hint="4",
+            width=120,
             keyboard_type=ft.KeyboardType.NUMBER,
             tooltip="Day of month statement closes",
-        )
-        amount_field = ft.TextField(
-            label="Payment amount",
-            value=f"{amt_override:g}" if amt_override else "",
-            hint_text="auto" if not amt_override else "",
-            prefix=ft.Text("$"),
-            width=140,
             dense=True,
+        )
+        amount_field = _ledger_field(
+            label="PAYMENT AMOUNT",
+            value=f"{amt_override:g}" if amt_override else "",
+            hint="auto" if not amt_override else None,
+            prefix=ft.Text(
+                "$",
+                style=ft.TextStyle(font_family=tokens.FONT_BODY, size=13, color=tokens.INK_2),
+            ),
+            width=160,
             keyboard_type=ft.KeyboardType.NUMBER,
             tooltip="Override the estimated payment amount",
+            dense=True,
         )
 
+        # Dirty indicator — coral-deep, quiet but clearly signal.
         dirty_indicator = ft.Text(
             "Unsaved changes",
             visible=False,
-            color=ft.Colors.ERROR,
-            size=11,
-            weight=ft.FontWeight.W_500,
+            style=ft.TextStyle(
+                font_family=tokens.FONT_BODY,
+                size=11,
+                weight=ft.FontWeight.W_600,
+                color=tokens.CORAL_DEEP,
+                letter_spacing=0.4,
+                height=1.3,
+            ),
         )
 
         def mark_dirty() -> None:
@@ -969,7 +1055,6 @@ class DashboardView(ft.Column):
             self._run_task(self._run_forecast)
             return True
 
-        # Wire up change + submit handlers after closures exist.
         def on_change_handler(_: ft.Event[ft.TextField]) -> None:
             mark_dirty()
 
@@ -983,52 +1068,162 @@ class DashboardView(ft.Column):
         close_field.on_submit = on_submit_handler
         amount_field.on_submit = on_submit_handler
 
-        save_button = ft.FilledButton(
-            content=ft.Text("Save"),
-            icon=ft.Icons.SAVE,
-            tooltip="Save billing settings for this card",
-            on_click=lambda _: save_all(),
+        # --- Header row (always visible) --------------------------------
+        checkbox = ft.Checkbox(
+            value=not is_excluded,
+            on_change=lambda e, cid=cc_id: self._on_cc_toggle(cid, e.control.value),
+            tooltip=f"{'Exclude' if not is_excluded else 'Include'} {name} from forecast",
+            active_color=tokens.CORAL,
+            check_color=tokens.PAPER,
+            scale=0.92,
+        )
+        name_color = tokens.INK_3 if is_excluded else tokens.INK
+        name_text = ft.Text(
+            name,
+            style=ft.TextStyle(
+                font_family=tokens.FONT_BODY,
+                size=14,
+                weight=ft.FontWeight.W_600,
+                color=name_color,
+                height=1.3,
+            ),
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+        if owed > 0:
+            status_text = ft.Text(
+                f"${owed:,.2f} owed",
+                style=ft.TextStyle(
+                    font_family=tokens.FONT_BODY,
+                    size=13,
+                    weight=ft.FontWeight.W_500,
+                    color=tokens.INK_3 if is_excluded else tokens.SIGNAL_NEGATIVE,
+                    height=1.3,
+                ),
+                semantics_label=f"{name} owes ${owed:,.2f}",
+            )
+        else:
+            status_text = ft.Text(
+                "Paid",
+                style=ft.TextStyle(
+                    font_family=tokens.FONT_BODY,
+                    size=13,
+                    weight=ft.FontWeight.W_500,
+                    color=tokens.INK_3 if is_excluded else tokens.SIGNAL_POSITIVE,
+                    height=1.3,
+                ),
+                semantics_label=f"{name} paid in full",
+            )
+
+        chevron = ft.Icon(
+            ft.Icons.KEYBOARD_ARROW_RIGHT,
+            color=tokens.INK_3,
+            size=20,
+            semantics_label="Expand to edit billing",
         )
 
-        return ft.ExpansionTile(
-            leading=ft.Checkbox(
-                value=not is_excluded,
-                on_change=lambda e, cid=cc_id: self._on_cc_toggle(cid, e.control.value),
-                tooltip="Include in forecast",
-            ),
-            title=ft.Text(name, weight=ft.FontWeight.W_500),
-            subtitle=ft.Text(
-                f"${owed:,.2f} owed" if owed > 0 else "Paid",
-                color=ft.Colors.RED_400 if owed > 0 else ft.Colors.GREEN_400,
-                size=12,
-            ),
-            controls=[
-                ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Row(
-                                [due_field, close_field, amount_field],
-                                spacing=12,
-                                wrap=True,
-                            ),
-                            ft.Row(
-                                [save_button, dirty_indicator],
-                                spacing=12,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            ),
-                            ft.Text(
-                                "Leave amount blank for auto-estimate.",
-                                size=11,
-                                color=ft.Colors.ON_SURFACE_VARIANT,
-                                italic=True,
-                            ),
-                        ],
-                        spacing=8,
+        # --- Collapsible body -------------------------------------------
+        save_button = coral_button(
+            "Save",
+            icon=ft.Icons.SAVE_OUTLINED,
+            on_click=lambda _e: save_all(),
+            tooltip=f"Save billing settings for {name}",
+            sr_label=f"Save billing settings for {name}",
+        )
+
+        body_column = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [due_field, close_field, amount_field],
+                        spacing=12,
+                        wrap=True,
+                        run_spacing=12,
                     ),
-                    padding=ft.Padding.only(left=48, top=8, bottom=8),
-                ),
-            ],
-            expanded=False,
+                    ft.Row(
+                        [save_button, dirty_indicator],
+                        spacing=16,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Text(
+                        "Leave amount blank for auto-estimate.",
+                        style=ft.TextStyle(
+                            font_family=tokens.FONT_BODY,
+                            size=11,
+                            color=tokens.INK_3,
+                            italic=True,
+                            height=1.4,
+                        ),
+                    ),
+                ],
+                spacing=12,
+            ),
+            padding=ft.Padding.only(left=44, right=12, top=4, bottom=16),
+            visible=False,
+        )
+
+        # Mutable handle so toggle can flip it without rebuilding.
+        expanded_state = [False]
+
+        def toggle(_e: ft.Event[ft.Container]) -> None:
+            expanded_state[0] = not expanded_state[0]
+            body_column.visible = expanded_state[0]
+            chevron.icon = (
+                ft.Icons.KEYBOARD_ARROW_DOWN if expanded_state[0] else ft.Icons.KEYBOARD_ARROW_RIGHT
+            )
+            chevron.semantics_label = (
+                "Collapse billing" if expanded_state[0] else "Expand to edit billing"
+            )
+            try:
+                body_column.update()
+                chevron.update()
+            except (RuntimeError, AssertionError):
+                pass
+
+        def on_hover(e: ft.Event[ft.Container]) -> None:
+            is_in = e.data == "true"
+            e.control.bgcolor = tokens.PAPER_2 if is_in else "transparent"
+            try:
+                e.control.update()
+            except (RuntimeError, AssertionError):
+                pass
+
+        # Defensive: wrap the checkbox in a Container with a no-op
+        # ``on_click`` so a tap on the checkbox is consumed there rather
+        # than bubbling to the outer header's toggle. Flutter's gesture
+        # arena usually absorbs ``ft.Checkbox`` taps at the widget itself,
+        # but the no-op absorber keeps the include/exclude action and the
+        # expand/collapse action cleanly separated regardless of Flet's
+        # internal gesture handling changes.
+        checkbox_cell = ft.Container(
+            content=checkbox,
+            width=32,
+            alignment=ft.Alignment(0, 0),
+            on_click=lambda _e: None,
+        )
+        header_row = ft.Container(
+            content=ft.Row(
+                controls=[
+                    checkbox_cell,
+                    ft.Container(content=name_text, expand=True),
+                    status_text,
+                    ft.Container(width=8),
+                    chevron,
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=12),
+            on_click=toggle,
+            on_hover=on_hover,
+            border=ft.Border(top=ft.BorderSide(1, tokens.RULE)) if not is_first else None,
+            tooltip=f"Expand {name} billing settings",
+        )
+
+        return ft.Column(
+            controls=[header_row, body_column],
+            spacing=0,
+            tight=True,
         )
 
     def _update_summary(self, account: dict) -> None:
@@ -1146,182 +1341,6 @@ class DashboardView(ft.Column):
         self.summary_row.controls = [verdict, ledger]
         _safe_update(self.summary_row)
 
-    def _balance_trajectory_card(
-        self,
-        current_balance: float,
-        current_date,
-        ending_balance: float,
-        ending_date,
-    ) -> ft.Card:
-        """Single card showing 'current → end of window' balance movement."""
-        end_color = ft.Colors.GREEN if ending_balance >= 0 else ft.Colors.RED
-        current_str = f"${current_balance:,.2f}"
-        ending_str = f"${ending_balance:,.2f}"
-        current_label = current_date.strftime("%b %d") if current_date else "Today"
-        ending_label = ending_date.strftime("%b %d") if ending_date else ""
-        # Narrated text avoids relying on red/green color to communicate the sign.
-        ending_sr_label = (
-            f"Ending balance {ending_str} ({'negative' if ending_balance < 0 else 'positive'})"
-        )
-
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.ACCOUNT_BALANCE_WALLET,
-                                    color=ft.Colors.BLUE,
-                                    size=20,
-                                ),
-                                ft.Text(
-                                    "Balance",
-                                    size=12,
-                                    color=ft.Colors.ON_SURFACE_VARIANT,
-                                ),
-                            ],
-                            spacing=8,
-                        ),
-                        ft.Row(
-                            [
-                                ft.Text(current_str, size=18, weight=ft.FontWeight.BOLD),
-                                ft.Icon(
-                                    ft.Icons.ARROW_FORWARD,
-                                    size=16,
-                                    color=ft.Colors.ON_SURFACE_VARIANT,
-                                    semantics_label="projected to",
-                                ),
-                                ft.Text(
-                                    ending_str,
-                                    size=18,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=end_color,
-                                    semantics_label=ending_sr_label,
-                                ),
-                            ],
-                            spacing=6,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        ft.Text(
-                            f"{current_label}  \u2192  {ending_label}",
-                            size=11,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                        ),
-                    ],
-                    spacing=4,
-                ),
-                padding=16,
-                width=260,
-            ),
-        )
-
-    def _cash_flow_card(self, income: float, expenses: float) -> ft.Card:
-        """Single card showing income/expenses and net over the forecast window."""
-        net = income + expenses  # expenses is already negative
-        net_color = ft.Colors.GREEN if net >= 0 else ft.Colors.RED
-        net_sign = "+" if net >= 0 else "\u2212"
-        net_sr_label = f"Net {'positive' if net >= 0 else 'negative'} {net_sign}${abs(net):,.2f}"
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.SWAP_VERT,
-                                    color=ft.Colors.BLUE,
-                                    size=20,
-                                ),
-                                ft.Text(
-                                    "Cash Flow",
-                                    size=12,
-                                    color=ft.Colors.ON_SURFACE_VARIANT,
-                                ),
-                            ],
-                            spacing=8,
-                        ),
-                        ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.ARROW_UPWARD,
-                                    color=ft.Colors.GREEN,
-                                    size=14,
-                                    semantics_label="income",
-                                ),
-                                ft.Text(
-                                    f"${income:,.0f}",
-                                    size=15,
-                                    weight=ft.FontWeight.W_600,
-                                    color=ft.Colors.GREEN,
-                                ),
-                                ft.Container(width=8),
-                                ft.Icon(
-                                    ft.Icons.ARROW_DOWNWARD,
-                                    color=ft.Colors.RED,
-                                    size=14,
-                                    semantics_label="expenses",
-                                ),
-                                ft.Text(
-                                    f"${abs(expenses):,.0f}",
-                                    size=15,
-                                    weight=ft.FontWeight.W_600,
-                                    color=ft.Colors.RED,
-                                ),
-                            ],
-                            spacing=2,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        ft.Text(
-                            f"Net: {net_sign}${abs(net):,.2f}",
-                            size=11,
-                            color=net_color,
-                            weight=ft.FontWeight.W_500,
-                            semantics_label=net_sr_label,
-                        ),
-                    ],
-                    spacing=4,
-                ),
-                padding=16,
-                width=240,
-            ),
-        )
-
-    def _summary_card(
-        self,
-        title: str,
-        value: str,
-        icon: ft.IconData,
-        color: str,
-        subtitle: str = "",
-        status_label: str | None = None,
-    ) -> ft.Card:
-        content_controls: list[ft.Control] = [
-            ft.Row(
-                [
-                    ft.Icon(
-                        icon,
-                        color=color,
-                        size=20,
-                        semantics_label=status_label,
-                    ),
-                    ft.Text(title, size=12, color=ft.Colors.ON_SURFACE_VARIANT),
-                ],
-                spacing=8,
-            ),
-            ft.Text(value, size=22, weight=ft.FontWeight.BOLD),
-        ]
-        if subtitle:
-            content_controls.append(ft.Text(subtitle, size=11, color=ft.Colors.ON_SURFACE_VARIANT))
-
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column(content_controls, spacing=4),
-                padding=16,
-                width=175,
-            ),
-        )
-
     def _update_chart(self) -> None:
         if not self._forecast:
             return
@@ -1364,10 +1383,17 @@ class DashboardView(ft.Column):
 
         def save(new_amount: float) -> None:
             self._prefs.set_cc_amount_override(cc_id, new_amount)
+            # Rebuild the CC section so its "Payment amount" field
+            # reflects the new override. Guarded so an in-flight edit on
+            # another card doesn't lose its dirty state and pending value.
+            if not self._dirty_cc_cards:
+                self._update_cc_info()
             self._run_task(self._run_forecast)
 
         def reset() -> None:
             self._prefs.clear_cc_amount_override(cc_id)
+            if not self._dirty_cc_cards:
+                self._update_cc_info()
             self._run_task(self._run_forecast)
 
         show_amount_edit_dialog(
