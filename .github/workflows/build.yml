@@ -49,6 +49,9 @@ jobs:
 
       - name: Build for ${{ matrix.platform }}
         shell: bash
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: "utf-8"
         # --compile-app/--compile-packages ship .pyc instead of .py source,
         # and --cleanup-app/--cleanup-packages strip the leftover .py files,
         # tests, docs, and dist-info chaff from the bundled site-packages.
