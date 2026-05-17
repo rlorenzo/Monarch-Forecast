@@ -75,11 +75,24 @@ jobs:
             --cleanup-app \
             --cleanup-packages
 
+      - name: Package build
+        shell: bash
+        run: |
+          cd build/${{ matrix.platform }}
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            7z a -tzip "../monarch-forecast-${{ matrix.platform }}.zip" .
+          else
+            tar -czf "../monarch-forecast-${{ matrix.platform }}.tar.gz" .
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: monarch-forecast-${{ matrix.platform }}
-          path: build/${{ matrix.platform }}/
+          path: |
+            build/monarch-forecast-${{ matrix.platform }}.zip
+            build/monarch-forecast-${{ matrix.platform }}.tar.gz
+          if-no-files-found: ignore
 
   release:
     needs: build
@@ -94,6 +107,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.tar.gz
           generate_release_notes: true
           draft: true
