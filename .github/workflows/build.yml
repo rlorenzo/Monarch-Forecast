@@ -110,11 +110,22 @@ jobs:
         id: notes
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # First awk slices the CHANGELOG section; second awk unwraps
+          # hard line breaks within paragraphs and bullets so GitHub
+          # renders them flowing at its own width.
           awk -v ver="$VERSION" '
             $0 ~ "^## \\[" ver "\\]" {flag=1; next}
             /^## \[/ && flag {exit}
             flag {print}
-          ' CHANGELOG.md > release-notes.md
+          ' CHANGELOG.md | awk '
+            function flush() { if (buf != "") { print buf; buf = "" } }
+            /^$/ { flush(); print; next }
+            /^#/ { flush(); print; next }
+            /^- / { flush(); buf = $0; next }
+            /^[[:space:]]+/ { sub(/^[[:space:]]+/, ""); buf = (buf == "") ? $0 : buf " " $0; next }
+            { buf = (buf == "") ? $0 : buf " " $0 }
+            END { flush() }
+          ' > release-notes.md
           if [ ! -s release-notes.md ]; then
             echo "No CHANGELOG.md section found for $VERSION" >&2
             exit 1
