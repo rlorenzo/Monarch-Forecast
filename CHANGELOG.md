@@ -50,13 +50,5 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-## [0.1.0-alpha.1] — 2026-04-07
-
-Initial alpha release. Cash-flow forecasting for Monarch Money checking
-accounts, with recurring-transaction detection, credit-card payment
-estimation, low-balance alerts, manual one-off adjustments, and cross-platform
-desktop builds (macOS / Windows / Linux).
-
 [Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/rlorenzo/Monarch-Forecast/compare/v0.1.0-alpha.1...v1.0.0
-[0.1.0-alpha.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v0.1.0-alpha.1
+[1.0.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.0
