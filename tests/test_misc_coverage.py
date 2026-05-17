@@ -1,0 +1,372 @@
+"""Catch-all tests for remaining low-value coverage gaps.
+
+These tests target individual branches the main coverage push didn't
+hit — chart tooltip variants, calendar-popover null cells, credit-card
+estimator edge cases, recurring-detector frequency edges, side-nav
+hover/logo handlers. Each test is small and direct; the file is here
+to keep these one-offs from sprawling across category-named files.
+"""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import MagicMock
+
+import flet as ft
+
+from src.data.models import ForecastTransaction, RecurringItem
+from src.forecast.credit_cards import (
+    _day_minus,
+    _is_cc_payment_txn,
+    _next_month_day,
+    _prev_month_day,
+    estimate_cc_payments,
+    infer_due_day,
+)
+from src.forecast.models import ForecastDay, ForecastResult
+from src.views.chart import _build_tooltip, build_forecast_chart
+from src.views.side_nav import NavDestination, SideNav
+
+
+def _m(obj: Any) -> Any:
+    return obj
+
+
+# ---------------------------------------------------------------------------
+# Chart
+# ---------------------------------------------------------------------------
+
+
+class TestChartEmptyResult:
+    def test_no_days_returns_bare_chart(self):
+        result = ForecastResult(days=[], starting_balance=0.0, safety_threshold=0.0)
+        chart = build_forecast_chart(result)
+        # Bare chart with the fixed height — no data series.
+        assert chart.height is not None
+
+
+class TestTooltipBuilder:
+    def test_single_day_tooltip_no_net_line(self):
+        day = ForecastDay(
+            date=date(2026, 6, 1),
+            starting_balance=1000.0,
+            transactions=[
+                ForecastTransaction(date=date(2026, 6, 1), name="Rent", amount=-1500.0),
+            ],
+        )
+        text = _build_tooltip(day)
+        # Single transaction → no "Net" line.
+        assert "Net" not in text
+        assert "Rent" in text
+
+    def test_multi_day_tooltip_with_negative_net(self):
+        day = ForecastDay(
+            date=date(2026, 6, 1),
+            starting_balance=5000.0,
+            transactions=[
+                ForecastTransaction(date=date(2026, 6, 1), name="Rent", amount=-1500.0),
+                ForecastTransaction(date=date(2026, 6, 1), name="Util", amount=-100.0),
+            ],
+        )
+        text = _build_tooltip(day)
+        assert "Net: -$1,600" in text
+
+    def test_multi_day_tooltip_with_positive_net(self):
+        day = ForecastDay(
+            date=date(2026, 6, 1),
+            starting_balance=1000.0,
+            transactions=[
+                ForecastTransaction(date=date(2026, 6, 1), name="Salary", amount=3000.0),
+                ForecastTransaction(date=date(2026, 6, 1), name="Bonus", amount=500.0),
+            ],
+        )
+        text = _build_tooltip(day)
+        assert "Net: +$3,500" in text
+
+    def test_tooltip_caps_transaction_list_at_four(self):
+        day = ForecastDay(
+            date=date(2026, 6, 1),
+            starting_balance=10_000.0,
+            transactions=[
+                ForecastTransaction(date=date(2026, 6, 1), name=f"Txn{i}", amount=-10.0)
+                for i in range(7)
+            ],
+        )
+        text = _build_tooltip(day)
+        assert "+3 more" in text
+
+
+# ---------------------------------------------------------------------------
+# Credit-card estimator branches
+# ---------------------------------------------------------------------------
+
+
+class TestCcEstimatorEdges:
+    def test_positive_balance_skipped(self):
+        cc_accounts = [{"id": "cc1", "name": "Card", "balance": 100.0}]
+        result = estimate_cc_payments(cc_accounts, recurring_items=[], forecast_days=45)
+        assert result == []
+
+    def test_user_settings_but_no_charges_no_override_skipped(self):
+        cc_accounts = [{"id": "cc1", "name": "Card", "balance": -200.0}]
+        # Cycle settings provided, but no transactions → no cycle estimate.
+        # Without an amount override, the card is skipped entirely.
+        result = estimate_cc_payments(
+            cc_accounts,
+            recurring_items=[],
+            forecast_days=45,
+            transactions=[],
+            cc_settings={"cc1": {"due_day": 15, "close_day": 20}},
+        )
+        assert result == []
+
+    def test_user_settings_with_override_emits_payment(self):
+        cc_accounts = [{"id": "cc1", "name": "Card", "balance": -200.0}]
+        result = estimate_cc_payments(
+            cc_accounts,
+            recurring_items=[],
+            forecast_days=45,
+            transactions=[],
+            cc_settings={"cc1": {"due_day": 15, "close_day": 20}},
+            amount_overrides={"cc1": 250.0},
+        )
+        assert len(result) == 1
+        # The override label is "manual".
+        assert "manual" in result[0].name
+        assert result[0].amount == -250.0
+
+    def test_invalid_due_day_in_settings_skips_with_override(self):
+        cc_accounts = [{"id": "cc1", "name": "Card", "balance": -200.0}]
+        # Even with an override, if the settings' due_day is invalid we skip.
+        result = estimate_cc_payments(
+            cc_accounts,
+            recurring_items=[],
+            forecast_days=45,
+            transactions=[],
+            cc_settings={"cc1": {"due_day": 0, "close_day": 20}},
+            amount_overrides={"cc1": 250.0},
+        )
+        assert result == []
+
+    def test_balance_fallback_skipped_when_due_outside_window(self):
+        # Forecast window of only 5 days but the fallback due date is
+        # today + 25 days — should skip.
+        cc_accounts = [{"id": "cc1", "name": "Card", "balance": -200.0}]
+        result = estimate_cc_payments(
+            cc_accounts,
+            recurring_items=[],
+            forecast_days=5,
+            transactions=[],
+        )
+        assert result == []
+
+
+class TestInferDueDay:
+    def test_no_payments_returns_zero(self):
+        assert infer_due_day("Chase", []) == 0
+
+    def test_skips_outflow_with_amount_zero(self):
+        # The classifier treats amount >= 0 as "not a payment" — skipped.
+        txns = [
+            {
+                "amount": 0.0,
+                "date": "2026-06-15",
+                "merchant": {"name": "Chase Card Payment"},
+                "category": {"name": "Transfer"},
+                "account": {"id": "checking"},
+            },
+        ]
+        assert infer_due_day("Chase Sapphire", txns) == 0
+
+    def test_skips_invalid_date_in_payment(self):
+        txns = [
+            {
+                "amount": -100.0,
+                "date": "garbage",
+                "merchant": {"name": "Chase Card Payment"},
+                "category": {"name": "Transfer"},
+                "account": {"id": "checking"},
+            },
+        ]
+        assert infer_due_day("Chase Sapphire", txns) == 0
+
+    def test_uses_most_common_day(self):
+        txns = []
+        # Payment day = 15 (3x) vs day = 16 (1x) → 15 wins.
+        for d in ("2026-04-15", "2026-05-15", "2026-06-15", "2026-07-16"):
+            txns.append(
+                {
+                    "amount": -100.0,
+                    "date": d,
+                    "merchant": {"name": "Chase Sapphire Payment"},
+                    "category": {"name": "Credit Card Payment"},
+                    "account": {"id": "checking"},
+                }
+            )
+        assert infer_due_day("Chase Sapphire", txns) == 15
+
+
+class TestIsCcPaymentTxn:
+    def test_short_name_falls_back_to_payment_word(self):
+        # Single-letter CC name → no usable keywords → relies on
+        # payment-word match alone.
+        assert _is_cc_payment_txn("monthly payment", "a") is True
+        assert _is_cc_payment_txn("monthly grocery", "a") is False
+
+
+class TestPrevNextMonthDay:
+    def test_prev_month_wraps_to_december_of_prior_year(self):
+        ref = date(2026, 1, 15)
+        result = _prev_month_day(ref, day=20)
+        assert result == date(2025, 12, 20)
+
+    def test_next_month_wraps_to_january_of_next_year(self):
+        ref = date(2026, 12, 15)
+        result = _next_month_day(ref, day=5)
+        assert result == date(2027, 1, 5)
+
+    def test_next_month_day_with_same_month_if_later(self):
+        ref = date(2026, 6, 5)
+        result = _next_month_day(ref, day=20)
+        assert result == date(2026, 6, 20)
+
+
+class TestDayMinus:
+    def test_caps_at_28(self):
+        # Subtracting nothing from a day past 28 — caps to 28.
+        assert _day_minus(31, 0) == 28
+
+    def test_negative_wraps_to_within_month(self):
+        # day=5, subtract 10 → -5 → +30 = 25 → cap 25.
+        assert _day_minus(5, 10) == 25
+
+
+# ---------------------------------------------------------------------------
+# RecurringItem fallback path
+# ---------------------------------------------------------------------------
+
+
+class TestEstimateUsesRecurringFallback:
+    def test_recurring_fallback_when_no_settings_no_history(self):
+        cc_accounts = [{"id": "cc1", "name": "Apple Card", "balance": -100.0}]
+        recurring = [
+            RecurringItem(
+                name="Apple Card Payment",
+                amount=-100.0,
+                frequency="monthly",
+                base_date=date.today() + timedelta(days=10),
+                category="Credit Card Payment",
+            ),
+        ]
+        result = estimate_cc_payments(
+            cc_accounts,
+            recurring_items=recurring,
+            forecast_days=45,
+            transactions=[],
+        )
+        # The fallback uses the recurring item's amount with label "avg".
+        assert len(result) == 1
+        assert "avg" in result[0].name
+
+
+# ---------------------------------------------------------------------------
+# Side nav hover + logo
+# ---------------------------------------------------------------------------
+
+
+def _make_side_nav(icon_path: str | None = None) -> SideNav:
+    return SideNav(
+        destinations=[
+            NavDestination(
+                icon=ft.Icons.DASHBOARD_OUTLINED,
+                selected_icon=ft.Icons.DASHBOARD,
+                label="Overview",
+            ),
+            NavDestination(
+                icon=ft.Icons.TABLE_CHART_OUTLINED,
+                selected_icon=ft.Icons.TABLE_CHART,
+                label="Transactions",
+            ),
+        ],
+        on_select=lambda _i: None,
+        on_refresh=lambda: None,
+        on_logout=lambda: None,
+        user_email="user@example.com",
+        icon_path=icon_path,
+    )
+
+
+class TestSideNavLogo:
+    def test_logo_hover_in_scales_and_rings(self):
+        nav = _make_side_nav(icon_path="data:image/png;base64,XX")
+        assert nav._logo_seal is not None
+        seal = nav._logo_seal
+        _m(seal).update = MagicMock()
+        # Hover in.
+        _m(nav._on_logo_hover)(SimpleNamespace(data="true", control=seal))
+        scale = seal.scale
+        assert scale is not None and getattr(scale, "scale", 1.0) > 1.0
+
+    def test_logo_hover_out_restores_scale(self):
+        nav = _make_side_nav(icon_path="data:image/png;base64,XX")
+        seal = nav._logo_seal
+        assert seal is not None
+        _m(seal).update = MagicMock()
+        _m(nav._on_logo_hover)(SimpleNamespace(data="false", control=seal))
+        scale = seal.scale
+        assert scale is not None and getattr(scale, "scale", 1.0) == 1.0
+
+    def test_logo_click_routes_to_first_destination(self):
+        picked: list[int] = []
+        nav = SideNav(
+            destinations=[
+                NavDestination(
+                    icon=ft.Icons.DASHBOARD_OUTLINED,
+                    selected_icon=ft.Icons.DASHBOARD,
+                    label="Overview",
+                ),
+            ],
+            on_select=lambda i: picked.append(i),
+            on_refresh=lambda: None,
+            on_logout=lambda: None,
+            user_email="",
+            icon_path="data:image/png;base64,XX",
+        )
+        _m(nav._on_logo_click)(SimpleNamespace())
+        assert picked == [0]
+
+    def test_logo_click_with_no_destinations_is_noop(self):
+        picked: list[int] = []
+        # Use a NoOp nav whose destinations list is empty.
+        nav = SideNav(
+            destinations=[],
+            on_select=lambda i: picked.append(i),
+            on_refresh=lambda: None,
+            on_logout=lambda: None,
+            user_email="",
+            icon_path=None,
+        )
+        # Build the click handler indirectly by directly invoking the
+        # internal method when present. No destinations → handler exits.
+        _m(nav._on_logo_click)(SimpleNamespace())
+        assert picked == []
+
+
+class TestSideNavSelectionRepaint:
+    def test_set_last_refresh_updates_text(self):
+        nav = _make_side_nav()
+        nav.set_last_refresh("Updated 03:14 PM")
+        assert nav._last_refresh_text.value == "Updated 03:14 PM"
+
+    def test_selected_index_setter_out_of_range_noop(self):
+        nav = _make_side_nav()
+        prior = nav.selected_index
+        nav.selected_index = 99
+        assert nav.selected_index == prior
+
+    def test_selected_index_setter_same_value_noop(self):
+        nav = _make_side_nav()
+        # Setting same index should not raise/repaint.
+        nav.selected_index = nav.selected_index

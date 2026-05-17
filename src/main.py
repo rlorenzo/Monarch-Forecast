@@ -10,7 +10,57 @@ from src.data.cache import DataCache
 from src.data.demo_client import DemoClient
 from src.data.preferences import Preferences
 from src.utils.updater import get_current_version
+from src.views import tokens
 from src.views.dashboard import DashboardView
+
+
+def dispatch_keyboard_shortcut(
+    event: ft.KeyboardEvent,
+    page: ft.Page,
+    dashboard: DashboardView | None,
+) -> bool:
+    """Pure dispatch logic for the global keyboard shortcuts.
+
+    Extracted from the inline ``handle_keyboard`` closure so the routing
+    behavior is exercised in tests without spinning up a Flet event loop.
+
+    Returns ``True`` when the event was handled (a shortcut fired or
+    Escape closed a dialog) and ``False`` when the event should
+    propagate. The caller still owns wiring this onto
+    ``page.on_keyboard_event``.
+
+    - Escape pops the current dialog (Flet's AlertDialog doesn't bind it).
+    - Cmd/Ctrl+R triggers a refresh on the dashboard.
+    - Cmd/Ctrl+1/2/3 jumps to the matching tab.
+    """
+    if event.key == "Escape":
+        try:
+            page.pop_dialog()
+        except Exception:
+            pass  # No dialog open — harmless.
+        return True
+
+    # Cmd on macOS is surfaced as `meta`, Ctrl on Windows/Linux as `ctrl`.
+    if not (event.ctrl or event.meta):
+        return False
+    if dashboard is None:
+        return False
+
+    if event.key in ("R", "r"):
+        dashboard.trigger_refresh()
+        return True
+    if event.key == "1":
+        dashboard.switch_to_tab(0)
+        return True
+    if event.key == "2":
+        dashboard.switch_to_tab(1)
+        return True
+    if event.key == "3":
+        dashboard.switch_to_tab(2)
+        return True
+
+    return False
+
 
 _DATA_DIR = Path.home() / ".monarch-forecast"
 DEMO_CACHE_DB = _DATA_DIR / "demo-cache.db"
@@ -24,13 +74,37 @@ async def main(page: ft.Page) -> None:
     page.window.min_width = 800
     page.window.min_height = 600
     page.window.icon = "assets/icon.png"
-    page.padding = ft.Padding.only(left=0, top=8, right=16, bottom=8)
+    page.padding = ft.Padding.only(left=0, top=0, right=16, bottom=8)
     page.theme_mode = ft.ThemeMode.SYSTEM
-    # Icons scale with OS text-size via icon_theme.apply_text_scaling — helps
-    # low-vision users without touching every Icon() call site.
+    page.fonts = tokens.FONT_URLS
+
+    _icon_theme = ft.IconTheme(apply_text_scaling=True)
+
+    # Step 5 of bisect: explicit ColorScheme replaces color_scheme_seed.
+    # Light theme only for now; dark theme stays Material default.
     page.theme = ft.Theme(
-        color_scheme_seed=ft.Colors.BLUE,
-        icon_theme=ft.IconTheme(apply_text_scaling=True),
+        color_scheme=ft.ColorScheme(
+            primary=tokens.CORAL,
+            on_primary=tokens.PAPER,
+            primary_container=tokens.CORAL_TINT,
+            on_primary_container=tokens.CORAL_DEEP,
+            secondary=tokens.INK_2,
+            on_secondary=tokens.PAPER,
+            tertiary=tokens.SIGNAL_THRESHOLD,
+            on_tertiary=tokens.INK,
+            error=tokens.SIGNAL_NEGATIVE,
+            on_error=tokens.PAPER,
+            surface=tokens.PAPER,
+            on_surface=tokens.INK,
+            on_surface_variant=tokens.INK_2,
+            surface_container_low=tokens.PAPER,
+            surface_container=tokens.PAPER_2,
+            surface_container_high=tokens.PAPER_2,
+            surface_container_highest=tokens.PAPER_3,
+            outline=tokens.RULE,
+            outline_variant=tokens.RULE,
+        ),
+        icon_theme=_icon_theme,
     )
 
     def _current_dashboard() -> DashboardView | None:
@@ -41,38 +115,7 @@ async def main(page: ft.Page) -> None:
         return None
 
     def handle_keyboard(e: ft.KeyboardEvent) -> None:
-        """Global keyboard shortcuts.
-
-        - Escape closes any open dialog (Flet's AlertDialog does not bind
-          Escape by default, so keyboard-only users would otherwise be
-          stuck inside a modal).
-        - Cmd/Ctrl+R refreshes data.
-        - Cmd/Ctrl+1/2/3 switch between Overview / Transactions /
-          Adjustments tabs.
-        """
-        if e.key == "Escape":
-            try:
-                page.pop_dialog()
-            except Exception:
-                pass  # No dialog open — harmless.
-            return
-
-        # Cmd on macOS is surfaced as `meta`, Ctrl on Windows/Linux as `ctrl`.
-        if not (e.ctrl or e.meta):
-            return
-
-        dashboard = _current_dashboard()
-        if dashboard is None:
-            return
-
-        if e.key in ("R", "r"):
-            dashboard.trigger_refresh()
-        elif e.key == "1":
-            dashboard.switch_to_tab(0)
-        elif e.key == "2":
-            dashboard.switch_to_tab(1)
-        elif e.key == "3":
-            dashboard.switch_to_tab(2)
+        dispatch_keyboard_shortcut(e, page, _current_dashboard())
 
     page.on_keyboard_event = handle_keyboard
 

@@ -1,34 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1565C0"/>
-      <stop offset="100%" style="stop-color:#42A5F5"/>
-    </linearGradient>
-  </defs>
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="240" fill="url(#bg)"/>
-  <!-- Chart line trending upward -->
-  <polyline
-    points="100,340 180,300 240,320 300,240 360,200 420,140"
-    fill="none"
-    stroke="white"
-    stroke-width="20"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <!-- Arrow tip on the line -->
-  <polygon
-    points="420,140 400,180 380,150"
-    fill="white"
-  />
-  <!-- Dollar sign -->
-  <text
-    x="170"
-    y="220"
-    font-family="Arial, sans-serif"
-    font-size="120"
-    font-weight="bold"
-    fill="white"
-    opacity="0.3"
-  >$</text>
+  <!-- Paper background with a hairline rule border (the almanac page) -->
+  <circle cx="256" cy="256" r="240" fill="#faf6f3" stroke="#d6c5ba" stroke-width="3"/>
+
+  <!-- Amber dashed safety threshold across the middle -->
+  <line x1="80" y1="280" x2="432" y2="280"
+        stroke="#d4a657" stroke-width="6"
+        stroke-dasharray="14 16" stroke-linecap="round"/>
+
+  <!-- Forecast line in segments: green above threshold, red below.
+       Segments split exactly at the threshold crossings so the rounded
+       line caps meet cleanly. -->
+  <g fill="none" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Green: opening climb to first threshold crossing (234, 280) -->
+    <polyline points="100,230 190,180 234,280" stroke="#2e9764"/>
+    <!-- Red: dip below the threshold and back up to (310, 280) -->
+    <polyline points="234,280 270,360 310,280" stroke="#d04632"/>
+    <!-- Green: recovery and finish -->
+    <polyline points="310,280 350,200 420,240" stroke="#2e9764"/>
+  </g>
 </svg>

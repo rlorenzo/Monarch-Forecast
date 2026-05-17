@@ -1,0 +1,343 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-14T00:00:00Z",
+  "title": "Design System: Monarch Forecast",
+  "extensions": {
+    "colorMeta": {
+      "coral": {
+        "role": "primary",
+        "displayName": "Coral",
+        "canonical": "oklch(64% 0.14 30)",
+        "tonalRamp": [
+          "oklch(28% 0.08 30)",
+          "oklch(38% 0.12 30)",
+          "oklch(48% 0.14 30)",
+          "oklch(54% 0.16 28)",
+          "oklch(64% 0.14 30)",
+          "oklch(76% 0.10 30)",
+          "oklch(88% 0.06 30)",
+          "oklch(96% 0.02 30)"
+        ]
+      },
+      "coral-deep": {
+        "role": "primary",
+        "displayName": "Coral Deep",
+        "canonical": "oklch(54% 0.16 28)",
+        "tonalRamp": [
+          "oklch(24% 0.10 28)",
+          "oklch(34% 0.13 28)",
+          "oklch(44% 0.15 28)",
+          "oklch(54% 0.16 28)",
+          "oklch(64% 0.14 28)",
+          "oklch(74% 0.11 28)",
+          "oklch(86% 0.07 28)",
+          "oklch(95% 0.03 28)"
+        ]
+      },
+      "coral-tint": {
+        "role": "primary",
+        "displayName": "Coral Tint",
+        "canonical": "oklch(94% 0.04 30)",
+        "tonalRamp": [
+          "oklch(50% 0.10 30)",
+          "oklch(62% 0.10 30)",
+          "oklch(72% 0.09 30)",
+          "oklch(82% 0.07 30)",
+          "oklch(90% 0.05 30)",
+          "oklch(94% 0.04 30)",
+          "oklch(97% 0.02 30)",
+          "oklch(99% 0.008 30)"
+        ]
+      },
+      "signal-positive": {
+        "role": "tertiary",
+        "displayName": "Signal Positive",
+        "canonical": "oklch(58% 0.13 150)",
+        "purpose": "Surplus, above-threshold balance, income.",
+        "tonalRamp": [
+          "oklch(22% 0.06 150)",
+          "oklch(34% 0.10 150)",
+          "oklch(46% 0.12 150)",
+          "oklch(58% 0.13 150)",
+          "oklch(68% 0.12 150)",
+          "oklch(80% 0.09 150)",
+          "oklch(90% 0.05 150)",
+          "oklch(96% 0.02 150)"
+        ]
+      },
+      "signal-negative": {
+        "role": "tertiary",
+        "displayName": "Signal Negative",
+        "canonical": "oklch(58% 0.18 25)",
+        "purpose": "Shortfall, below-threshold balance, overdraft, expense.",
+        "tonalRamp": [
+          "oklch(22% 0.08 25)",
+          "oklch(34% 0.13 25)",
+          "oklch(46% 0.16 25)",
+          "oklch(58% 0.18 25)",
+          "oklch(70% 0.14 25)",
+          "oklch(82% 0.09 25)",
+          "oklch(91% 0.05 25)",
+          "oklch(97% 0.02 25)"
+        ]
+      },
+      "signal-threshold": {
+        "role": "tertiary",
+        "displayName": "Signal Threshold",
+        "canonical": "oklch(72% 0.12 70)",
+        "purpose": "The safety threshold line and threshold-crossing markers.",
+        "tonalRamp": [
+          "oklch(28% 0.06 70)",
+          "oklch(40% 0.09 70)",
+          "oklch(52% 0.11 70)",
+          "oklch(62% 0.12 70)",
+          "oklch(72% 0.12 70)",
+          "oklch(84% 0.09 70)",
+          "oklch(92% 0.05 70)",
+          "oklch(98% 0.02 70)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(98% 0.005 30)",
+        "tonalRamp": [
+          "oklch(20% 0.015 30)",
+          "oklch(34% 0.012 30)",
+          "oklch(50% 0.010 30)",
+          "oklch(66% 0.008 30)",
+          "oklch(82% 0.007 30)",
+          "oklch(93% 0.008 30)",
+          "oklch(96% 0.006 30)",
+          "oklch(98% 0.005 30)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(22% 0.015 30)",
+        "tonalRamp": [
+          "oklch(14% 0.014 30)",
+          "oklch(22% 0.015 30)",
+          "oklch(30% 0.014 30)",
+          "oklch(38% 0.013 30)",
+          "oklch(48% 0.013 30)",
+          "oklch(56% 0.012 30)",
+          "oklch(70% 0.011 30)",
+          "oklch(86% 0.008 30)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink Dark (canvas)",
+        "canonical": "oklch(14% 0.014 30)",
+        "purpose": "Canonical dark-theme surface — warm clay, not navy.",
+        "tonalRamp": [
+          "oklch(10% 0.012 30)",
+          "oklch(14% 0.014 30)",
+          "oklch(18% 0.012 30)",
+          "oklch(24% 0.012 30)",
+          "oklch(34% 0.012 30)",
+          "oklch(48% 0.012 30)",
+          "oklch(64% 0.011 30)",
+          "oklch(82% 0.009 30)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Headline balance number. The verdict. Used once or twice per screen."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section titles, alert verdict lines. Editorial serif voice."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Sub-section titles, card headers, button labels, tab labels."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default running text. Table rows. Helper copy. 13pt with tabular numerals."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "11pt uppercase eyebrows above sections, table column headers, chart legend. The accessibility floor."
+      }
+    },
+    "shadows": [
+      {
+        "name": "popover",
+        "value": "0 4px 16px oklch(22% 0.015 30 / 0.10), 0 1px 2px oklch(22% 0.015 30 / 0.06)",
+        "purpose": "Calendar popover, menus, tooltips. The only resting shadow in the system."
+      },
+      {
+        "name": "dialog",
+        "value": "0 12px 32px oklch(22% 0.015 30 / 0.14), 0 2px 6px oklch(22% 0.015 30 / 0.08)",
+        "purpose": "Modal dialogs (confirm prompts, one-off transaction form)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-ease",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Default ease-out-quart for hover, focus, and color transitions. ~150ms duration."
+      },
+      {
+        "name": "state-duration",
+        "value": "150ms",
+        "purpose": "Standard duration for state transitions. Anything longer slows the glance."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "min-window",
+        "value": "800x600",
+        "purpose": "Minimum supported desktop window size (set in src/main.py)."
+      },
+      {
+        "name": "default-window",
+        "value": "1100x900",
+        "purpose": "Default desktop window size on first launch."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single coral CTA per screen. Inter 600 on coral paper.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Add one-off transaction</button>",
+      "css": ".ds-btn-primary { background: #d97a64; color: #faf6f3; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 600; font-size: 16px; line-height: 1.3; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-primary:hover { background: #b8523f; } .ds-btn-primary:focus-visible { outline: 2px solid #b8523f; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The default everywhere except the single primary CTA. Transparent at rest, paper-2 on hover.",
+      "html": "<button class=\"ds-btn-ghost\" type=\"button\">Refresh</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #392b24; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 600; font-size: 16px; line-height: 1.3; padding: 10px 14px; border: none; border-radius: 6px; cursor: pointer; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-ghost:hover { background: #f4ece6; } .ds-btn-ghost:focus-visible { outline: 2px solid #d97a64; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Paper fill, 1px rule border, 2px coral focus border. Label sits above as Label-size uppercase.",
+      "html": "<label class=\"ds-input-label\" for=\"ds-amount\">AMOUNT</label><input class=\"ds-input-text\" id=\"ds-amount\" type=\"text\" placeholder=\"$0.00\" />",
+      "css": ".ds-input-label { display: block; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; margin-bottom: 4px; } .ds-input-text { background: #faf6f3; color: #392b24; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; font-feature-settings: 'tnum', 'lnum'; padding: 10px 12px; border: 1px solid #d6c5ba; border-radius: 6px; outline: none; transition: border-color 150ms cubic-bezier(0.22, 1, 0.36, 1); width: 220px; } .ds-input-text:focus { border: 2px solid #d97a64; padding: 9px 11px; }"
+    },
+    {
+      "name": "Recurring Chip",
+      "kind": "chip",
+      "refersTo": "chip-recurring",
+      "description": "Tag for recurring-transaction frequency or status. Never decorative.",
+      "html": "<span class=\"ds-chip-recurring\">BIWEEKLY</span>",
+      "css": ".ds-chip-recurring { display: inline-block; background: #f4ece6; color: #5e4f47; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }"
+    },
+    {
+      "name": "Quiet Card",
+      "kind": "card",
+      "refersTo": "card-quiet",
+      "description": "The only card style. Paper fill, 1px rule border, no shadow. Nested cards are forbidden.",
+      "html": "<section class=\"ds-card-quiet\"><span class=\"ds-card-eyebrow\">LOWEST POINT</span><h2 class=\"ds-card-headline\">$312.40 on Tue, May 22</h2><p class=\"ds-card-body\">You'll dip below your $500 threshold for two days, then recover Friday after payday.</p></section>",
+      "css": ".ds-card-quiet { background: #faf6f3; color: #392b24; border: 1px solid #d6c5ba; border-radius: 10px; padding: 20px 24px; max-width: 480px; } .ds-card-eyebrow { display: block; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; margin-bottom: 8px; } .ds-card-headline { font-family: 'Fraunces', 'Source Serif Pro', Georgia, serif; font-weight: 500; font-size: 24px; line-height: 1.15; letter-spacing: -0.005em; font-feature-settings: 'tnum', 'lnum'; color: #392b24; margin: 0 0 12px; } .ds-card-body { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; color: #392b24; margin: 0; max-width: 65ch; }"
+    },
+    {
+      "name": "Tab Strip Item",
+      "kind": "nav",
+      "refersTo": "nav-tab-active",
+      "description": "Typographic tab. Active state is coral text + 2px coral underline. No background fills.",
+      "html": "<nav class=\"ds-nav\" role=\"tablist\"><button class=\"ds-nav-tab ds-nav-tab--active\" role=\"tab\" aria-selected=\"true\">Overview</button><button class=\"ds-nav-tab\" role=\"tab\" aria-selected=\"false\">Transactions</button><button class=\"ds-nav-tab\" role=\"tab\" aria-selected=\"false\">Adjustments</button></nav>",
+      "css": ".ds-nav { display: flex; gap: 4px; border-bottom: 1px solid #d6c5ba; padding: 0 8px; } .ds-nav-tab { background: transparent; border: none; cursor: pointer; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 600; font-size: 16px; line-height: 1.3; color: #8c7c72; padding: 8px 12px; position: relative; transition: color 150ms cubic-bezier(0.22, 1, 0.36, 1), background 150ms cubic-bezier(0.22, 1, 0.36, 1); border-radius: 6px 6px 0 0; } .ds-nav-tab:hover { color: #5e4f47; background: #f4ece6; } .ds-nav-tab:focus-visible { outline: 2px solid #d97a64; outline-offset: 2px; } .ds-nav-tab--active { color: #d97a64; } .ds-nav-tab--active::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; background: #d97a64; }"
+    },
+    {
+      "name": "Forecast Headline",
+      "kind": "custom",
+      "refersTo": "signature.headline-balance",
+      "description": "The Overview tab's headline balance — Fraunces display number with a small dated subtitle.",
+      "html": "<div class=\"ds-headline-balance\"><span class=\"ds-headline-eyebrow\">PROJECTED LOW</span><span class=\"ds-headline-number\">$312.40</span><span class=\"ds-headline-subtitle\">on Tue, May 22 — 2 days below your $500 threshold</span></div>",
+      "css": ".ds-headline-balance { display: flex; flex-direction: column; gap: 6px; max-width: 520px; } .ds-headline-eyebrow { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; } .ds-headline-number { font-family: 'Fraunces', 'Source Serif Pro', Georgia, serif; font-weight: 500; font-size: 38px; line-height: 1.05; letter-spacing: -0.01em; font-feature-settings: 'tnum', 'lnum'; color: #d04632; } .ds-headline-subtitle { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; color: #5e4f47; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Pocket Almanac",
+    "overview": "A small, opinionated, dated book of forward-looking certainties. The almanac has a posture: it tells you what's coming this week and stakes its name on the answer. It does not hedge, it does not advertise to you, it does not gamify your money. The paper is warm. The ink is dark. The typography is editorial — a serif that believes in the verdict it just rendered, paired with a sans that handles the supporting prose without ego.\n\nThis system explicitly rejects every reflex of the 'personal finance dashboard' category. Stock Material 3 with its blue seed and identical elevation reads as an unfinished Flutter app — that is the current state and the thing we are moving away from. No neon-on-black, no gradient text, no number tickers, no glassmorphism, no marketing-style hero cards. No pie charts and no category-explorer bait. The chart is the product; everything else is paper around it.\n\nDensity is high — this is a financial tool, not a magazine landing page — but rhythm holds it together. Section headers in serif. Numbers in tabular figures. Generous-enough breathing room between sections, tight density within them. Color reserved for signal, never for decoration.",
+    "keyCharacteristics": [
+      "Editorial serif display (Fraunces) paired with a humanist sans (Inter) for everything else.",
+      "Warm clay-toned neutrals — paper and ink, not gray and white. Neutrals are tinted toward the coral hue (30°) at low chroma (0.005–0.015).",
+      "One brand accent: a warm coral. Used on ≤10% of any screen at rest.",
+      "Three signal hues — positive (green), negative (red), threshold (amber) — used only for forecast meaning.",
+      "Restrained motion. State changes only. No entrances, no scroll choreography, no number tickers.",
+      "Light and dark themes are designed first-class equals.",
+      "Tabular lining figures everywhere financial."
+    ],
+    "rules": [
+      {
+        "name": "The One Voice Rule",
+        "body": "Coral appears on ≤10% of any screen at rest. The brand mark, the primary CTA, and the projected-balance line on the chart together must consume less than a tenth of the visible pixels. If two coral surfaces want the same screen, one of them was wrong. Hover states do not count against this budget.",
+        "section": "colors"
+      },
+      {
+        "name": "The Signal Separation Rule",
+        "body": "Coral is brand. Green is surplus. Red is shortfall. Amber is the safety threshold. These four hues live in disjoint roles and are never substituted. Do not use coral to mean alarm. Do not use red to mean active. Do not introduce a fifth saturated color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warmed-Neutral Rule",
+        "body": "Every neutral on screen is tinted toward hue 30 at chroma 0.005–0.015. No untinted #fff, #000, or pure grays. The clay warmth is what makes this app not feel like a banking dashboard.",
+        "section": "colors"
+      },
+      {
+        "name": "The Verdict Rule",
+        "body": "Fraunces is for the verdict — the headline number, the dated forecast claim, the section title that names the thing. It is never used for body text, helper copy, button labels, or table cells. Sans handles the support.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numerals Rule",
+        "body": "Every number that represents money, a count, or a date renders in tabular lining figures. Enabled via fontFeature tnum, lnum on display, headline, and body. Dollar columns must align to the decimal across rows.",
+        "section": "typography"
+      },
+      {
+        "name": "The 11pt Floor Rule",
+        "body": "No visible text falls below 11pt. The Label role is the smallest legal size. Enforced in tests/test_accessibility.py.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "No card, tab, banner, or row carries a shadow at rest. Elevation is tonal. If you reach for elevation=2 on a Flet Card, replace it with Container(bgcolor=paper-2, border=Border.all(1, rule)) — paper layering plus a hairline rule does the same job without lifting the surface.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Inner Glow Rule",
+        "body": "No insets, no inner shadows, no faux-letterpress. The serif type already carries weight; chrome should not try to add more.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use OKLCH as the canonical color reference; the frontmatter ships sRGB hex approximations because Flet consumes hex, but new tokens are designed in OKLCH first.",
+      "Do tint every neutral toward hue 30 at chroma 0.005–0.015. Untinted gray is forbidden. So is #fff and #000.",
+      "Do enable tabular lining figures on every text role that may contain numbers — display, headline, body. Use fontFeature 'tnum, lnum' or Flet's text style equivalent.",
+      "Do wrap every icon-only button in ft.Semantics(button=True, label='...') with a descriptive, per-row label ('Edit one-off Rent', not 'Edit').",
+      "Do design light and dark as equals. Every token has a dark-mode counterpart on the paper-dark/ink-dark scale. No second-class theme.",
+      "Do reserve color for meaning. Coral = brand. Green = surplus. Red = shortfall. Amber = threshold. If a color is decorative, remove it.",
+      "Do use tonal layering and hairlines for depth. Replace any reflex elevation=2 with paper-2 background + rule border.",
+      "Do honor reduce-motion. Read DashboardView._reduce_motion and pass it through to any animated element."
+    ],
+    "donts": [
+      "Don't ship the current Material defaults (color_scheme_seed=Colors.BLUE, default elevation, default Material card chrome).",
+      "Don't fall into the crypto / fintech-bro aesthetic. No neon-on-black, no gradient text, no animated number tickers, no glassmorphism, no 'to the moon' energy.",
+      "Don't fall into cluttered SaaS dashboard tropes. No identical card grids. No hero-metric template. No side-stripe border-left accents. No modal-as-first-thought.",
+      "Don't fall into Mint-style busy budgeting UI. No pie charts. No category-explorer bait. No gamification badges. No marketing-style upsells.",
+      "Don't use ft.Colors.OUTLINE for text. It is a borders-and-hairlines token. Secondary text uses ON_SURFACE_VARIANT (mapped to ink-2).",
+      "Don't drop below 11pt for any visible text. The Label role is the floor.",
+      "Don't substitute color for label. Every red/green/amber signal pairs with a glyph (+, −, ⚠), a semantics_label, or text.",
+      "Don't shadow flat surfaces. Cards, tabs, banners, rows do not float. Only popovers, menus, and dialogs shadow.",
+      "Don't nest cards. If a card wants a child card, use a hairline rule and paper-2 instead.",
+      "Don't render currency in proportional figures. Every dollar amount uses tabular lining figures so columns lock.",
+      "Don't add scroll choreography or entrance animations. The 'will I be okay?' glance must not wait on an animation. State changes only.",
+      "Don't use em dashes in UI copy. Commas, colons, semicolons, periods, or parentheses."
+    ]
+  }
+}

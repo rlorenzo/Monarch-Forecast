@@ -19,6 +19,9 @@ headed and spot shortfalls before they happen.
   drop below a safety threshold
 - **Manual adjustments** — Add one-off transactions (upcoming bills,
   expected refunds) to refine the forecast
+- **Editorial design** — Custom paper-and-ink design system, Fraunces
+  display serif paired with Inter, tabular lining figures across every
+  money column. Light and dark themes are first-class equals
 - **Auto-update notifications** — Checks GitHub Releases for newer
   versions on startup
 - **Cross-platform** — Builds for macOS (.dmg), Windows (.msix), and Linux
