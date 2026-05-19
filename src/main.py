@@ -7,6 +7,7 @@ import flet as ft
 
 from src.auth.login_view import LoginView
 from src.auth.session_manager import DemoSessionManager, SessionManager
+from src.data import demo_data
 from src.data.cache import DataCache
 from src.data.demo_client import DemoClient
 from src.data.preferences import Preferences
@@ -142,12 +143,20 @@ async def main(page: ft.Page) -> None:
         the normal-flow setup runs.
         """
         page.controls.clear()
+        # Wipe the cache so edits to demo_data.py are picked up on next
+        # launch instead of shadowed by the 30-minute TTL.
+        DEMO_CACHE_DB.unlink(missing_ok=True)
+        # Re-seed one-offs every launch: their dates are relative to
+        # today, so a previously-saved set would have rolled into the
+        # past and been filtered out.
+        demo_prefs = Preferences(path=DEMO_PREFS_FILE)
+        demo_prefs.set_one_off_transactions(demo_data.build_one_off_transactions())
         dashboard = DashboardView(
             session_manager=DemoSessionManager(),
             on_logout=lambda: page.run_task(show_login),
             raw_client=DemoClient(),
             cache=DataCache(db_path=DEMO_CACHE_DB),
-            preferences=Preferences(path=DEMO_PREFS_FILE),
+            preferences=demo_prefs,
         )
         page.controls.append(dashboard)
         page.update()

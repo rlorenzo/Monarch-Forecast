@@ -7,11 +7,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
-## [1.0.1] — 2026-05-18
+## [1.0.1] (2026-05-18)
 
 A patch release that fixes a critical launch crash and adds OS
 password-manager support to the sign-in screen. **Anyone running 1.0.0
-should upgrade** — the previous build did not start at all on a clean
+should upgrade**: the previous build did not start at all on a clean
 install.
 
 ### Fixed
@@ -32,7 +32,7 @@ install.
 
 ### Changed
 
-- The Safety Threshold help dialog is now a single Markdown block —
+- The Safety Threshold help dialog is now a single Markdown block:
   same content, cleaner typography for the bulleted list.
 
 ### Internal
@@ -42,7 +42,7 @@ install.
   opens a blank window fails the build instead of silently shipping
   (which is how 1.0.0 escaped review).
 
-## [1.0.0] — 2026-05-16
+## [1.0.0] (2026-05-16)
 
 Monarch Forecast is a desktop app that projects your checking account
 balance day-by-day, so you can see what you'll have on hand a few weeks
