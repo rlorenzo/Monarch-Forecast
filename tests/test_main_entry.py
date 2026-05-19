@@ -131,3 +131,33 @@ class TestRun:
         with patch("src.main.ft.run") as mock_run:
             main_module.run()
         mock_run.assert_called_once_with(main_module.main)
+
+
+class TestRootEntryPoint:
+    """Guard the root ``main.py`` wrapper that ``flet build`` compiles into
+    the shipped ``main.pyc``.
+
+    The local CLI uses ``[project.scripts] monarch-forecast = "src.main:run"``,
+    so a broken wrapper at the repo root is invisible to ``uv run`` and to
+    every other unit test — they all exercise ``src.main`` directly. The
+    packaged app, however, runs ``main.pyc`` (compiled from the root
+    ``main.py``) under ``serious_python``: if the wrapper imports ``main``
+    but never calls anything, the Python process exits in milliseconds and
+    the Flutter shell briefly opens a window before closing — the
+    "opens and then closes" symptom of the 1.0.0 release.
+
+    This test runpy-executes ``main.py`` as ``__main__`` with ``ft.run``
+    patched out and asserts the wrapper actually starts Flet.
+    """
+
+    def test_root_main_py_invokes_ft_run(self):
+        import runpy
+        from pathlib import Path
+
+        root_main = Path(__file__).resolve().parent.parent / "main.py"
+        assert root_main.exists(), "root main.py is the flet build entry point"
+
+        with patch("src.main.ft.run") as mock_run:
+            runpy.run_path(str(root_main), run_name="__main__")
+
+        mock_run.assert_called_once()
