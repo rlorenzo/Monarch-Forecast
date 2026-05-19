@@ -41,6 +41,100 @@ def _make_page() -> MagicMock:
     return page
 
 
+@pytest.fixture(autouse=True)
+def _clear_auto_demo_env(monkeypatch):
+    """Ensure each test starts with MONARCH_FORECAST_AUTO_DEMO unset.
+
+    Without this, a developer who has the env var exported in their shell
+    (e.g. while iterating on the build-time smoke test) would see the
+    normal-flow tests below silently take the demo branch — the suite
+    must be independent of the caller's environment.
+    Tests that need the var set call ``monkeypatch.setenv`` themselves,
+    which overrides this fixture's deletion within their scope.
+    """
+    monkeypatch.delenv("MONARCH_FORECAST_AUTO_DEMO", raising=False)
+
+
+@pytest.mark.asyncio
+class TestAutoDemoEnv:
+    """Verify the MONARCH_FORECAST_AUTO_DEMO=1 short-circuit used by the
+    build-time smoke test in ``.github/workflows/build.yml``.
+
+    The env var must route directly to the demo dashboard (bypassing
+    session restore and login) when set, and must be a no-op when unset
+    so production behavior is unaffected.
+    """
+
+    async def test_env_routes_to_demo_dashboard(self, monkeypatch):
+        page = _make_page()
+        monkeypatch.setenv("MONARCH_FORECAST_AUTO_DEMO", "1")
+        # ``show_demo_dashboard`` evaluates ``DataCache(db_path=...)`` and
+        # ``Preferences(path=...)`` as kwargs before the mocked
+        # ``DashboardView`` is even called — without patching them, the
+        # test would create files under the user's real ``~/.monarch-forecast``.
+        with (
+            patch("src.main.SessionManager") as mock_sm_cls,
+            patch("src.main.DashboardView") as mock_dash_cls,
+            patch("src.main.LoginView") as mock_login_cls,
+            patch("src.main.DataCache") as mock_cache_cls,
+            patch("src.main.Preferences") as mock_prefs_cls,
+            patch("src.main.DemoClient") as mock_demo_client_cls,
+        ):
+            mock_sm = MagicMock()
+            mock_sm.try_restore_session = AsyncMock(return_value=False)
+            mock_sm_cls.return_value = mock_sm
+            mock_dash = MagicMock()
+            mock_dash.load_data = AsyncMock()
+            mock_dash_cls.return_value = mock_dash
+            mock_cache_cls.return_value = MagicMock()
+            mock_prefs_cls.return_value = MagicMock()
+            mock_demo_client_cls.return_value = MagicMock()
+
+            await main_module.main(page)
+
+        # Dashboard was instantiated for demo mode — login was never shown,
+        # session restore short-circuited. ``load_data`` must also have been
+        # awaited so the dashboard isn't displayed empty when the smoke test
+        # screenshots it.
+        mock_dash_cls.assert_called_once()
+        mock_login_cls.assert_not_called()
+        _m(mock_sm.try_restore_session).assert_not_called()
+        _m(mock_dash.load_data).assert_awaited_once()
+        # Auto-demo must short-circuit BEFORE SessionManager is constructed.
+        # The lazy ``_get_session_manager`` helper means a real session
+        # manager is never instantiated for the smoke-test launch path.
+        # (DataCache and Preferences are still created and may touch
+        # ~/.monarch-forecast/demo-*; those hold transient demo state
+        # and don't leak credentials.)
+        mock_sm_cls.assert_not_called()
+        # The demo dashboard's on_logout callback must be a callable that
+        # resolves at call time — earlier we had a closure over an
+        # unbound ``show_login`` that crashed when invoked in auto-demo
+        # mode. Calling it should not raise.
+        on_logout = mock_dash_cls.call_args.kwargs["on_logout"]
+        on_logout()
+
+    async def test_env_unset_uses_normal_flow(self):
+        # _clear_auto_demo_env (autouse) ensures the env var is unset.
+        page = _make_page()
+        with (
+            patch("src.main.SessionManager") as mock_sm_cls,
+            patch("src.main.DashboardView") as mock_dash_cls,
+            patch("src.main.LoginView") as mock_login_cls,
+        ):
+            mock_sm = MagicMock()
+            mock_sm.try_restore_session = AsyncMock(return_value=False)
+            mock_sm_cls.return_value = mock_sm
+            mock_login_cls.return_value = MagicMock()
+
+            await main_module.main(page)
+
+        # Normal flow: session restore runs, login shows, demo dashboard not used.
+        _m(mock_sm.try_restore_session).assert_awaited_once()
+        mock_login_cls.assert_called_once()
+        mock_dash_cls.assert_not_called()
+
+
 @pytest.mark.asyncio
 class TestMainEntry:
     async def test_restored_session_shows_dashboard(self):

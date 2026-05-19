@@ -75,6 +75,162 @@ jobs:
             --cleanup-app \
             --cleanup-packages
 
+      - name: Install Linux smoke-test deps
+        if: matrix.platform == 'linux'
+        run: sudo apt-get install -y xvfb imagemagick
+
+      - name: Install Pillow for smoke screenshot check
+        if: matrix.platform != 'windows'
+        # Pinned so a future Pillow release can't independently break a
+        # tagged build. Bump deliberately when refreshing the smoke tool.
+        run: python3 -m pip install --user --quiet 'pillow==12.2.0'
+
+      # Launches the built binary in demo mode (MONARCH_FORECAST_AUTO_DEMO=1
+      # short-circuits to the demo dashboard — see src/main.py) and verifies
+      # that:
+      #   1. The process stays alive for at least 12 seconds. Catches silent
+      #      crashes — e.g. an entry-point wrapper that imports ``main`` but
+      #      never calls ``ft.run``, which is how the 1.0.0 release shipped
+      #      a binary that "opened and then closed" with no stderr.
+      #   2. The window actually rendered something — captured by screenshot
+      #      and a "distinct color count" check. A blank window (uniform
+      #      background, missing fonts, white-on-white render bug) fails.
+      #
+      # Windows is skipped because GitHub Actions windows runners don't
+      # reliably expose an interactive desktop session for GUI processes.
+      - name: Launch smoke test
+        if: matrix.platform != 'windows'
+        shell: bash
+        env:
+          MONARCH_FORECAST_AUTO_DEMO: "1"
+        run: |
+          set -u
+          mkdir -p /tmp/smoke-artifacts
+          APP_PID=
+          XVFB_PID=
+          # Tear down background processes no matter how the step exits
+          # (success, ``exit 1`` from a failed assertion, or a trap from
+          # set -e). Without this every early ``exit 1`` below would leak
+          # the app + Xvfb until the runner VM was destroyed, which would
+          # also hold open ports and log handles during the artifact-
+          # upload phase.
+          cleanup() {
+            [ -n "$APP_PID" ] && kill "$APP_PID" 2>/dev/null || true
+            pkill -f 'Monarch Forecast' 2>/dev/null || true
+            pkill -f monarch_forecast 2>/dev/null || true
+            [ -n "$XVFB_PID" ] && kill "$XVFB_PID" 2>/dev/null || true
+            return 0
+          }
+          trap cleanup EXIT
+          cd build/${{ matrix.platform }}
+          case "${{ matrix.platform }}" in
+            macos)
+              BINARY="Monarch Forecast.app/Contents/MacOS/Monarch Forecast"
+              [ -x "$BINARY" ] || { echo "::error::macOS binary not found at $BINARY"; ls -la; exit 1; }
+              "$BINARY" > /tmp/smoke-artifacts/smoke.log 2>&1 &
+              APP_PID=$!
+              ;;
+            linux)
+              BINARY="$(find . -maxdepth 4 -type f -name 'monarch_forecast' -perm -u+x | head -1)"
+              if [ -z "$BINARY" ]; then
+                BINARY="$(find . -maxdepth 4 -type f -name 'Monarch Forecast' -perm -u+x | head -1)"
+              fi
+              [ -n "$BINARY" ] || { echo "::error::Linux binary not found"; find . -maxdepth 4 -type f -perm -u+x; exit 1; }
+              echo "Launching: $BINARY"
+              # Manual Xvfb so we can screenshot the same display the app
+              # renders into. ``xvfb-run`` auto-allocates a display, but
+              # then we'd have to chase down its number to screenshot it.
+              Xvfb :99 -screen 0 1280x900x24 > /tmp/smoke-artifacts/xvfb.log 2>&1 &
+              XVFB_PID=$!
+              export DISPLAY=:99
+              sleep 2
+              "$BINARY" > /tmp/smoke-artifacts/smoke.log 2>&1 &
+              APP_PID=$!
+              ;;
+          esac
+
+          # Give Flutter time to boot, render fonts, and load demo data.
+          sleep 12
+
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            echo "::error::Built binary exited within 12 seconds — likely a silent crash."
+            echo "--- captured output ---"
+            cat /tmp/smoke-artifacts/smoke.log || true
+            exit 1
+          fi
+
+          # Screenshot the rendered window. On macOS we capture only the
+          # app's window region — capturing the whole screen would falsely
+          # pass the pixel check because the runner's desktop wallpaper
+          # alone has thousands of distinct colors. On Linux the Xvfb
+          # display only contains our app, so the full-display capture is
+          # the right call there.
+          case "${{ matrix.platform }}" in
+            macos)
+              osascript -e 'tell application "Monarch Forecast" to activate' >/dev/null 2>&1 || true
+              sleep 1
+              # GHA bash steps run under ``set -eo pipefail`` by default —
+              # an ``X=$(failing-cmd)`` form may short-circuit before the
+              # diagnostic below can print. The ``if !`` form lets us own
+              # the failure path and surface AppleScript's output.
+              if ! BOUNDS=$(osascript -e 'tell application "System Events" to tell process "Monarch Forecast" to get {position, size} of window 1' 2>&1); then
+                echo "::error::osascript failed while reading window bounds. Output: $BOUNDS"
+                exit 1
+              fi
+              if ! echo "$BOUNDS" | grep -qE '^[0-9]+, *[0-9]+, *[0-9]+, *[0-9]+'; then
+                echo "::error::Could not parse Monarch Forecast window bounds — window may not have opened. AppleScript output: $BOUNDS"
+                exit 1
+              fi
+              REGION=$(echo "$BOUNDS" | tr -d ' ')
+              echo "Capturing window region: $REGION"
+              if ! screencapture -x -R "$REGION" /tmp/smoke-artifacts/screen.png; then
+                echo "::error::screencapture -R failed for region $REGION"
+                exit 1
+              fi
+              ;;
+            linux)
+              import -window root /tmp/smoke-artifacts/screen.png || {
+                echo "::error::imagemagick capture failed"; exit 1;
+              }
+              ;;
+          esac
+
+          # Distinct-color check. A real rendered Flet window with antialiased
+          # text and a chart easily has thousands of distinct RGB values;
+          # a blank/uniform-background failure has under a dozen. 50 is a
+          # conservative threshold that distinguishes the two cleanly.
+          #
+          # ``maxcolors=50`` short-circuits the moment we know there are
+          # enough distinct colors — Image.getcolors returns None as soon
+          # as the count exceeds maxcolors, which is exactly our pass
+          # condition. Using width*height would allocate a multi-million
+          # entry list before deciding the same thing.
+          python3 - <<'PY'
+          import sys
+          from PIL import Image
+          img = Image.open("/tmp/smoke-artifacts/screen.png").convert("RGB")
+          colors = img.getcolors(maxcolors=50)
+          if colors is None:
+              print(f"Screenshot has more than 50 distinct colors — rendered. ({img.size})")
+              sys.exit(0)
+          n = len(colors)
+          print(f"Screenshot has {n} distinct colors ({img.size})")
+          print("::error::Screenshot has 50 or fewer distinct colors — window appears blank or unrendered.")
+          sys.exit(1)
+          PY
+
+          echo "Smoke test passed: process alive at 12s + window rendered."
+          # ``cleanup`` (registered via trap above) handles teardown for
+          # both the success and the early-``exit 1`` paths.
+
+      - name: Upload smoke-test artifacts on failure
+        if: failure() && matrix.platform != 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failure-${{ matrix.platform }}
+          path: /tmp/smoke-artifacts/
+          if-no-files-found: ignore
+
       - name: Package build
         shell: bash
         run: |
