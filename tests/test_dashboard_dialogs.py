@@ -162,6 +162,34 @@ class TestThresholdHelpDialog:
             _m(btn.on_click)(MagicMock())
         fake_page.pop_dialog.assert_called_once()
 
+    def test_markdown_body_contains_key_copy(self, dashboard, fake_page):
+        """Guard the four safety-threshold bullets + the title.
+
+        The content was migrated from five ``ft.Text`` controls to a
+        single ``ft.Markdown`` block; this test ensures a future
+        regression can't silently drop a bullet or mangle the prose.
+        """
+        with _with_mock_page(fake_page):
+            dashboard._show_threshold_help()
+        dialog = fake_page.show_dialog.call_args[0][0]
+        # The dialog content is ``Column([Markdown(...)])`` — extract it.
+        markdown_blocks = [
+            ctrl for ctrl in dialog.content.controls if isinstance(ctrl, ft.Markdown)
+        ]
+        assert markdown_blocks, "threshold-help dialog should contain a Markdown body"
+        body = "\n".join(b.value for b in markdown_blocks)
+        # Title is the AlertDialog's title, separate from the body.
+        assert dialog.title.value == "Safety Threshold"
+        for fragment in (
+            "minimum checking balance",
+            "Is shown as a dotted line on the chart",
+            "shortfall day in the Overview summary",
+            "Highlights the row red in the Transactions table",
+            "Triggers a warning alert",
+            "Set to 0",
+        ):
+            assert fragment in body, f"missing fragment: {fragment!r}"
+
 
 # ---------------------------------------------------------------------------
 # Unsaved CC dialog (tab-switch path)

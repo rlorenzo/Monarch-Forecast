@@ -1488,31 +1488,25 @@ class DashboardView(ft.Column):
 
     def _show_threshold_help(self) -> None:
         """Explain what the Safety Threshold does."""
+        # Markdown renders the bulleted list natively (no manual ``\u2022``
+        # prefix, no Text-with-italic for the footnote) and keeps the body
+        # copy in one block instead of five Text + Container controls.
         dialog = ft.AlertDialog(
             title=ft.Text("Safety Threshold"),
             content=ft.Column(
                 [
-                    ft.Text(
+                    ft.Markdown(
                         "The minimum checking balance you want to stay above. "
-                        "Think of it as your cash cushion for unexpected expenses.",
-                        size=13,
-                    ),
-                    ft.Container(height=4),
-                    ft.Text("Any day the projected balance drops below this value:", size=13),
-                    ft.Text(
-                        "\u2022 Is shown as a dotted line on the chart\n"
-                        "\u2022 Counts as a shortfall day in the Overview summary\n"
-                        "\u2022 Highlights the row red in the Transactions table\n"
-                        "\u2022 Triggers a warning alert",
-                        size=12,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                    ),
-                    ft.Container(height=4),
-                    ft.Text(
-                        "Set to 0 to only alert on overdrafts (negative balance).",
-                        size=12,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
-                        italic=True,
+                        "Think of it as your cash cushion for unexpected expenses.\n"
+                        "\n"
+                        "Any day the projected balance drops below this value:\n"
+                        "\n"
+                        "- Is shown as a dotted line on the chart\n"
+                        "- Counts as a shortfall day in the Overview summary\n"
+                        "- Highlights the row red in the Transactions table\n"
+                        "- Triggers a warning alert\n"
+                        "\n"
+                        "*Set to 0 to only alert on overdrafts (negative balance).*",
                     ),
                 ],
                 spacing=4,
