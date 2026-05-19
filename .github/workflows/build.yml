@@ -88,6 +88,43 @@ jobs:
             --compile-packages \
             $CLEANUP_FLAGS
 
+      - name: Diagnose Linux bundle structure
+        if: matrix.platform == 'linux'
+        shell: bash
+        # Smoke test caught a ``ModuleNotFoundError: No module named
+        # '_socket'`` in the bundled Python on Linux. Dump the bundle so
+        # we can see where lib-dynload landed (if at all), whether
+        # _socket.so is anywhere in the tree, and what Flet shipped for
+        # the embedded interpreter. This is cheap (<1s) and runs on
+        # every Linux build for as long as the issue is open.
+        run: |
+          echo "=== build/linux top-level ==="
+          ls -la build/linux/ || true
+          echo
+          echo "=== Python interpreter dirs ==="
+          find build/linux -type d -name 'python3*' -o -name 'python*' 2>/dev/null | sort
+          echo
+          echo "=== lib-dynload directories ==="
+          find build/linux -type d -name 'lib-dynload' 2>/dev/null
+          echo
+          echo "=== lib-dynload contents (any depth) ==="
+          find build/linux -path '*lib-dynload/*' -type f 2>/dev/null | head -80
+          echo
+          echo "=== Anything named _socket / socket ==="
+          find build/linux \( -name '_socket*' -o -name 'socket*' \) -type f 2>/dev/null
+          echo
+          echo "=== socket.py location(s) ==="
+          find build/linux -name 'socket.py' -type f 2>/dev/null
+          echo
+          echo "=== All .so files in build/linux (head 40) ==="
+          find build/linux -name '*.so' -type f 2>/dev/null | head -40
+          echo
+          echo "=== Site-packages directories ==="
+          find build/linux -type d -name 'site-packages' 2>/dev/null
+          echo
+          echo "=== Total bundle size ==="
+          du -sh build/linux/ 2>/dev/null
+
       - name: Install Linux smoke-test deps
         if: matrix.platform == 'linux'
         # ``libgl1-mesa-dri`` ships llvmpipe (Mesa's software rasterizer);
