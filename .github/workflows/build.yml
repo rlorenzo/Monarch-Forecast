@@ -77,7 +77,10 @@ jobs:
 
       - name: Install Linux smoke-test deps
         if: matrix.platform == 'linux'
-        run: sudo apt-get install -y xvfb imagemagick
+        # ``libgl1-mesa-dri`` ships llvmpipe (Mesa's software rasterizer);
+        # without it, Flutter's EGL/GL init fails under Xvfb and the
+        # window renders pure black even though the process stays alive.
+        run: sudo apt-get install -y xvfb imagemagick libgl1-mesa-dri
 
       - name: Install Pillow for smoke screenshot check
         if: matrix.platform != 'windows'
@@ -103,6 +106,12 @@ jobs:
         shell: bash
         env:
           MONARCH_FORECAST_AUTO_DEMO: "1"
+          # Force Mesa software rendering on Linux. The GitHub-hosted
+          # Xvfb has no DRI3/hardware GL, so Flutter's EGL init falls
+          # through to nothing and the window paints solid black. With
+          # llvmpipe forced on, GL works and Flutter actually renders.
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GALLIUM_DRIVER: "llvmpipe"
         run: |
           set -u
           mkdir -p /tmp/smoke-artifacts
