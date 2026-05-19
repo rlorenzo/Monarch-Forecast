@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import flet as ft
 import pytest
 from monarchmoney import LoginFailedException, RequireMFAException
 
@@ -246,3 +247,74 @@ class TestErrors:
         assert view.login_button.disabled is False
         assert view.progress.visible is False
         assert view.login_text.value == "Sign In"
+
+
+class TestAutofillDisposeAction:
+    """Verify AutofillGroup.dispose_action transitions.
+
+    The group starts CANCEL so OS password managers don't prompt to save
+    on demo/MFA-pending/failed paths. It must flip to COMMIT only when
+    the user successfully logs in with "Remember credentials" checked —
+    the same condition under which we persist credentials to the OS
+    keychain.
+    """
+
+    def test_initial_action_is_cancel(self):
+        view = _make_view()
+        assert view._autofill_group.dispose_action == ft.AutofillGroupDisposeAction.CANCEL
+
+    async def test_remember_me_checked_success_flips_to_commit(self):
+        view = _make_view()
+        view.email_field.value = "user@example.com"
+        view.password_field.value = "secret"
+        view.remember_me.value = True
+        await view._handle_login(_event())
+        assert view._autofill_group.dispose_action == ft.AutofillGroupDisposeAction.COMMIT
+
+    async def test_remember_me_checked_success_flushes_update_to_flutter(self):
+        """The Python-side dispose_action change must be flushed via
+        ``update()`` so the mounted Flutter AutofillGroup picks it up
+        before the LoginView is unmounted (and disposal fires the
+        save-password prompt). Without the flush the value stays at
+        the initial CANCEL on the Flutter side even though Python
+        reads COMMIT.
+        """
+        view = _make_view()
+        view.email_field.value = "user@example.com"
+        view.password_field.value = "secret"
+        view.remember_me.value = True
+        # ``setattr`` (rather than direct attribute assignment) keeps
+        # ``ty`` from flagging implicit method shadowing — same pattern
+        # as ``setattr(dash, "_run_task", MagicMock())`` in
+        # tests/test_dashboard_async.py.
+        setattr(view._autofill_group, "update", MagicMock())  # noqa: B010
+        await view._handle_login(_event())
+        _m(view._autofill_group.update).assert_called_once()
+
+    async def test_remember_me_unchecked_success_stays_cancel(self):
+        view = _make_view()
+        view.email_field.value = "user@example.com"
+        view.password_field.value = "secret"
+        view.remember_me.value = False
+        await view._handle_login(_event())
+        assert view._autofill_group.dispose_action == ft.AutofillGroupDisposeAction.CANCEL
+
+    async def test_login_failure_stays_cancel(self):
+        view = _make_view()
+        view.email_field.value = "user@example.com"
+        view.password_field.value = "wrong"
+        view.remember_me.value = True
+        _m(view.session_manager.login).side_effect = LoginFailedException()
+        await view._handle_login(_event())
+        assert view._autofill_group.dispose_action == ft.AutofillGroupDisposeAction.CANCEL
+
+    async def test_mfa_pending_stays_cancel(self):
+        view = _make_view()
+        view.email_field.value = "user@example.com"
+        view.password_field.value = "secret"
+        view.remember_me.value = True
+        _m(view.session_manager.login).side_effect = RequireMFAException()
+        await view._handle_login(_event())
+        # First submit trips MFA — credentials not yet validated, so
+        # the autofill group must NOT commit.
+        assert view._autofill_group.dispose_action == ft.AutofillGroupDisposeAction.CANCEL

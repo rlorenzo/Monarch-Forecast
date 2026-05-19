@@ -1,5 +1,6 @@
 """Monarch Forecast - Financial forecasting desktop app."""
 
+import os
 from pathlib import Path
 
 import flet as ft
@@ -119,27 +120,26 @@ async def main(page: ft.Page) -> None:
 
     page.on_keyboard_event = handle_keyboard
 
-    session_manager = SessionManager()
+    # SessionManager is created lazily so the auto-demo short-circuit
+    # below doesn't pay the cost of initialising a real Monarch client
+    # and OS keychain handle. Once any non-demo path needs it, the same
+    # instance is reused for the rest of the session.
+    session_manager: SessionManager | None = None
 
-    async def do_logout() -> None:
-        session_manager.logout()
-        await show_login()
-
-    async def show_dashboard() -> None:
-        page.controls.clear()
-        dashboard = DashboardView(
-            session_manager=session_manager,
-            on_logout=lambda: page.run_task(do_logout),
-        )
-        page.controls.append(dashboard)
-        page.update()
-        await dashboard.load_data()
+    def _get_session_manager() -> SessionManager:
+        nonlocal session_manager
+        if session_manager is None:
+            session_manager = SessionManager()
+        return session_manager
 
     async def show_demo_dashboard() -> None:
         """Open the dashboard with synthetic data — no Monarch account needed.
 
         Logging out of demo mode returns to the login screen rather than
-        clearing real credentials, since there are none to clear.
+        clearing real credentials, since there are none to clear. The
+        ``show_login`` callback below is referenced lazily, so it's safe
+        for this function to run from the auto-demo short-circuit before
+        the normal-flow setup runs.
         """
         page.controls.clear()
         dashboard = DashboardView(
@@ -153,10 +153,24 @@ async def main(page: ft.Page) -> None:
         page.update()
         await dashboard.load_data()
 
+    async def do_logout() -> None:
+        _get_session_manager().logout()
+        await show_login()
+
+    async def show_dashboard() -> None:
+        page.controls.clear()
+        dashboard = DashboardView(
+            session_manager=_get_session_manager(),
+            on_logout=lambda: page.run_task(do_logout),
+        )
+        page.controls.append(dashboard)
+        page.update()
+        await dashboard.load_data()
+
     async def show_login() -> None:
         page.controls.clear()
         login_view = LoginView(
-            session_manager=session_manager,
+            session_manager=_get_session_manager(),
             on_login_success=lambda: page.run_task(show_dashboard),
             on_demo=lambda: page.run_task(show_demo_dashboard),
         )
@@ -169,6 +183,17 @@ async def main(page: ft.Page) -> None:
         )
         page.update()
 
+    # MONARCH_FORECAST_AUTO_DEMO=1 short-circuits straight to demo mode.
+    # Used by the build-time smoke test in .github/workflows/build.yml to
+    # exercise the dashboard render path without needing real credentials.
+    # SessionManager is not constructed; DataCache and Preferences are
+    # still created under ``~/.monarch-forecast`` (specifically the
+    # ``demo-*`` files) — they hold transient demo-mode state and don't
+    # leak credentials.
+    if os.environ.get("MONARCH_FORECAST_AUTO_DEMO") == "1":
+        await show_demo_dashboard()
+        return
+
     # Try restoring saved session first. Show an inline progress bar while
     # we wait — `page.splash` was removed in Flet 0.80+, so we just append
     # a ProgressBar and clear it when the restore completes.
@@ -176,7 +201,7 @@ async def main(page: ft.Page) -> None:
     page.controls.append(splash)
     page.update()
 
-    restored = await session_manager.try_restore_session()
+    restored = await _get_session_manager().try_restore_session()
     page.controls.remove(splash)
 
     if restored:

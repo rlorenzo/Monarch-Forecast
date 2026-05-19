@@ -34,17 +34,36 @@ class LoginView(ft.Column):
             label="Email",
             width=350,
             autofocus=True,
+            autofill_hints=ft.AutofillHint.EMAIL,
         )
         self.password_field = ft.TextField(
             label="Password",
             width=350,
             password=True,
             can_reveal_password=True,
+            autofill_hints=ft.AutofillHint.PASSWORD,
         )
         self.mfa_field = ft.TextField(
             label="MFA Code",
             width=350,
             visible=False,
+            autofill_hints=ft.AutofillHint.ONE_TIME_CODE,
+        )
+        # Group email + password so OS password managers (macOS Keychain,
+        # 1Password, Bitwarden, etc.) recognise them as a single credential
+        # record. ``dispose_action`` starts as CANCEL so we don't prompt to
+        # save when the user clicks Demo, the login fails, or "Remember
+        # credentials" is unchecked — ``_handle_login`` flips it to COMMIT
+        # only on a successful sign-in with that box checked. The MFA
+        # field is intentionally outside the group: it's a one-time code,
+        # not a stored credential.
+        self._autofill_group = ft.AutofillGroup(
+            content=ft.Column(
+                [self.email_field, self.password_field],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12,
+            ),
+            dispose_action=ft.AutofillGroupDisposeAction.CANCEL,
         )
         self.remember_me = ft.Checkbox(
             label="Remember credentials",
@@ -141,8 +160,7 @@ class LoginView(ft.Column):
                 content=ft.Column(
                     [
                         ft.Container(height=8),
-                        self.email_field,
-                        self.password_field,
+                        self._autofill_group,
                         self.mfa_field,
                         ft.Row(
                             [self.remember_me],
@@ -217,6 +235,21 @@ class LoginView(ft.Column):
 
             if self.remember_me.value:
                 self.session_manager.save_credentials(email, password)
+                # Opt into the OS password manager "save password?" prompt
+                # only when the user has chosen to remember credentials.
+                # ``.update()`` flushes the new dispose_action to Flutter
+                # before ``on_login_success`` triggers ``page.controls.clear()``
+                # and the AutofillGroup is disposed — without it, the
+                # Python-side mutation never reaches the mounted control
+                # and disposal still fires with the initial CANCEL value.
+                self._autofill_group.dispose_action = ft.AutofillGroupDisposeAction.COMMIT
+                try:
+                    self._autofill_group.update()
+                except RuntimeError:
+                    # Control isn't mounted (only happens in unit tests
+                    # that don't attach this view to a real Page). Same
+                    # pattern as ``_safe_update`` in views/dashboard.py.
+                    pass
 
             self.on_login_success()
 
