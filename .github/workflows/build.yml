@@ -88,42 +88,45 @@ jobs:
             --compile-packages \
             $CLEANUP_FLAGS
 
-      - name: Diagnose Linux bundle structure
+      - name: Patch Linux bundle stdlib C extensions
         if: matrix.platform == 'linux'
         shell: bash
-        # Smoke test caught a ``ModuleNotFoundError: No module named
-        # '_socket'`` in the bundled Python on Linux. Dump the bundle so
-        # we can see where lib-dynload landed (if at all), whether
-        # _socket.so is anywhere in the tree, and what Flet shipped for
-        # the embedded interpreter. This is cheap (<1s) and runs on
-        # every Linux build for as long as the issue is open.
+        # Flet 0.85.1's Linux bundle ships only a handful of stdlib
+        # C extensions in python3.12/lib-dynload (_dbm, _tkinter,
+        # _crypt) plus a ``.empty`` placeholder — _socket, _ssl,
+        # _hashlib, _decimal, zlib, and most of the rest are missing.
+        # ``import socket`` raises ModuleNotFoundError before Flet ever
+        # builds its widget tree, so the window opens with a painted
+        # background and nothing else. Copy the missing .so files from
+        # the runner's CPython 3.12 (set up by actions/setup-python)
+        # — same minor version means C-ABI compatibility — into the
+        # bundle. Bloats the artifact by ~10-15 MB. Remove this step
+        # once Flet upstream ships a complete lib-dynload.
         run: |
-          echo "=== build/linux top-level ==="
-          ls -la build/linux/ || true
-          echo
-          echo "=== Python interpreter dirs ==="
-          find build/linux -type d -name 'python3*' -o -name 'python*' 2>/dev/null | sort
-          echo
-          echo "=== lib-dynload directories ==="
-          find build/linux -type d -name 'lib-dynload' 2>/dev/null
-          echo
-          echo "=== lib-dynload contents (any depth) ==="
-          find build/linux -path '*lib-dynload/*' -type f 2>/dev/null | head -80
-          echo
-          echo "=== Anything named _socket / socket ==="
-          find build/linux \( -name '_socket*' -o -name 'socket*' \) -type f 2>/dev/null
-          echo
-          echo "=== socket.py location(s) ==="
-          find build/linux -name 'socket.py' -type f 2>/dev/null
-          echo
-          echo "=== All .so files in build/linux (head 40) ==="
-          find build/linux -name '*.so' -type f 2>/dev/null | head -40
-          echo
-          echo "=== Site-packages directories ==="
-          find build/linux -type d -name 'site-packages' 2>/dev/null
-          echo
-          echo "=== Total bundle size ==="
-          du -sh build/linux/ 2>/dev/null
+          BUNDLE_LD="build/linux/python3.12/lib-dynload"
+          if [ ! -d "$BUNDLE_LD" ]; then
+            echo "::error::Expected $BUNDLE_LD to exist after flet build linux"
+            find build/linux -type d -name 'lib-dynload' 2>/dev/null
+            exit 1
+          fi
+          RUNNER_LD="$(python3 -c 'import sysconfig, pathlib; print(pathlib.Path(sysconfig.get_paths()["stdlib"]) / "lib-dynload")')"
+          if [ ! -d "$RUNNER_LD" ]; then
+            echo "::error::Runner Python lib-dynload not found at $RUNNER_LD"
+            exit 1
+          fi
+          echo "Bundle lib-dynload (before): $(ls "$BUNDLE_LD" | wc -l) entries"
+          echo "Runner lib-dynload: $(ls "$RUNNER_LD" | wc -l) entries"
+          # Copy without overwriting what Flet already shipped, in case
+          # Flet's versions are deliberately patched for the bundle.
+          cp -n "$RUNNER_LD"/*.so "$BUNDLE_LD"/ 2>/dev/null || true
+          echo "Bundle lib-dynload (after): $(ls "$BUNDLE_LD" | wc -l) entries"
+          ls "$BUNDLE_LD" | head -30
+          # Sanity check: _socket must be present now.
+          if ! ls "$BUNDLE_LD"/_socket*.so >/dev/null 2>&1; then
+            echo "::error::_socket still missing after patch"
+            exit 1
+          fi
+          echo "_socket present: $(ls "$BUNDLE_LD"/_socket*.so)"
 
       - name: Install Linux smoke-test deps
         if: matrix.platform == 'linux'
