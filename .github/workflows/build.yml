@@ -158,77 +158,86 @@ jobs:
               ;;
           esac
 
-          # Give Flutter time to boot, render fonts, and load demo data.
-          sleep 12
+          # Initial boot grace — the window doesn't exist for the first
+          # second or two, so screenshotting immediately wastes a poll.
+          sleep 5
 
-          if ! kill -0 "$APP_PID" 2>/dev/null; then
-            echo "::error::Built binary exited within 12 seconds — likely a silent crash."
-            echo "--- captured output ---"
-            cat /tmp/smoke-artifacts/smoke.log || true
-            exit 1
-          fi
-
-          # Screenshot the rendered window. On macOS we capture only the
-          # app's window region — capturing the whole screen would falsely
-          # pass the pixel check because the runner's desktop wallpaper
-          # alone has thousands of distinct colors. On Linux the Xvfb
-          # display only contains our app, so the full-display capture is
-          # the right call there.
-          case "${{ matrix.platform }}" in
-            macos)
-              osascript -e 'tell application "Monarch Forecast" to activate' >/dev/null 2>&1 || true
-              sleep 1
-              # GHA bash steps run under ``set -eo pipefail`` by default —
-              # an ``X=$(failing-cmd)`` form may short-circuit before the
-              # diagnostic below can print. The ``if !`` form lets us own
-              # the failure path and surface AppleScript's output.
-              if ! BOUNDS=$(osascript -e 'tell application "System Events" to tell process "Monarch Forecast" to get {position, size} of window 1' 2>&1); then
-                echo "::error::osascript failed while reading window bounds. Output: $BOUNDS"
-                exit 1
-              fi
-              if ! echo "$BOUNDS" | grep -qE '^[0-9]+, *[0-9]+, *[0-9]+, *[0-9]+'; then
-                echo "::error::Could not parse Monarch Forecast window bounds — window may not have opened. AppleScript output: $BOUNDS"
-                exit 1
-              fi
-              REGION=$(echo "$BOUNDS" | tr -d ' ')
-              echo "Capturing window region: $REGION"
-              if ! screencapture -x -R "$REGION" /tmp/smoke-artifacts/screen.png; then
-                echo "::error::screencapture -R failed for region $REGION"
-                exit 1
-              fi
-              ;;
-            linux)
-              import -window root /tmp/smoke-artifacts/screen.png || {
-                echo "::error::imagemagick capture failed"; exit 1;
-              }
-              ;;
-          esac
-
-          # Distinct-color check. A real rendered Flet window with antialiased
-          # text and a chart easily has thousands of distinct RGB values;
-          # a blank/uniform-background failure has under a dozen. 50 is a
+          # Distinct-color check, written once and reused by the poll
+          # loop below. A real rendered Flet window with antialiased text
+          # and a chart easily has thousands of distinct RGB values; a
+          # blank/uniform-background failure has under a dozen. 50 is a
           # conservative threshold that distinguishes the two cleanly.
-          #
           # ``maxcolors=50`` short-circuits the moment we know there are
-          # enough distinct colors — Image.getcolors returns None as soon
-          # as the count exceeds maxcolors, which is exactly our pass
-          # condition. Using width*height would allocate a multi-million
-          # entry list before deciding the same thing.
-          python3 - <<'PY'
+          # enough — Image.getcolors returns None once the count exceeds
+          # maxcolors, which is exactly our pass condition.
+          cat > /tmp/check_render.py <<'PY'
           import sys
           from PIL import Image
-          img = Image.open("/tmp/smoke-artifacts/screen.png").convert("RGB")
+          try:
+              img = Image.open("/tmp/smoke-artifacts/screen.png").convert("RGB")
+          except Exception as exc:
+              print(f"could not read screenshot: {exc}")
+              sys.exit(2)
           colors = img.getcolors(maxcolors=50)
           if colors is None:
-              print(f"Screenshot has more than 50 distinct colors — rendered. ({img.size})")
+              print(f"rendered ({img.size})")
               sys.exit(0)
-          n = len(colors)
-          print(f"Screenshot has {n} distinct colors ({img.size})")
-          print("::error::Screenshot has 50 or fewer distinct colors — window appears blank or unrendered.")
+          print(f"{len(colors)} distinct colors so far ({img.size})")
           sys.exit(1)
           PY
 
-          echo "Smoke test passed: process alive at 12s + window rendered."
+          # Poll: screenshot every few seconds and accept the smoke test
+          # as soon as the window has enough distinct colors to be
+          # plausibly rendered. macOS hardware GL produces a full frame
+          # in under one poll; Linux llvmpipe (software GL) can take
+          # 20-40s, so the budget is conservative. Healthy builds still
+          # finish in ~10s because we exit early on success.
+          MAX_WAIT=60
+          INTERVAL=4
+          ELAPSED=0
+          while true; do
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "::error::Built binary exited before smoke render check (t=${ELAPSED}s)."
+              echo "--- captured output ---"
+              cat /tmp/smoke-artifacts/smoke.log || true
+              exit 1
+            fi
+
+            # Screenshot the rendered window. On macOS we capture only
+            # the app's window region — capturing the whole screen would
+            # falsely pass the pixel check because the runner's desktop
+            # wallpaper alone has thousands of distinct colors. On Linux
+            # the Xvfb display only contains our app, so the full-display
+            # capture is the right call there.
+            case "${{ matrix.platform }}" in
+              macos)
+                osascript -e 'tell application "Monarch Forecast" to activate' >/dev/null 2>&1 || true
+                BOUNDS=$(osascript -e 'tell application "System Events" to tell process "Monarch Forecast" to get {position, size} of window 1' 2>&1 || true)
+                if echo "$BOUNDS" | grep -qE '^[0-9]+, *[0-9]+, *[0-9]+, *[0-9]+'; then
+                  REGION=$(echo "$BOUNDS" | tr -d ' ')
+                  screencapture -x -R "$REGION" /tmp/smoke-artifacts/screen.png 2>/dev/null || true
+                fi
+                ;;
+              linux)
+                import -window root /tmp/smoke-artifacts/screen.png 2>/dev/null || true
+                ;;
+            esac
+
+            if python3 /tmp/check_render.py; then
+              echo "Smoke test passed at t=${ELAPSED}s: process alive + window rendered."
+              exit 0
+            fi
+
+            if [ $ELAPSED -ge $MAX_WAIT ]; then
+              echo "::error::Window never rendered within ${MAX_WAIT}s — fewer than 50 distinct colors in the final screenshot."
+              echo "--- captured output ---"
+              cat /tmp/smoke-artifacts/smoke.log || true
+              exit 1
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
           # ``cleanup`` (registered via trap above) handles teardown for
           # both the success and the early-``exit 1`` paths.
 
