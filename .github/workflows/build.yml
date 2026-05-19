@@ -92,21 +92,27 @@ jobs:
         if: matrix.platform == 'linux'
         shell: bash
         # Flet 0.85.1's Linux bundle ships only a handful of stdlib
-        # C extensions in python3.12/lib-dynload (_dbm, _tkinter,
-        # _crypt) plus a ``.empty`` placeholder — _socket, _ssl,
-        # _hashlib, _decimal, zlib, and most of the rest are missing.
-        # ``import socket`` raises ModuleNotFoundError before Flet ever
-        # builds its widget tree, so the window opens with a painted
-        # background and nothing else. Copy the missing .so files from
-        # the runner's CPython 3.12 (set up by actions/setup-python)
-        # — same minor version means C-ABI compatibility — into the
-        # bundle. Bloats the artifact by ~10-15 MB. Remove this step
-        # once Flet upstream ships a complete lib-dynload.
+        # C extensions (_dbm, _tkinter, _crypt) in python3.12/
+        # lib-dynload — _socket, _ssl, _hashlib, _decimal, zlib, and
+        # most of the rest are missing. ``import socket`` then raises
+        # ModuleNotFoundError before Flet builds its widget tree, so
+        # the window opens with a painted background and nothing else.
+        #
+        # Flet's runtime adds ``build/linux/python3.12`` to the import
+        # path but NOT ``python3.12/lib-dynload``, so dropping the .so
+        # files in lib-dynload doesn't help. They have to land flat
+        # alongside socket.pyc (i.e. in ``python3.12/`` itself).
+        #
+        # Copy the missing .so files from the runner's CPython 3.12
+        # (set up by actions/setup-python; same minor version ⇒
+        # C-ABI compatible) into ``python3.12/`` and ``site-packages/``
+        # for belt-and-suspenders. Bloats the artifact by ~10-15 MB.
+        # Remove this step once Flet upstream ships a complete bundle.
         run: |
-          BUNDLE_LD="build/linux/python3.12/lib-dynload"
-          if [ ! -d "$BUNDLE_LD" ]; then
-            echo "::error::Expected $BUNDLE_LD to exist after flet build linux"
-            find build/linux -type d -name 'lib-dynload' 2>/dev/null
+          BUNDLE_PY="build/linux/python3.12"
+          BUNDLE_SP="build/linux/site-packages"
+          if [ ! -d "$BUNDLE_PY" ]; then
+            echo "::error::Expected $BUNDLE_PY to exist after flet build linux"
             exit 1
           fi
           RUNNER_LD="$(python3 -c 'import sysconfig, pathlib; print(pathlib.Path(sysconfig.get_paths()["stdlib"]) / "lib-dynload")')"
@@ -114,19 +120,20 @@ jobs:
             echo "::error::Runner Python lib-dynload not found at $RUNNER_LD"
             exit 1
           fi
-          echo "Bundle lib-dynload (before): $(ls "$BUNDLE_LD" | wc -l) entries"
-          echo "Runner lib-dynload: $(ls "$RUNNER_LD" | wc -l) entries"
-          # Copy without overwriting what Flet already shipped, in case
-          # Flet's versions are deliberately patched for the bundle.
-          cp -n "$RUNNER_LD"/*.so "$BUNDLE_LD"/ 2>/dev/null || true
-          echo "Bundle lib-dynload (after): $(ls "$BUNDLE_LD" | wc -l) entries"
-          ls "$BUNDLE_LD" | head -30
-          # Sanity check: _socket must be present now.
-          if ! ls "$BUNDLE_LD"/_socket*.so >/dev/null 2>&1; then
-            echo "::error::_socket still missing after patch"
+          echo "Runner lib-dynload: $(ls "$RUNNER_LD"/*.so | wc -l) .so files"
+          echo "Bundle python3.12 .so (before): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
+          # cp -n so we don't overwrite anything Flet already shipped.
+          cp -n "$RUNNER_LD"/*.so "$BUNDLE_PY"/ 2>/dev/null || true
+          cp -n "$RUNNER_LD"/*.so "$BUNDLE_PY/lib-dynload"/ 2>/dev/null || true
+          if [ -d "$BUNDLE_SP" ]; then
+            cp -n "$RUNNER_LD"/*.so "$BUNDLE_SP"/ 2>/dev/null || true
+          fi
+          echo "Bundle python3.12 .so (after): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
+          if ! ls "$BUNDLE_PY"/_socket*.so >/dev/null 2>&1; then
+            echo "::error::_socket still missing in $BUNDLE_PY after patch"
             exit 1
           fi
-          echo "_socket present: $(ls "$BUNDLE_LD"/_socket*.so)"
+          echo "_socket landed at: $(ls "$BUNDLE_PY"/_socket*.so)"
 
       - name: Install Linux smoke-test deps
         if: matrix.platform == 'linux'
