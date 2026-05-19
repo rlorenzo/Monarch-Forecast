@@ -12,6 +12,10 @@ permissions:
 jobs:
   build:
     strategy:
+      # Keep all three platforms running independently so one platform's
+      # build/smoke failure doesn't mask issues on the others — debugging
+      # one mystery at a time is slower than seeing all three at once.
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -52,10 +56,16 @@ jobs:
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
-        # --compile-app/--compile-packages ship .pyc instead of .py source,
-        # and --cleanup-app/--cleanup-packages strip the leftover .py files,
-        # tests, docs, and dist-info chaff from the bundled site-packages.
-        # Together they trim the shipped .app / installer by ~20-30%.
+        # --compile-app/--compile-packages ship .pyc instead of .py source.
+        # The --cleanup-* flags strip the leftover .py / tests / dist-info
+        # chaff afterwards, trimming the installer by ~20-30% — but on
+        # Linux they also strip Python stdlib C extensions like
+        # lib-dynload/_socket.*.so, which the embedded interpreter loads
+        # at runtime. Without _socket, ``import socket`` raises
+        # ModuleNotFoundError before Flet builds its widget tree (the
+        # window opens with a painted background and nothing else). Keep
+        # the cleanup on macOS/Windows where it works correctly; skip it
+        # on Linux until Flet ships a fix for the over-aggressive prune.
         run: |
           BUILD_VERSION="${{ github.ref_name }}"
           BUILD_VERSION="${BUILD_VERSION#v}"
@@ -63,6 +73,10 @@ jobs:
           # pyproject.toml so the build still succeeds.
           if [ -z "$BUILD_VERSION" ] || [ "$BUILD_VERSION" = "${{ github.ref_name }}" ]; then
             BUILD_VERSION=$(uv run python -c "import importlib.metadata; print(importlib.metadata.version('monarch-forecast'))")
+          fi
+          CLEANUP_FLAGS="--cleanup-app --cleanup-packages"
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            CLEANUP_FLAGS=""
           fi
           uv run flet build ${{ matrix.platform }} \
             --project "Monarch Forecast" \
@@ -72,8 +86,7 @@ jobs:
             --build-version "$BUILD_VERSION" \
             --compile-app \
             --compile-packages \
-            --cleanup-app \
-            --cleanup-packages
+            $CLEANUP_FLAGS
 
       - name: Install Linux smoke-test deps
         if: matrix.platform == 'linux'
