@@ -1,18 +1,25 @@
 """Synthetic data served by `DemoClient` when the user picks "Try Demo Mode".
 
 Designed so the 45-day forecast shows a realistic dip-and-recover arc:
-rent and a credit-card payment hit before the next paycheck, pushing
-the balance into overdraft territory around days 7-13 and triggering the
-low-balance alerts. Dates are generated relative to `date.today()` so the
-demo is always fresh.
+the user starts with a tight cushion and a few easy-to-forget upcoming
+bills (auto insurance, a dentist visit, a DMV renewal) hit before the
+next paycheck, pushing the projected balance below zero for a few days
+and surfacing the low-balance alerts that are the whole point of the
+tool. Dates are generated relative to `date.today()` so the demo is
+always fresh, and `build_one_off_transactions` is seeded into the demo
+preferences on every demo launch so the deficit is always visible.
 """
 
 from datetime import date, timedelta
 from typing import Any
 
+from src.data.models import ForecastTransaction
+
 CHECKING_ID = "demo-checking"
 CHECKING_NAME = "Everyday Checking"
-CHECKING_STARTING_BALANCE = 1_950.00
+# Tight enough that the seeded one-offs push the balance below zero
+# before the next paycheck rescues it.
+CHECKING_STARTING_BALANCE = 720.00
 
 CC_ID = "demo-cc"
 CC_NAME = "Credit Card"
@@ -20,6 +27,15 @@ CC_BALANCE = -847.00
 
 _PAYCHECK = 3_200.00
 _RENT = -1_850.00
+
+# Days-ahead-of-today (not day-of-month) so they always land before the
+# next paycheck. Paychecks are biweekly anchored to `today - 4`, so the
+# next one is always 10 days out.
+_ONE_OFF_OFFSETS: list[tuple[int, float, str, str]] = [
+    (3, -485.00, "Auto Insurance Premium", "Insurance"),
+    (6, -380.00, "Dentist Visit", "Medical"),
+    (9, -260.00, "DMV Registration Renewal", "Transportation"),
+]
 
 # Monthly expenses keyed on day-of-month for the recurring detector to pick up
 # as "monthly" over 3 months of history.
@@ -117,6 +133,28 @@ def build_transactions() -> list[dict[str, Any]]:
         txns.append(_make(today - timedelta(days=days_ago), amount, merchant, category, CC_ID))
 
     return txns
+
+
+def build_one_off_transactions(today: date | None = None) -> list[ForecastTransaction]:
+    """Upcoming one-off bills seeded into demo preferences.
+
+    Each launch overwrites the demo's saved one-offs with these so the
+    deficit scenario is always visible, even weeks later when the
+    previously-seeded dates would have rolled into the past.
+    """
+    if today is None:
+        today = date.today()
+    return [
+        ForecastTransaction(
+            date=today + timedelta(days=offset),
+            name=name,
+            amount=amount,
+            category=category,
+            is_recurring=False,
+            id=f"demo-oneoff-{name.replace(' ', '-').lower()}",
+        )
+        for offset, amount, name, category in _ONE_OFF_OFFSETS
+    ]
 
 
 def _make(d: date, amount: float, merchant: str, category: str, acct_id: str) -> dict[str, Any]:

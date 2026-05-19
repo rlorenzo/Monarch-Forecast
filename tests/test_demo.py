@@ -1,11 +1,15 @@
 """Smoke tests for demo mode."""
 
+from datetime import date, timedelta
+
 import flet as ft
 
 from src.auth.session_manager import DEMO_EMAIL, DemoSessionManager
 from src.data import demo_data
 from src.data.demo_client import DemoClient
 from src.data.recurring_detector import detect_recurring
+from src.forecast.credit_cards import estimate_cc_payments
+from src.forecast.engine import build_forecast
 
 
 async def test_demo_client_returns_accounts() -> None:
@@ -79,6 +83,42 @@ def test_demo_session_manager_logout_is_noop() -> None:
 async def test_demo_client_refresh_accounts_succeeds() -> None:
     client = DemoClient()
     assert await client.refresh_accounts() is True
+
+
+def test_build_one_off_transactions_anchored_to_today() -> None:
+    """The seeded one-offs must always be upcoming, not historical."""
+    today = date.today()
+    one_offs = demo_data.build_one_off_transactions(today=today)
+
+    assert len(one_offs) == 3
+    names = {t.name for t in one_offs}
+    assert names == {"Auto Insurance Premium", "Dentist Visit", "DMV Registration Renewal"}
+
+    for txn in one_offs:
+        assert txn.date > today
+        assert txn.date <= today + timedelta(days=10)
+        assert txn.amount < 0
+        assert not txn.is_recurring
+
+
+async def test_demo_forecast_dips_into_negative_balance() -> None:
+    client = DemoClient()
+    txns = await client.get_transactions()
+    cc_accounts = await client.get_credit_card_accounts()
+    recurring = [r for r in detect_recurring(txns) if r.account_id == demo_data.CHECKING_ID]
+
+    cc_payments = estimate_cc_payments(cc_accounts, recurring, forecast_days=45, transactions=txns)
+    one_offs = demo_data.build_one_off_transactions() + cc_payments
+
+    result = build_forecast(
+        starting_balance=demo_data.CHECKING_STARTING_BALANCE,
+        recurring_items=recurring,
+        one_off_transactions=one_offs,
+        days_out=45,
+    )
+
+    assert any(d.ending_balance < 0 for d in result.days), "demo forecast should dip below zero"
+    assert result.days[-1].ending_balance > 0, "demo forecast should recover by day 45"
 
 
 def test_dashboard_accepts_demo_overrides(tmp_path) -> None:

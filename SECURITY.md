@@ -35,21 +35,21 @@ Please include:
 Monarch Forecast is a desktop application that handles financial account
 credentials and session data. In scope:
 
-- **Credential handling** — storage and retrieval of Monarch Money credentials
+- **Credential handling**: storage and retrieval of Monarch Money credentials
   via `keyring` and the OS keychain.
-- **Local data files** — the session pickle, SQLite cache, and preferences
+- **Local data files**: the session pickle, SQLite cache, and preferences
   file under `~/.monarch-forecast/`, including file permissions and symlink
   handling.
-- **Network communication** — traffic to Monarch Money's servers and the
+- **Network communication**: traffic to Monarch Money's servers and the
   GitHub Releases API.
-- **Release artifact integrity** — the installers published on
+- **Release artifact integrity**: the installers published on
   [GitHub Releases](https://github.com/rlorenzo/Monarch-Forecast/releases).
 
 Out of scope:
 
 - Vulnerabilities in Monarch Money's backend or API.
-- Vulnerabilities in third-party dependencies already disclosed upstream —
-  please report those to the relevant project. We will update once an
+- Vulnerabilities in third-party dependencies already disclosed upstream.
+  Please report those to the relevant project. We will update once an
   upstream fix ships.
 - Issues that require the attacker to already have local code execution or
   filesystem write access as the running user.

@@ -13,7 +13,7 @@ and include:
 - Your operating system and how you installed the project.
 - Relevant log output, if any.
 
-For security vulnerabilities, follow [SECURITY.md](SECURITY.md) instead — do
+For security vulnerabilities, follow [SECURITY.md](SECURITY.md) instead. Do
 not open a public issue.
 
 ## Submitting changes
@@ -21,7 +21,7 @@ not open a public issue.
 1. Open an issue before investing significant time, so we can agree on scope
    and approach.
 2. Fork the repository and create a branch from `main`.
-3. Set up your development environment — see the
+3. Set up your development environment. See the
    [Development](README.md#development) section of the README.
 4. Install the pre-commit hooks: `uv run pre-commit install`. They mirror the
    checks CI runs.
