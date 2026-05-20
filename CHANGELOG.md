@@ -7,6 +7,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.0.2] (2026-05-19)
+
+A small release focused on making demo mode actually demonstrate what
+the app is for: spotting upcoming shortfalls before they happen.
+
+### Changed
+
+- **Demo mode now shows a real deficit.** The synthetic checking
+  balance starts at a tighter \$720 and seeds three upcoming one-off
+  bills (auto insurance, dentist visit, DMV renewal) anchored to days
+  ahead of today, so the 45-day forecast always dips below zero for a
+  few days before the next paycheck rescues it. Previously the demo
+  forecast never went negative, which buried the low-balance and
+  overdraft alerts that are the whole point of the tool.
+- **Demo cache is wiped on every launch.** Edits to the synthetic data
+  are no longer shadowed by a stale 30-minute cache entry, so the demo
+  reflects the current code immediately.
+
+### Internal
+
+- README has a real Screenshots section with Overview, Transactions,
+  and Adjustments captures from the new demo (lossless-compressed).
+- Em dashes removed from every markdown doc in the repo.
+
 ## [1.0.1] (2026-05-18)
 
 A patch release that fixes a critical launch crash and adds OS
@@ -85,6 +109,7 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.2
 [1.0.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.1
 [1.0.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.0
