@@ -71,7 +71,7 @@ User-facing documentation of the accessibility contract lives in the "Accessibil
 
 - **CI** (`ci.yml`): lint, type-check, test on push to main and all PRs. Uses `uv`.
 - **Build** (`build.yml`): triggered by `v*` tags or manual dispatch. Builds macOS/Windows/Linux desktop apps via `flet build`. Creates draft GitHub release.
-- **Versioning**: `pyproject.toml` is the source of truth. `updater.py` reads it via `importlib.metadata.version()` at runtime.
+- **Versioning**: `pyproject.toml` is the source of truth. `updater.py` reads it via `importlib.metadata.version()` at runtime. **When bumping `version`, run `uv sync` in the same commit so `uv.lock` doesn't drift.** The 1.0.2 release commit missed this step and the lockfile lagged a release behind until 1.0.3.
 
 ## Common pitfalls
 

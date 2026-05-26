@@ -7,6 +7,39 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.0.3] (2026-05-25)
+
+A small UX release focused on making the left-rail refresh timestamp
+honest about staleness, plus the project's adoption of `AGENTS.md` as
+the cross-tool source of truth for AI coding assistant conventions.
+
+### Changed
+
+- **Last-refresh label now reads as a relative time.** The nav rail
+  used to show `Updated 4:30 PM` with no date attached, so a forecast
+  loaded yesterday and a forecast loaded an hour ago looked
+  identical. The label now renders as `Just now`, `5 min ago`,
+  `Today, 4:30 PM`, `Yesterday, 5:00 PM`, `3 days ago`, or a full
+  date for older data. A 60s tick keeps the label current without
+  re-loading data.
+- **Stale data is flagged in three ways.** Once the underlying
+  forecast is more than 12 hours old the label gains a leading ⚠
+  glyph, a tooltip with the full string (so users with scaled fonts
+  recover what the rail ellipsizes), and a screen-reader
+  announcement that adds "(stale)" after the timestamp. Colour alone
+  was considered and rejected: the `SIGNAL_THRESHOLD` amber sits at
+  ~2.14:1 on `PAPER`, below the WCAG AA bar for small text.
+
+### Internal
+
+- Project conventions moved from `CLAUDE.md` to `AGENTS.md`. The
+  former is now a two-line pointer so Claude Code's auto-load by
+  filename keeps working; Cursor, Codex, and Antigravity pick up the
+  new file natively.
+- `uv.lock` is bumped alongside `pyproject.toml` on version bumps
+  (the 1.0.2 release missed this and the lockfile drifted). Captured
+  as a convention in `AGENTS.md`.
+
 ## [1.0.2] (2026-05-19)
 
 A small release focused on making demo mode actually demonstrate what
@@ -109,7 +142,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.3
 [1.0.2]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.2
 [1.0.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.1
 [1.0.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.0
