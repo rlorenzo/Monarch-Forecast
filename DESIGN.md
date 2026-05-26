@@ -310,7 +310,7 @@ The chart is the product. Everything else is paper around it.
 - **Don't fall into the crypto / fintech-bro aesthetic.** No neon-on-black, no gradient text, no `background-clip: text` tricks, no animated number tickers, no glassmorphism, no "to the moon" energy. Money is serious.
 - **Don't fall into cluttered SaaS dashboard tropes.** No identical card grids. No hero-metric template (big number + tiny label + gradient accent). No side-stripe `border-left: 4px solid` accents on alerts. No modal-as-first-thought. Exhaust inline progressive disclosure first.
 - **Don't fall into Mint-style busy budgeting UI.** No pie charts. No category-explorer bait. No gamification badges. No marketing-style upsells inside the app.
-- **Don't use `ft.Colors.OUTLINE` for text.** It is a borders-and-hairlines token. Secondary text uses `ON_SURFACE_VARIANT` (mapped to `ink-2`). Enforced by convention in CLAUDE.md.
+- **Don't use `ft.Colors.OUTLINE` for text.** It is a borders-and-hairlines token. Secondary text uses `ON_SURFACE_VARIANT` (mapped to `ink-2`). Enforced by convention in AGENTS.md.
 - **Don't drop below 11pt** for any visible text. The Label role is the floor. Nav rail labels at 8–10pt were the previous regression. Do not return there.
 - **Don't substitute color for label.** Every red/green/amber signal pairs with a glyph (`+`, `−`, ⚠), a `semantics_label`, or text. Color-blind users must still read the forecast.
 - **Don't shadow flat surfaces.** Cards, tabs, banners, rows do not float. Only popovers, menus, and dialogs shadow.

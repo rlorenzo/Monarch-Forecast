@@ -43,7 +43,7 @@ Explicitly NOT:
 
 ## Accessibility & Inclusion
 
-The app already ships with a thorough accessibility contract documented in `CLAUDE.md` and `README.md`. Treat that as a hard floor. Any UI work must preserve or improve it:
+The app already ships with a thorough accessibility contract documented in `AGENTS.md` and `README.md`. Treat that as a hard floor. Any UI work must preserve or improve it:
 
 - **Screen readers**: VoiceOver (macOS) is the primary tested target; Narrator (Windows) for buttons and forms. Every icon-only button is wrapped in `ft.Semantics(button=True, label=...)`; tooltips are not enough.
 - **Keyboard-only**: Tab/Shift+Tab navigation, Escape closes dialogs, global shortcuts (⌘R refresh, ⌘1/2/3 tabs). All new shortcuts go through `page.on_keyboard_event` in `src/main.py`.

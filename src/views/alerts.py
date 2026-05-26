@@ -22,7 +22,7 @@ class Alert:
     message: str
     # Use `_dt.date` rather than `date` so the field name doesn't shadow
     # the type when the dataclass annotations are evaluated. The project
-    # pattern is documented in CLAUDE.md — `from __future__ import
+    # pattern is documented in AGENTS.md — `from __future__ import
     # annotations` is not enough on its own because the dataclass decorator
     # evaluates the stringified annotation in the class scope, where
     # `date` refers to the field's default (None).
