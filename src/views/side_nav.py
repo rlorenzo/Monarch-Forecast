@@ -24,10 +24,39 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 
 import flet as ft
 
 from src.views import tokens
+
+# Age past which the refresh timestamp shows a stale-state glyph. A
+# forecast built on >12h-old data is likely missing a day's worth of
+# transactions, so the user should notice without having to read the
+# string. The signal is conveyed via a leading ⚠ glyph and a
+# ``semantics_label`` (announced by screen readers); colour alone would
+# violate the no-color-only rule in DESIGN.md and the AA contrast bar.
+_STALE_AFTER_SECONDS = 12 * 60 * 60
+_STALE_GLYPH = "⚠"  # ⚠ — DESIGN.md sanctions this glyph for warnings.
+
+# Locale-invariant English month abbreviations. ``strftime('%b')``
+# honours the active locale, so a French/German CI runner would print
+# ``mai`` instead of ``May`` and break ``test_older_than_a_week_shows_date``.
+_MONTH_ABBREV = (
+    "",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+)
 
 _RAIL_WIDTH = 184
 _ROW_HEIGHT = 40
@@ -51,6 +80,53 @@ def _caption_style() -> ft.TextStyle:
         color=tokens.INK_3,
         height=1.3,
     )
+
+
+def _format_last_refresh(when: datetime | None, now: datetime) -> tuple[str, bool]:
+    """Render a last-refresh ``datetime`` as a human label + staleness flag.
+
+    Returns ``(text, is_stale)``. ``is_stale`` is true once the data is
+    older than 12h; the rail's ``refresh_display`` consumes it to add a
+    leading glyph and a screen-reader hint.
+
+    Buckets (chosen so the next bucket starts only after a single user
+    could *notice* the change: minutes within the hour, then a clock
+    time today, then a date):
+
+    - ``None``               → ``""``
+    - future or 0..<60s      → "Just now"
+    - 60s..<60min            → "5 min ago"
+    - today (>=1h)           → "Today, 5:00 PM"
+    - yesterday              → "Yesterday, 5:00 PM"
+    - 2..6 days ago          → "3 days ago"
+    - older                  → "May 22, 2026"
+    """
+    if when is None:
+        return "", False
+
+    delta_s = (now - when).total_seconds()
+    is_stale = delta_s >= _STALE_AFTER_SECONDS
+
+    if delta_s < 60:
+        return "Just now", is_stale
+    if delta_s < 3600:
+        minutes = int(delta_s // 60)
+        return f"{minutes} min ago", is_stale
+
+    # ``%-I``/``%-d`` (no leading zero) aren't portable to Windows, so
+    # the clock and day-of-month strings are assembled by hand.
+    hour12 = when.hour % 12 or 12
+    meridiem = "PM" if when.hour >= 12 else "AM"
+    clock = f"{hour12}:{when.minute:02d} {meridiem}"
+
+    days_diff = (now.date() - when.date()).days
+    if days_diff <= 0:
+        return f"Today, {clock}", is_stale
+    if days_diff == 1:
+        return f"Yesterday, {clock}", is_stale
+    if days_diff < 7:
+        return f"{days_diff} days ago", is_stale
+    return f"{_MONTH_ABBREV[when.month]} {when.day}, {when.year}", is_stale
 
 
 @dataclass(frozen=True)
@@ -169,7 +245,21 @@ class SideNav(ft.Container):
         # --- Actions ----------------------------------------------------
         # Last-refresh timestamp lives directly under the Refresh row in
         # ink-3 — that's the only place it's contextually relevant.
-        self._last_refresh_text = ft.Text("", style=_caption_style())
+        # The actual ``datetime`` is stored so the relative label
+        # ("5 min ago", "Yesterday, 5:00 PM") stays accurate across the
+        # dashboard's 60s re-render tick without re-running load_data.
+        self._last_refresh_dt: datetime | None = None
+        # ``max_lines`` + ellipsis matches the footer email's strategy
+        # (lines 196-198) — the rail is 184px wide and the longest label,
+        # "Yesterday, 12:00 PM", sits right at the column edge. Without
+        # this guard a font bump or rail-width tweak would wrap the
+        # label and shove the Sign-out row downward.
+        self._last_refresh_text = ft.Text(
+            "",
+            style=_caption_style(),
+            max_lines=1,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
         refresh_row = self._build_action_row(
             icon=ft.Icons.REFRESH_OUTLINED,
             label="Refresh",
@@ -260,9 +350,45 @@ class SideNav(ft.Container):
         self._selected_index = value
         self._repaint_destinations()
 
-    def set_last_refresh(self, text: str) -> None:
-        """Update the timestamp shown under the Refresh action."""
-        self._last_refresh_text.value = text
+    def set_last_refresh(self, when: datetime | None) -> None:
+        """Record the moment of the latest successful refresh.
+
+        Storing the ``datetime`` (rather than a formatted string) lets
+        ``refresh_display`` re-render the relative label over time
+        without the caller having to know whether the value is one
+        minute old or one day old.
+        """
+        self._last_refresh_dt = when
+        self.refresh_display()
+
+    def refresh_display(self) -> None:
+        """Re-render the timestamp label from the stored datetime.
+
+        Called both on ``set_last_refresh`` (fresh data) and on the
+        dashboard's 60s tick (so a label like "5 min ago" keeps ticking
+        even when no new refresh has run).
+
+        Staleness is signalled three ways so the cue survives both
+        colour-blindness and screen readers: a leading ⚠ glyph in the
+        visible label, the same string in ``tooltip`` (so users with
+        scaled fonts can recover the full text if the rail ellipsizes
+        it), and a ``semantics_label`` that adds a "(stale)" suffix
+        announced by assistive tech. Colour is intentionally NOT used:
+        ``SIGNAL_THRESHOLD`` on ``PAPER`` lands at ~2.14:1, below the
+        WCAG AA 4.5:1 bar for small text.
+        """
+        text, is_stale = _format_last_refresh(self._last_refresh_dt, datetime.now())
+        display = f"{_STALE_GLYPH} {text}" if (is_stale and text) else text
+        if not text:
+            semantics: str | None = None
+        elif is_stale:
+            semantics = f"Last refreshed: {text} (stale)"
+        else:
+            semantics = f"Last refreshed: {text}"
+
+        self._last_refresh_text.value = display
+        self._last_refresh_text.tooltip = display or None
+        self._last_refresh_text.semantics_label = semantics
         try:
             self._last_refresh_text.update()
         except (RuntimeError, AssertionError):

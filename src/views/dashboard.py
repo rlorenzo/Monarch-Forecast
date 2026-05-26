@@ -1,5 +1,6 @@
 """Main dashboard view with summary cards, chart, transaction table, alerts, and adjustments."""
 
+import asyncio
 import base64
 from collections.abc import Callable
 from datetime import datetime
@@ -373,6 +374,10 @@ class DashboardView(ft.Column):
         email, _ = session_manager.load_credentials()
         self._user_email = email or ""
 
+        # Guard against starting the nav-rail timestamp tick more than once
+        # across the dashboard's lifetime (load_data can re-run on refresh).
+        self._refresh_tick_started = False
+
         # Editorial left-hand nav. Owns its own selection state and the
         # "Updated HH:MM" timestamp under the Refresh action.
         self._nav_rail = SideNav(
@@ -453,6 +458,36 @@ class DashboardView(ft.Column):
         assert isinstance(self.page, ft.Page), "DashboardView must be mounted on a Page"
         self.page.services = [*self.page.services, service]
 
+    def _start_refresh_display_tick(self) -> None:
+        """Begin the 60s loop that keeps the nav-rail timestamp current.
+
+        Idempotent — multiple calls (e.g. user-triggered refresh after
+        the initial load) re-use the same task. The loop just calls
+        ``SideNav.refresh_display``, which re-renders "5 min ago" /
+        "Today, 5:00 PM" / "Yesterday, 5:00 PM" from the stored
+        ``datetime`` without re-running the data load.
+        """
+        if self._refresh_tick_started:
+            return
+        self._refresh_tick_started = True
+        self._run_task(self._tick_refresh_display)
+
+    async def _tick_refresh_display(self) -> None:
+        while True:
+            await asyncio.sleep(60)
+            # Exit when the rail (and the dashboard with it) is no longer
+            # mounted. Without this break the task captures ``self``
+            # forever, which keeps each detached ``DashboardView`` (e.g.
+            # after sign-out → sign-in) alive in memory along with its
+            # forecast, recurring-items, and transaction history.
+            if self._nav_rail.page is None:
+                return
+            try:
+                self._nav_rail.refresh_display()
+            except (RuntimeError, AssertionError):
+                # Mid-detach race; bail rather than spin in error state.
+                return
+
     async def load_data(self, force_refresh: bool = False) -> None:
         """Initial data load after login."""
         self._set_loading_stage("Loading accounts\u2026")
@@ -521,7 +556,8 @@ class DashboardView(ft.Column):
                 _safe_update(self.alerts_container)
 
             self._update_cc_info()
-            self._nav_rail.set_last_refresh(f"Updated {datetime.now().strftime('%I:%M %p')}")
+            self._nav_rail.set_last_refresh(datetime.now())
+            self._start_refresh_display_tick()
             self._maybe_show_onboarding()
 
         except Exception as ex:

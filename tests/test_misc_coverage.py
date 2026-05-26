@@ -9,7 +9,7 @@ to keep these one-offs from sprawling across category-named files.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -357,8 +357,8 @@ class TestSideNavLogo:
 class TestSideNavSelectionRepaint:
     def test_set_last_refresh_updates_text(self):
         nav = _make_side_nav()
-        nav.set_last_refresh("Updated 03:14 PM")
-        assert nav._last_refresh_text.value == "Updated 03:14 PM"
+        nav.set_last_refresh(datetime.now())
+        assert nav._last_refresh_text.value == "Just now"
 
     def test_selected_index_setter_out_of_range_noop(self):
         nav = _make_side_nav()

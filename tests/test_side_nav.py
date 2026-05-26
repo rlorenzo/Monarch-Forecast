@@ -7,10 +7,12 @@ the accessibility regression suite in ``tests/test_accessibility.py``.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import flet as ft
 
 from src.views import tokens
-from src.views.side_nav import NavDestination, SideNav
+from src.views.side_nav import _STALE_GLYPH, NavDestination, SideNav, _format_last_refresh
 
 
 def _destinations() -> list[NavDestination]:
@@ -89,16 +91,179 @@ class TestSelectedIndex:
 
 
 class TestLastRefresh:
-    """The timestamp under the Refresh action is driven by set_last_refresh."""
+    """The timestamp under the Refresh action is driven by set_last_refresh.
+
+    The label is rendered relative to the stored ``datetime`` so the
+    user can immediately tell whether the underlying forecast is
+    minutes, hours, or days old.
+    """
 
     def test_starts_empty(self):
         nav = _make()
         assert nav._last_refresh_text.value == ""
+        assert nav._last_refresh_dt is None
 
-    def test_set_updates_text(self):
+    def test_set_renders_relative_label(self):
         nav = _make()
-        nav.set_last_refresh("Updated 2:27 PM")
-        assert nav._last_refresh_text.value == "Updated 2:27 PM"
+        nav.set_last_refresh(datetime.now())
+        # A fresh-now stamp should land in the "Just now" bucket.
+        assert nav._last_refresh_text.value == "Just now"
+
+    def test_set_with_none_clears_label(self):
+        nav = _make()
+        nav.set_last_refresh(datetime.now())
+        nav.set_last_refresh(None)
+        assert nav._last_refresh_text.value == ""
+
+    def test_stale_data_prepends_glyph(self):
+        """Staleness must be conveyed by something other than colour.
+
+        ``SIGNAL_THRESHOLD`` on ``PAPER`` lands at ~2.14:1 contrast,
+        below the WCAG AA 4.5:1 bar for small text, so the rail uses a
+        leading ⚠ glyph instead.
+        """
+        nav = _make()
+        nav.set_last_refresh(datetime.now() - timedelta(hours=13))
+        assert nav._last_refresh_text.value is not None
+        assert nav._last_refresh_text.value.startswith(f"{_STALE_GLYPH} ")
+
+    def test_fresh_data_has_no_glyph(self):
+        nav = _make()
+        nav.set_last_refresh(datetime.now() - timedelta(minutes=5))
+        assert nav._last_refresh_text.value is not None
+        assert _STALE_GLYPH not in nav._last_refresh_text.value
+
+    def test_stale_data_announces_via_semantics(self):
+        """Screen readers don't observe colour. The ``semantics_label``
+        must explicitly mention that the data is stale."""
+        nav = _make()
+        nav.set_last_refresh(datetime.now() - timedelta(hours=13))
+        assert nav._last_refresh_text.semantics_label is not None
+        assert "(stale)" in nav._last_refresh_text.semantics_label
+        assert nav._last_refresh_text.semantics_label.startswith("Last refreshed:")
+
+    def test_fresh_data_announces_without_stale_suffix(self):
+        nav = _make()
+        nav.set_last_refresh(datetime.now() - timedelta(minutes=5))
+        assert nav._last_refresh_text.semantics_label is not None
+        assert "(stale)" not in nav._last_refresh_text.semantics_label
+
+    def test_none_clears_semantics_and_tooltip(self):
+        nav = _make()
+        nav.set_last_refresh(datetime.now())
+        nav.set_last_refresh(None)
+        assert nav._last_refresh_text.semantics_label is None
+        assert nav._last_refresh_text.tooltip is None
+
+    def test_tooltip_mirrors_visible_label(self):
+        """At 150%+ system text scale the label ellipsizes inside the
+        184px rail. The tooltip preserves the full string so keyboard
+        and mouse users can still recover it on hover/focus."""
+        nav = _make()
+        nav.set_last_refresh(datetime.now() - timedelta(hours=2))
+        assert nav._last_refresh_text.tooltip == nav._last_refresh_text.value
+
+    def test_label_is_capped_to_one_line(self):
+        """Guards the 184px rail width against label wrapping.
+
+        The longest possible label ("Yesterday, 12:00 PM") sits at the
+        edge of the timestamp column. Without ``max_lines=1`` and an
+        ellipsis overflow, a font bump or rail-width change would wrap
+        the label onto a second line and push the Sign-out row down.
+        """
+        nav = _make()
+        assert nav._last_refresh_text.max_lines == 1
+        assert nav._last_refresh_text.overflow == ft.TextOverflow.ELLIPSIS
+
+
+class TestFormatLastRefresh:
+    """Each bucket of the relative-time formatter."""
+
+    def test_none_is_empty(self):
+        text, stale = _format_last_refresh(None, datetime(2026, 5, 25, 16, 0))
+        assert text == ""
+        assert stale is False
+
+    def test_under_a_minute_is_just_now(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, stale = _format_last_refresh(now - timedelta(seconds=30), now)
+        assert text == "Just now"
+        assert stale is False
+
+    def test_future_clock_drift_is_just_now(self):
+        # If the stored datetime drifts ahead of "now" by a few seconds
+        # (clock skew on resume), the label shouldn't render a negative
+        # minute count.
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(now + timedelta(seconds=3), now)
+        assert text == "Just now"
+
+    def test_minutes_within_the_hour(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(now - timedelta(minutes=5), now)
+        assert text == "5 min ago"
+
+    def test_today_shows_clock_time(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(now - timedelta(hours=2), now)
+        assert text == "Today, 2:00 PM"
+
+    def test_today_morning_renders_am(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(datetime(2026, 5, 25, 8, 5), now)
+        assert text == "Today, 8:05 AM"
+
+    def test_today_noon_and_midnight(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text_noon, _ = _format_last_refresh(datetime(2026, 5, 25, 12, 0), now)
+        assert text_noon == "Today, 12:00 PM"
+        text_midnight, _ = _format_last_refresh(datetime(2026, 5, 25, 0, 0), now)
+        assert text_midnight == "Today, 12:00 AM"
+
+    def test_yesterday(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(datetime(2026, 5, 24, 17, 0), now)
+        assert text == "Yesterday, 5:00 PM"
+
+    def test_days_ago(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(datetime(2026, 5, 22, 9, 0), now)
+        assert text == "3 days ago"
+
+    def test_older_than_a_week_shows_date(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        text, _ = _format_last_refresh(datetime(2026, 5, 1, 9, 0), now)
+        assert text == "May 1, 2026"
+
+    def test_stale_flag_kicks_in_after_12_hours(self):
+        now = datetime(2026, 5, 25, 16, 0)
+        _, stale_11h = _format_last_refresh(now - timedelta(hours=11), now)
+        _, stale_13h = _format_last_refresh(now - timedelta(hours=13), now)
+        assert stale_11h is False
+        assert stale_13h is True
+
+    def test_month_abbreviations_are_locale_invariant(self):
+        """Regression guard: ``strftime('%b')`` honours the active locale
+        and would print ``Mai`` / ``mai`` under German / French CI. The
+        formatter uses a hardcoded English list instead."""
+        now = datetime(2027, 1, 1, 12, 0)
+        expected = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        ]
+        for month, name in enumerate(expected, start=1):
+            text, _ = _format_last_refresh(datetime(2025, month, 15, 12, 0), now)
+            assert text.startswith(f"{name} 15, 2025"), text
 
 
 class TestStructure:
