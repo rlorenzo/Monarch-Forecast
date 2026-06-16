@@ -16,7 +16,7 @@ test without standing up a real Flet page.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -133,8 +133,11 @@ class TestOneOffAdd:
         assert panel.one_off_transactions[0].amount == 500.0
 
     def test_persists_to_preferences(self, recurring_items, prefs):
+        # Future-dated so it survives the "drop past-dated entries on load"
+        # filter in Preferences.one_off_transactions.
+        future = date.today() + timedelta(days=30)
         panel = make_panel(recurring_items, prefs)
-        panel.add_one_off("Test", 100.0, date(2026, 6, 1), is_expense=True)
+        panel.add_one_off("Test", 100.0, future, is_expense=True)
         # Force a fresh load from disk to confirm persistence.
         fresh = Preferences(path=prefs._path)
         assert len(fresh.one_off_transactions) == 1
@@ -238,12 +241,14 @@ class TestLegacyOneOffIdBackfill:
     def test_loads_existing_one_off_without_id_and_backfills(self, tmp_path):
         # Persist a one-off without an id (simulating a legacy install),
         # then construct the panel and verify an id was backfilled.
+        # Future-dated so it survives the past-date filter on load.
+        future = date.today() + timedelta(days=30)
         prefs_path = tmp_path / "prefs.json"
         prefs = Preferences(path=prefs_path)
         prefs.set_one_off_transactions(
             [
                 ForecastTransaction(
-                    date=date(2026, 6, 1),
+                    date=future,
                     name="legacy",
                     amount=-50.0,
                     category="Adjustment",
