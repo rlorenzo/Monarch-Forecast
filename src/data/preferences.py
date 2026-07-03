@@ -38,12 +38,27 @@ class Preferences:
         # Write-to-temp + atomic rename so a crash mid-write can't leave a
         # truncated preferences.json (which _load would silently reset,
         # dropping every exclusion, override, and one-off).
+        #
+        # The temp file is created O_EXCL (after removing any stale one via
+        # unlink, which removes a planted symlink itself, never its target)
+        # and O_NOFOLLOW where available, at 0600 from the first byte. A
+        # predictable temp path plus a symlink-following write would let
+        # anything that could write to a once-loose ~/.monarch-forecast
+        # redirect this save over an arbitrary file. If something reappears
+        # at the temp path in the unlink-to-open window, the save fails
+        # closed instead of writing through it. os.replace does not follow
+        # a symlink at the destination; it replaces the link itself.
         tmp_path = self._path.with_suffix(".json.tmp")
-        tmp_path.write_text(json.dumps(self._data, indent=2))
         try:
-            tmp_path.chmod(0o600)
-        except OSError:
-            pass  # chmod not supported on all platforms
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(str(tmp_path), flags, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(json.dumps(self._data, indent=2))
         os.replace(tmp_path, self._path)
 
     @property

@@ -206,3 +206,37 @@ class TestCcOverrideExpiry:
         prefs = Preferences(path=tmp_path / "prefs.json")
         prefs.set_cc_amount_override("cc1", 500.0, expires_on=date.today())
         assert prefs.cc_amount_overrides == {"cc1": 500.0}
+
+
+class TestSymlinkSafety:
+    def test_save_does_not_write_through_planted_tmp_symlink(self, tmp_path: Path):
+        import sys
+
+        if sys.platform.startswith("win"):
+            return  # POSIX symlink semantics only.
+        victim = tmp_path / "victim.txt"
+        victim.write_text("precious")
+        prefs_path = tmp_path / "prefs.json"
+        prefs = Preferences(path=prefs_path)
+        # Plant a symlink at the predictable temp path; a follow-symlink
+        # write would clobber the victim file.
+        (tmp_path / "prefs.json.tmp").symlink_to(victim)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        assert victim.read_text() == "precious"
+        assert "Netflix" in prefs.excluded_recurring_names
+
+    def test_save_replaces_symlink_at_final_path(self, tmp_path: Path):
+        import sys
+
+        if sys.platform.startswith("win"):
+            return
+        victim = tmp_path / "victim.txt"
+        victim.write_text("precious")
+        prefs_path = tmp_path / "prefs.json"
+        prefs = Preferences(path=prefs_path)
+        prefs_path.unlink(missing_ok=True)
+        prefs_path.symlink_to(victim)  # planted at the destination
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        # os.replace swaps out the link itself; the target is untouched.
+        assert victim.read_text() == "precious"
+        assert not prefs_path.is_symlink()

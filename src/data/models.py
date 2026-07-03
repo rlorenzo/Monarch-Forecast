@@ -23,7 +23,9 @@ class RecurringItem:
 
     name: str
     amount: float  # positive = income, negative = expense
-    frequency: str  # weekly, biweekly, monthly, semimonthly, bimonthly, quarterly, yearly
+    frequency: (
+        str  # weekly, biweekly, semimonthly, monthly, bimonthly, quarterly, semiannual, yearly
+    )
     base_date: date  # a known occurrence date used as anchor
     category: str = ""
     account_id: str = ""

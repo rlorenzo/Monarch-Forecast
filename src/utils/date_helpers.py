@@ -24,7 +24,7 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
     Args:
         base_date: A known occurrence date (anchor).
         frequency: One of "weekly", "biweekly", "monthly", "semimonthly",
-            "bimonthly", "quarterly", "yearly".
+            "bimonthly", "quarterly", "semiannual", "yearly".
         after: Find the next occurrence on or after this date.
 
     Returns:
