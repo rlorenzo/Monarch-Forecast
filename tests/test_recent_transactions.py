@@ -188,8 +188,7 @@ class TestRecentTransactionsView:
         assert "Old Utility" in shown
 
     def test_no_summary_strip(self):
-        # The money in/out/net strip was removed by request: the ledger
-        # itself is the answer.
+        # No money in/out/net strip: the ledger itself is the answer.
         view = self._view_with_data()
         assert "MONEY IN" not in _texts(view)
         assert "MONEY OUT" not in _texts(view)
@@ -205,8 +204,8 @@ class TestRecentTransactionsView:
         view._on_search_change(_m(SimpleNamespace(control=SimpleNamespace(value="income"))))
         shown = [t for t in view._txns if view._should_show(t)]
         assert [t.name for t in shown] == ["Paycheck"]
-        # Account names are no longer part of the haystack (the view is
-        # single-account by design).
+        # Account names are not searchable: the view is single-account
+        # by design, so the name would match every row or none.
         view._on_search_change(_m(SimpleNamespace(control=SimpleNamespace(value="everyday"))))
         shown = [t for t in view._txns if view._should_show(t)]
         assert shown == []

@@ -576,8 +576,8 @@ class TestDueTodayAndAlreadyPaid:
         assert payments[0].amount == -150.0
 
     def test_early_payment_before_future_due_date_not_double_billed(self):
-        # Statement closed June 15, due July 10, user paid June 20:
-        # the old code still forecast the full statement on July 10.
+        # Statement closed June 15, due July 10, paid in full June 20:
+        # a settled statement must not be billed again on its due date.
         today = date(2026, 6, 25)
         txns = [
             _charge(-500.0, date(2026, 6, 10)),
@@ -608,8 +608,8 @@ class TestDueTodayAndAlreadyPaid:
 
 
 class TestPartialPayments:
-    """Codex review finding: a partial payment must reduce the forecast
-    to the unpaid remainder, not suppress the statement entirely."""
+    """A partial payment reduces the forecast to the unpaid remainder;
+    it must not suppress the statement entirely."""
 
     def test_partial_payment_bills_the_remainder(self):
         today = date(2026, 6, 20)

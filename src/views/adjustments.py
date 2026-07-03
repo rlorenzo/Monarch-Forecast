@@ -1516,9 +1516,9 @@ class AdjustmentsPanel(ft.Column):
         raw = value.replace(",", "").replace("$", "").strip()
         if not raw:
             # An emptied field is an intentional reset to the calculated
-            # amount; anything else invalid must NOT touch the stored
-            # override (the old code cleared it, silently destroying the
-            # user's override on a typo like "$2,500.00").
+            # amount. Any other unparseable input must leave the stored
+            # override untouched: a typo must surface as a field error,
+            # never as a silently deleted override.
             self._prefs.clear_amount_override(item.name, account_id=item.account_id)
             self._rebuild_override_rows()
             self._on_change()

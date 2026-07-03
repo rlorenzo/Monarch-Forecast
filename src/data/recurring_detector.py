@@ -18,8 +18,8 @@ DEFAULT_LOOKBACK_DAYS = 750
 
 # An amount counts as consistent when it's within this fraction of the
 # group's median. Membership is per-transaction (see below) rather than
-# all-or-nothing, so one refund or one-off purchase at a recurring
-# merchant no longer disqualifies the whole stream.
+# all-or-nothing, so a single refund or one-off purchase at a recurring
+# merchant can't disqualify the whole stream.
 _AMOUNT_TOLERANCE = 0.25
 
 # At least this fraction of a group's transactions must be amount-consistent

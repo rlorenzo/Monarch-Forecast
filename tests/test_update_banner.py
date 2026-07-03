@@ -91,7 +91,7 @@ class TestBannerCopy:
 
 
 class TestDownloadButton:
-    def test_opens_download_url_when_present(self):
+    def test_untrusted_download_url_not_opened(self):
         banner = build_update_banner(
             {
                 "version": "0.5.0",
@@ -103,9 +103,9 @@ class TestDownloadButton:
         assert dl_btn is not None and dl_btn.on_click is not None
         with patch("src.views.update_banner.webbrowser.open") as mock_open:
             _m(dl_btn.on_click)(MagicMock())
-            # example.com is not github.com/githubusercontent.com, so this
-            # URL is now rejected by the host allowlist — see
-            # TestDownloadUrlValidation for the allow/deny matrix.
+            # example.com is outside the github.com/githubusercontent.com
+            # allowlist, so nothing opens — see TestDownloadUrlValidation
+            # for the full allow/deny matrix.
             mock_open.assert_not_called()
 
     def test_falls_back_to_html_url(self):

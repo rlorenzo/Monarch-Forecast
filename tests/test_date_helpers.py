@@ -112,8 +112,8 @@ class TestNextOccurrenceUnknown:
         assert next_occurrence(base, "quarterly", date(2026, 2, 1)) == date(2026, 4, 28)
 
     def test_semimonthly_anchor_past_midmonth_pairs_downward(self):
-        # Anchor on the 15th pairs with the 1st (the old code paired it
-        # with the 28th, forecasting half the occurrences on wrong days).
+        # An anchor on the 15th pairs with the 1st, not the 28th; a
+        # wrong companion day puts half the occurrences on wrong dates.
         base = date(2026, 6, 15)
         assert next_occurrence(base, "semimonthly", date(2026, 6, 16)) == date(2026, 7, 1)
         assert next_occurrence(base, "semimonthly", date(2026, 7, 2)) == date(2026, 7, 15)

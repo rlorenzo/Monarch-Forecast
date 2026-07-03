@@ -377,8 +377,8 @@ class TestShortCadenceEvidence:
 
 class TestStalenessGuard:
     def test_stream_that_stopped_months_ago_not_projected(self):
-        # Real report: "St Bankcard Credit" charged Jan 2 and Feb 2, still
-        # projected in July. A monthly stream 5 months quiet is history.
+        # A monthly stream whose last occurrence is five months old is
+        # history, not a schedule, and must not be projected.
         today = date.today()
         txns = [
             _txn("St Bankcard Credit", -49.0, today - timedelta(days=181)),
@@ -436,9 +436,9 @@ class TestIntervalConsistency:
     cluster around it."""
 
     def test_renamed_descriptor_scatter_is_not_quarterly(self):
-        # Real report: a $1 monthly subscription whose bank descriptor was
-        # renamed partway through history left four same-named rows with
-        # gaps of [30, 91, 305] days — median 91, squarely "quarterly".
+        # A renamed bank descriptor leaves scattered same-named rows:
+        # gaps of [30, 91, 305] days have a median of 91 (the quarterly
+        # band) while describing no schedule at all.
         today = date.today()
         offsets = [433, 342, 37, 7]  # produces gaps of 91, 305, 30 days
         txns = [_txn("Subscription Withdrawal", -1.0, today - timedelta(days=o)) for o in offsets]

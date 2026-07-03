@@ -349,8 +349,8 @@ class TestOverrideHandlers:
 
         panel = make_panel(recurring_items, prefs)
         rent = recurring_items[0]
-        # "$2,500.00" used to raise ValueError and silently DELETE the
-        # existing override; it must parse.
+        # Formatted currency input must parse; it must never be treated
+        # as invalid and silently delete the existing override.
         prefs.set_amount_override("Rent", -1800.0, account_id="acct-A")
         panel._on_override_change(rent, ft.TextField(), "$2,500.00")
         assert prefs.get_amount_override("Rent", "acct-A") == -2500.0

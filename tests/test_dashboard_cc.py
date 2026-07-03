@@ -197,9 +197,9 @@ class TestRunForecastCcStrip:
         await dash._run_forecast()
 
         names = self._forecast_names(dash)
-        # The old code stripped the Chase autopay because ANY estimate
-        # existed and the strip set was built from ALL cards — the Chase
-        # payment vanished from the forecast entirely.
+        # A card without an estimate keeps its detected autopay item:
+        # stripping on another card's estimate would erase this card's
+        # payment from the forecast entirely.
         assert any(n == "Chase Reserve Autopay" for n in names)
         assert any(n.startswith("Amex Gold Payment") for n in names)
 
