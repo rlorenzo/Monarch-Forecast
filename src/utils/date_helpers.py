@@ -12,12 +12,19 @@ def date_range(start: date, end: date) -> Generator[date, None, None]:
         current += timedelta(days=1)
 
 
+def _add_months(year: int, month: int, k: int) -> tuple[int, int]:
+    """Shift a (year, month) pair by k months."""
+    total = (year * 12 + month - 1) + k
+    return total // 12, total % 12 + 1
+
+
 def next_occurrence(base_date: date, frequency: str, after: date) -> date | None:
     """Find the next occurrence of a recurring event on or after `after`.
 
     Args:
         base_date: A known occurrence date (anchor).
-        frequency: One of "weekly", "biweekly", "monthly", "semimonthly", "yearly".
+        frequency: One of "weekly", "biweekly", "monthly", "semimonthly",
+            "bimonthly", "quarterly", "yearly".
         after: Find the next occurrence on or after this date.
 
     Returns:
@@ -50,13 +57,26 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
             candidate = candidate.replace(year=year, month=month, day=day)
         return candidate
 
+    if frequency in ("bimonthly", "quarterly", "semiannual"):
+        # Month-stepped cycles anchored to the base date's month phase.
+        # Day-of-month capped at 28 like the monthly branch.
+        step = {"bimonthly": 2, "quarterly": 3, "semiannual": 6}[frequency]
+        day = min(base_date.day, 28)
+        months_ahead = (after.year - base_date.year) * 12 + (after.month - base_date.month)
+        k = max(0, -(-months_ahead // step))  # ceil, floored at the anchor
+        while True:
+            year, month = _add_months(base_date.year, base_date.month, k * step)
+            candidate = date(year, month, day)
+            if candidate >= after:
+                return candidate
+            k += 1
+
     if frequency == "semimonthly":
-        # Two payments per month: on base_date.day and 15 days later (capped at 28)
+        # Two payments per month. The companion day sits 15 days from the
+        # anchor in whichever direction stays inside the month: an anchor
+        # on the 15th pairs with the 1st, not a nonsense 28th/30th.
         day1 = min(base_date.day, 28)
-        day2 = min(day1 + 15, 28)
-        if day1 == day2:
-            day1 = 1  # fallback to 1st and 16th if both land on 28
-            day2 = 16
+        day2 = day1 + 15 if day1 + 15 <= 28 else max(1, day1 - 15)
         candidates = []
         for d in (day1, day2):
             c = after.replace(day=d)
