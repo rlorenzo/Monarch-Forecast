@@ -200,8 +200,11 @@ class DashboardView(ft.Column):
             value=f"{self._safety_threshold:g}",
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
+            # Commit on Enter AND on focus leaving the field: typing a new
+            # threshold and clicking elsewhere must not silently discard it.
             on_submit=self._on_threshold_change,
-            tooltip="Minimum balance to stay above. Press Enter to save.",
+            on_blur=self._on_threshold_change,
+            tooltip="Minimum balance to stay above. Saves when you press Enter or leave the field.",
         )
         self.threshold_help = ft.Semantics(
             button=True,
@@ -1804,10 +1807,17 @@ class DashboardView(ft.Column):
         except ValueError:
             self._show_snackbar("Invalid amount. Not a number.", success=False)
             return
+        if not math.isfinite(value):
+            self._show_snackbar("Invalid amount. Not a number.", success=False)
+            return
+        if value == self._safety_threshold:
+            # Blur fires after Enter (and on any focus change); an unchanged
+            # value must not re-save, re-toast, and re-run the forecast.
+            return
         self._safety_threshold = value
         self._prefs.set_safety_threshold(value)
         self.threshold_field.value = f"{value:g}"
-        self.threshold_field.update()
+        _safe_update(self.threshold_field)
         self._show_snackbar(f"Safety threshold saved: ${value:,.0f}")
         await self._run_forecast()
 

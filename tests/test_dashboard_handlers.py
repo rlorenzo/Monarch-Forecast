@@ -120,6 +120,28 @@ class TestThresholdChange:
         await dashboard._on_threshold_change(_m(SimpleNamespace(control=dashboard.threshold_field)))
         assert dashboard._safety_threshold == 0.0
 
+    async def test_blur_commits_too(self, dashboard):
+        # Typing a value and clicking away must save without Enter.
+        assert dashboard.threshold_field.on_blur == dashboard._on_threshold_change
+        assert dashboard.threshold_field.on_submit == dashboard._on_threshold_change
+
+    async def test_unchanged_value_is_a_noop(self, dashboard):
+        # Blur fires right after Enter; the second call with the same
+        # value must not re-save, re-toast, or re-run the forecast.
+        dashboard.threshold_field.value = f"{dashboard._safety_threshold:g}"
+        _m(dashboard.threshold_field).update = MagicMock()
+        await dashboard._on_threshold_change(_m(SimpleNamespace(control=dashboard.threshold_field)))
+        _m(dashboard._show_snackbar).assert_not_called()
+        _m(dashboard._run_forecast).assert_not_awaited()
+
+    async def test_non_finite_rejected(self, dashboard):
+        dashboard.threshold_field.value = "inf"
+        _m(dashboard.threshold_field).update = MagicMock()
+        prior = dashboard._safety_threshold
+        await dashboard._on_threshold_change(_m(SimpleNamespace(control=dashboard.threshold_field)))
+        assert dashboard._safety_threshold == prior
+        _m(dashboard._run_forecast).assert_not_awaited()
+
 
 @pytest.mark.asyncio
 class TestAccountChange:
