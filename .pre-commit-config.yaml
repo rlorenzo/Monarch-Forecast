@@ -1,3 +1,7 @@
+# commit-msg included so `pre-commit install` also wires the trailer
+# stripper below without a separate --hook-type flag.
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.9
@@ -8,6 +12,14 @@ repos:
 
   - repo: local
     hooks:
+      - id: strip-ai-session-trailers
+        name: strip AI session trailers from commit message
+        # AI coding tools (Claude Code, and potentially others) append
+        # session-link trailers to commit messages. This repo doesn't want
+        # them; silently strip rather than fail the commit.
+        entry: python3 -c 'import re,sys,pathlib; p=pathlib.Path(sys.argv[1]); t=p.read_text(); n=re.sub(r"(?mi)^(Claude-Session|Co-Authored-By. Claude|X-Codex-Session).*\n?", "", t); _ = p.write_text(n) if n != t else None'
+        language: system
+        stages: [commit-msg]
       - id: ty
         name: ty (type check)
         entry: uv run ty check
