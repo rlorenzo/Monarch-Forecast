@@ -112,10 +112,17 @@ class TestTabSwitch:
         assert dispatch_keyboard_shortcut(_event("3", meta=True), page, dash) is True
         dash.switch_to_tab.assert_called_once_with(2)
 
-    def test_cmd_4_unhandled(self):
+    def test_cmd_4_toggles_txn_mode(self):
         page = _make_page()
         dash = _make_dashboard()
-        assert dispatch_keyboard_shortcut(_event("4", meta=True), page, dash) is False
+        assert dispatch_keyboard_shortcut(_event("4", meta=True), page, dash) is True
+        dash.toggle_txn_mode.assert_called_once_with()
+        dash.switch_to_tab.assert_not_called()
+
+    def test_cmd_5_unhandled(self):
+        page = _make_page()
+        dash = _make_dashboard()
+        assert dispatch_keyboard_shortcut(_event("5", meta=True), page, dash) is False
         dash.switch_to_tab.assert_not_called()
 
 

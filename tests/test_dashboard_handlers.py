@@ -470,3 +470,19 @@ class TestSwapNavContent:
         _m(dashboard._scroll_area).update = MagicMock()
         await dashboard._swap_nav_content(2)
         assert dashboard._scroll_area.controls[0] is dashboard._tab_pages[2]
+
+
+class TestForecastAccountIds:
+    def test_scopes_to_checking_plus_cards(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 100.0}]
+        dash._cc_accounts = [{"id": "cc1", "name": "Card", "balance": -50.0}]
+        assert dash._forecast_account_ids() == ["chk1", "cc1"]
+
+    def test_none_before_first_load_syncs_everything(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        assert dash._forecast_account_ids() is None

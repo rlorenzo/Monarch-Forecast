@@ -232,3 +232,53 @@ class TestAlertsLiveRegion:
         assert isinstance(banner, ft.Semantics)
         assert banner.live_region is True
         assert banner.label, "alerts banner should advertise a non-empty summary"
+
+
+class TestFilterChipsHaveLabeledSemantics:
+    """Filter/period/mode chips are Containers, which screen readers don't
+    announce as interactive; every chip must sit inside a labeled
+    ``Semantics(button=True)`` wrapper (built by ``build_filter_chip``)."""
+
+    def _assert_chips_wrapped(self, root, context: str) -> None:
+        from src.views.transactions_table import _FilterChip
+
+        found = 0
+        for control, ancestors in _walk_with_ancestors(root):
+            if not isinstance(control, ft.Control) or type(control).__name__ != "_FilterChip":
+                continue
+            if not isinstance(control, _FilterChip):
+                continue
+            found += 1
+            labeled = any(isinstance(a, ft.Semantics) and a.button and a.label for a in ancestors)
+            assert labeled, f"{context}: chip '{control._label.value}' lacks labeled Semantics"
+        assert found > 0, f"{context}: expected at least one chip in the tree"
+
+    def test_upcoming_ledger_chips(self):
+        from src.views.transactions_table import TransactionsView
+
+        view = TransactionsView()
+        self._assert_chips_wrapped(view, "TransactionsView")
+
+    def test_recent_ledger_chips(self):
+        from src.views.recent_transactions import RecentTransactionsView
+
+        view = RecentTransactionsView()
+        self._assert_chips_wrapped(view, "RecentTransactionsView")
+
+    def test_dashboard_mode_chips(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        self._assert_chips_wrapped(dash._txn_mode_row, "dashboard mode toggle")
+
+
+def _walk_with_ancestors(control, ancestors=()):
+    yield control, ancestors
+    for attr in ("content", "controls", "actions", "title", "subtitle", "leading"):
+        value = getattr(control, attr, None)
+        if value is None:
+            continue
+        children = value if isinstance(value, list) else [value]
+        for child in children:
+            if child is not None:
+                yield from _walk_with_ancestors(child, (*ancestors, control))

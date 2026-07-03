@@ -2,8 +2,9 @@
 
 import asyncio
 import base64
+import math
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,13 @@ from src.data.cached_client import CachedMonarchClient
 from src.data.models import ForecastTransaction, RecurringItem
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
-from src.data.recurring_detector import detect_recurring
-from src.forecast.credit_cards import DEFAULT_GRACE_PERIOD, estimate_cc_payments, infer_due_day
+from src.data.recurring_detector import DEFAULT_LOOKBACK_DAYS, detect_recurring
+from src.forecast.credit_cards import (
+    CC_HISTORY_DAYS,
+    DEFAULT_GRACE_PERIOD,
+    estimate_cc_payments,
+    infer_due_day,
+)
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult
 from src.views import tokens
@@ -33,8 +39,9 @@ from src.views.adjustments import (
 )
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart, build_forecast_chart_summary
+from src.views.recent_transactions import RecentTransactionsView
 from src.views.side_nav import NavDestination, SideNav
-from src.views.transactions_table import TransactionsView
+from src.views.transactions_table import TransactionsView, build_filter_chip
 from src.views.update_banner import build_update_banner, check_update_async
 
 
@@ -68,9 +75,36 @@ def _resolve_icon_path() -> str:
 _ICON_PATH = _resolve_icon_path()
 
 
+# Transactions tab modes.
+_TXN_MODE_UPCOMING = "upcoming"
+_TXN_MODE_RECENT = "recent"
+_TXN_MODE_BOTH = "both"
+
+# Upcoming leads: the projection is the product; Recent and the combined
+# ledger are supporting context.
+_TXN_MODE_DEFS: list[tuple[str, str]] = [
+    (_TXN_MODE_UPCOMING, "Upcoming"),
+    (_TXN_MODE_RECENT, "Recent"),
+    (_TXN_MODE_BOTH, "Both"),
+]
+
+
+# A recurring item only counts as a CC payment when, besides matching the
+# card's name, it actually reads like a payment. Without this, a two-word
+# card like "Chase Reserve" (half-keyword threshold = 1) would swallow any
+# item containing just "chase" — a Chase mortgage, for example.
+_PAYMENT_INDICATORS = ("payment", "autopay", "pymt", "pmt", "card", "credit")
+
+
 def _is_matching_cc_recurring(item: RecurringItem, cc_names: set[str]) -> bool:
     """Check if a recurring item matches any of the given credit card names."""
     item_text = f"{item.name} {item.category}".lower()
+    if item.is_credit_card_payment:
+        has_payment_indicator = True
+    else:
+        has_payment_indicator = any(w in item_text for w in _PAYMENT_INDICATORS)
+    if not has_payment_indicator:
+        return False
     for cc_name in cc_names:
         keywords = [w for w in cc_name.split() if len(w) > 2]
         if keywords and sum(1 for kw in keywords if kw in item_text) >= len(keywords) / 2:
@@ -236,21 +270,32 @@ class DashboardView(ft.Column):
         # (DESIGN.md "Flat-By-Default Rule"). Held as an attribute so
         # ⌘2 can move keyboard focus to it on tab switch.
         self._add_one_off_button = self._build_add_one_off_button()
+        # "Upcoming" (projected ledger) vs "Recent" (completed history).
+        # The mode chips swap the tab's title, subtitle, and body without
+        # touching either stateful view, so search/filter state survives
+        # switching back and forth.
+        self.recent_transactions_view = RecentTransactionsView()
+        self._txn_mode = _TXN_MODE_UPCOMING
+        self._txn_tab_title = ft.Text("Upcoming", style=tokens.headline_style(tokens.INK))
+        self._txn_tab_subtitle = ft.Text(
+            "Every projected transaction in this window, newest first, "
+            "grouped by day with running balance.",
+            style=tokens.body_style(tokens.INK_2),
+        )
+        self._txn_mode_row = ft.Row(spacing=8)
+        self._rebuild_txn_mode_chips()
+        self._txn_tab_body = ft.Container(content=self.transactions_view)
         self._transactions_content = ft.Column(
             controls=[
                 ft.Row(
                     [
                         ft.Column(
                             [
-                                ft.Text(
-                                    "Upcoming",
-                                    style=tokens.headline_style(tokens.INK),
-                                ),
-                                ft.Text(
-                                    "Every projected transaction in this window, "
-                                    "grouped by day with running balance.",
-                                    style=tokens.body_style(tokens.INK_2),
-                                ),
+                                # Live region: switching Upcoming/Recent swaps
+                                # this title's text, and assistive tech should
+                                # announce the new mode without refocusing.
+                                ft.Semantics(live_region=True, content=self._txn_tab_title),
+                                self._txn_tab_subtitle,
                             ],
                             spacing=2,
                             expand=True,
@@ -259,8 +304,9 @@ class DashboardView(ft.Column):
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
+                self._txn_mode_row,
                 ft.Container(height=4),
-                self.transactions_view,
+                self._txn_tab_body,
             ],
             spacing=12,
         )
@@ -357,10 +403,16 @@ class DashboardView(ft.Column):
         self._content_area = ft.Stack(
             [
                 ft.Container(
-                    content=ft.Column(
-                        controls=[self._controls_row, self._scroll_area],
-                        spacing=20,
-                        expand=True,
+                    # SelectionArea makes every Text under it selectable, so
+                    # users can copy figures and transaction names out of the
+                    # app (Flutter text is unselectable by default, which
+                    # reads as intentional but isn't).
+                    content=ft.SelectionArea(
+                        content=ft.Column(
+                            controls=[self._controls_row, self._scroll_area],
+                            spacing=20,
+                            expand=True,
+                        ),
                     ),
                     padding=ft.Padding.only(left=32, right=28, top=24, bottom=12),
                     expand=True,
@@ -456,6 +508,11 @@ class DashboardView(ft.Column):
         root view is realised.
         """
         assert isinstance(self.page, ft.Page), "DashboardView must be mounted on a Page"
+        # Idempotent by type: _refresh_accessibility_features runs on every
+        # load_data (initial + each manual refresh), and stacking duplicate
+        # SemanticsService instances would grow page.services unboundedly.
+        if any(type(existing) is type(service) for existing in self.page.services):
+            return
         self.page.services = [*self.page.services, service]
 
     def _start_refresh_display_tick(self) -> None:
@@ -506,16 +563,10 @@ class DashboardView(ft.Column):
             self._cc_accounts = await self.monarch.get_credit_card_accounts(
                 force_refresh=force_refresh
             )
-            # Detect recurring transactions from 90 days of history
-            all_account_ids = [a["id"] for a in self._checking_accounts] + [
-                cc["id"] for cc in self._cc_accounts
-            ]
-            self._set_loading_stage("Loading transactions\u2026")
-            self._txn_history = await self._raw_client.get_transactions(
-                account_ids=all_account_ids, lookback_days=90
-            )
+            await self._load_txn_history(force_refresh)
             self._set_loading_stage("Building forecast\u2026")
             self._recurring_items = detect_recurring(self._txn_history)
+            self.recent_transactions_view.set_transactions(self._txn_history)
 
             # Populate account dropdown
             self.account_dropdown.options = [
@@ -534,6 +585,10 @@ class DashboardView(ft.Column):
                     self._selected_account_id = self._checking_accounts[0]["id"]
                 self.account_dropdown.value = self._selected_account_id
                 _safe_update(self.account_dropdown)
+                # Scope the Recent ledger to the selected checking account.
+                # Unscoped, card-side payment credits sit beside checking
+                # outflows and read as phantom income.
+                self.recent_transactions_view.set_account_filter(self._selected_account_id or "")
 
                 # Update adjustments panel after account is selected
                 self.adjustments_panel.update_recurring_items(
@@ -573,6 +628,7 @@ class DashboardView(ft.Column):
             self.chart_container.content = None
             _safe_update(self.chart_container)
             self.transactions_view.clear()
+            self.recent_transactions_view.clear()
             self.alerts_container.content = None
             _safe_update(self.alerts_container)
             self.cc_info_container.content = None
@@ -580,6 +636,165 @@ class DashboardView(ft.Column):
 
         finally:
             self._set_loading_stage(None)
+
+    def _rebuild_txn_mode_chips(self) -> None:
+        self._txn_mode_row.controls = [
+            build_filter_chip(
+                label=label,
+                value=value,
+                selected=value == self._txn_mode,
+                on_select=self._on_txn_mode_select,
+                sr_prefix="Transactions view",
+            )
+            for value, label in _TXN_MODE_DEFS
+        ]
+        _safe_update(self._txn_mode_row)
+
+    def toggle_txn_mode(self) -> None:
+        """Cycle the Transactions tab through Upcoming, Recent, and Both.
+
+        Exposed so the global Cmd/Ctrl+4 shortcut in ``src/main.py`` can
+        drive the mode switch; the chips themselves are mouse targets.
+        Switches to the Transactions tab first (honoring the
+        unsaved-changes guard) and lands focus in the active mode's
+        search field.
+        """
+        if self._current_nav_index != 1:
+            self.switch_to_tab(1)
+        order = [value for value, _ in _TXN_MODE_DEFS]
+        self._on_txn_mode_select(order[(order.index(self._txn_mode) + 1) % len(order)])
+        self._focus_tab_entry(1)
+
+    def _build_today_divider(self) -> ft.Control:
+        """The break between projected (above) and completed (below) in
+        the Both mode: a hairline interrupted by a coral TODAY marker."""
+
+        def _rule() -> ft.Control:
+            return ft.Container(height=1, bgcolor=tokens.RULE, expand=True)
+
+        def _tick() -> ft.Control:
+            return ft.Container(width=2, height=14, bgcolor=tokens.CORAL)
+
+        return ft.Row(
+            controls=[
+                _rule(),
+                _tick(),
+                ft.Text(
+                    "TODAY",
+                    style=ft.TextStyle(
+                        font_family=tokens.FONT_BODY,
+                        size=11,
+                        weight=ft.FontWeight.W_600,
+                        color=tokens.CORAL_DEEP,
+                        letter_spacing=0.66,
+                        height=1.2,
+                    ),
+                    semantics_label="today, projected transactions above, completed below",
+                ),
+                _tick(),
+                _rule(),
+            ],
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _build_combined_txn_body(self) -> ft.Control:
+        """Both mode: one continuous table. The projected ledger leads
+        (the forecast is the product), then the today break, then
+        recently completed activity newest-first in muted ink — same
+        columns, dulled color, no card chrome. Rebuilt on each mode
+        switch so the two stateful views reparent cleanly."""
+        return ft.Column(
+            controls=[
+                self.transactions_view,
+                self._build_today_divider(),
+                self.recent_transactions_view,
+            ],
+            spacing=16,
+            tight=True,
+        )
+
+    def _on_txn_mode_select(self, value: str) -> None:
+        if self._txn_mode == value:
+            return
+        self._txn_mode = value
+        if value == _TXN_MODE_RECENT:
+            self._txn_tab_title.value = "Recent"
+            self._txn_tab_subtitle.value = (
+                "Completed transactions for the selected checking account, newest first."
+            )
+            self.recent_transactions_view.set_compact(False)
+            self._txn_tab_body.content = self.recent_transactions_view
+        elif value == _TXN_MODE_BOTH:
+            self._txn_tab_title.value = "Ledger"
+            self._txn_tab_subtitle.value = (
+                "Recently completed activity above the today line, projected transactions below it."
+            )
+            self.recent_transactions_view.set_compact(True)
+            self._txn_tab_body.content = self._build_combined_txn_body()
+        else:
+            self._txn_tab_title.value = "Upcoming"
+            self._txn_tab_subtitle.value = (
+                "Every projected transaction in this window, newest first, "
+                "grouped by day with running balance."
+            )
+            self._txn_tab_body.content = self.transactions_view
+        # The Add-One-Off button belongs to the projected ledger; it stays
+        # wherever that ledger is visible.
+        self._add_one_off_button.visible = value in (_TXN_MODE_UPCOMING, _TXN_MODE_BOTH)
+        self._rebuild_txn_mode_chips()
+        for control in (
+            self._txn_tab_title,
+            self._txn_tab_subtitle,
+            self._txn_tab_body,
+            self._add_one_off_button,
+        ):
+            _safe_update(control)
+
+    async def _load_txn_history(self, force_refresh: bool = False) -> None:
+        """Fetch transaction history through the incremental cache.
+
+        Two scoped fetches instead of one broad one: checking accounts get
+        the long DEFAULT_LOOKBACK_DAYS window (recurring detection needs
+        years to prove slow cadences), while credit cards get only
+        CC_HISTORY_DAYS (cycle estimation reads a couple of billing cycles,
+        not history). Cards excluded under Adjustments aren't fetched at
+        all.
+        """
+        checking_ids = [a["id"] for a in self._checking_accounts]
+        excluded = self._prefs.excluded_cc_ids
+        cc_ids = [cc["id"] for cc in self._cc_accounts if cc.get("id", "") not in excluded]
+        history: list[dict] = []
+        if checking_ids:
+            self._set_loading_stage("Loading transactions…")
+            history += await self.monarch.get_transactions(
+                account_ids=checking_ids,
+                lookback_days=DEFAULT_LOOKBACK_DAYS,
+                force_refresh=force_refresh,
+                on_progress=self._on_txn_fetch_progress,
+            )
+        if cc_ids:
+            self._set_loading_stage("Loading card activity…")
+            history += await self.monarch.get_transactions(
+                account_ids=cc_ids,
+                lookback_days=CC_HISTORY_DAYS,
+                force_refresh=force_refresh,
+                on_progress=self._on_txn_fetch_progress,
+            )
+        # Back to the indeterminate spinner for the fast final stages.
+        self.loading.value = None
+        _safe_update(self.loading)
+        self._txn_history = history
+
+    def _on_txn_fetch_progress(self, fetched: int, total: int) -> None:
+        """Per-page progress from the transaction fetch: turn the loading
+        ring determinate and show a count, so the one-time two-year
+        backfill reads as progress rather than a stall."""
+        if total <= 0:
+            return
+        self.loading.value = min(fetched / total, 1.0)
+        _safe_update(self.loading)
+        self._set_loading_stage(f"Loading transactions… {fetched:,} of {total:,}")
 
     def _maybe_show_onboarding(self) -> None:
         """Show a welcome dialog on first launch."""
@@ -610,7 +825,7 @@ class DashboardView(ft.Column):
                     ft.Row(
                         [
                             ft.Icon(ft.Icons.TABLE_CHART, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Transactions: every projected transaction listed"),
+                            ft.Text("Transactions: projected transactions plus recent activity"),
                         ],
                         spacing=12,
                     ),
@@ -662,14 +877,20 @@ class DashboardView(ft.Column):
             cc_settings=self._prefs.cc_billing_settings,
             amount_overrides=self._prefs.cc_amount_overrides,
         )
-        if cc_payments:
-            one_offs.extend(cc_payments)
-            estimated_cc_names = {
-                cc.get("name", "").lower() for cc in self._cc_accounts if cc.get("balance", 0) < 0
-            }
-            recurring = [
-                r for r in recurring if not _is_matching_cc_recurring(r, estimated_cc_names)
-            ]
+        one_offs.extend(cc_payments)
+        # Strip detected recurring CC-payment items only for cards that got
+        # an estimate (double-count risk) or that the user excluded. A card
+        # that produced no estimate keeps its detected autopay item, so the
+        # payment doesn't silently vanish from the forecast.
+        estimated_ids = {p.account_id for p in cc_payments}
+        strip_names = {
+            cc.get("name", "").lower()
+            for cc in self._cc_accounts
+            if cc.get("balance", 0) < 0
+            and (cc.get("id", "") in estimated_ids or cc.get("id", "") in excluded_cc)
+        }
+        if strip_names:
+            recurring = [r for r in recurring if not _is_matching_cc_recurring(r, strip_names)]
 
         self._forecast = build_forecast(
             starting_balance=account["balance"],
@@ -715,7 +936,18 @@ class DashboardView(ft.Column):
         # and dirty indicator on those other cards.
         if not self._dirty_cc_cards:
             self._update_cc_info()
-        self._run_task(self._run_forecast)
+        if included:
+            # Excluded cards aren't fetched, so a re-included card's charge
+            # history may be missing from the cache; pull it before
+            # estimating or the payment falls back to the full balance.
+            self._run_task(self._reinclude_cc_refresh)
+        else:
+            self._run_task(self._run_forecast)
+
+    async def _reinclude_cc_refresh(self) -> None:
+        await self._load_txn_history()
+        self._set_loading_stage(None)
+        await self._run_forecast()
 
     def _update_cc_info(self) -> None:
         """Render the editorial Credit Cards section.
@@ -749,7 +981,7 @@ class DashboardView(ft.Column):
 
             # Auto-detect due day from payment history (only if never set)
             if not due_day and cc_id not in billing:
-                inferred_due = infer_due_day(name, self._txn_history)
+                inferred_due = infer_due_day(name, self._txn_history, cc_id)
                 if inferred_due:
                     due_day = inferred_due
                     # Statement close is ~25 days before due, wrapping around month
@@ -1058,6 +1290,10 @@ class DashboardView(ft.Column):
                     self._show_snackbar("Payment amount must be a number", success=False)
                     self._run_task(self._focus_control, amount_field)
                     return False
+                if not math.isfinite(new_amount):
+                    self._show_snackbar("Payment amount must be a number", success=False)
+                    self._run_task(self._focus_control, amount_field)
+                    return False
                 if new_amount <= 0:
                     self._show_snackbar("Payment amount must be greater than 0", success=False)
                     self._run_task(self._focus_control, amount_field)
@@ -1080,8 +1316,12 @@ class DashboardView(ft.Column):
                 self._prefs.set_cc_billing(cc_id, due_day=new_due, close_day=new_close)
 
             # Persist amount override (or clear it if field was emptied).
+            # The override expires after the next estimated payment date so
+            # a one-statement correction doesn't pin future estimates.
             if new_amount is not None:
-                self._prefs.set_cc_amount_override(cc_id, new_amount)
+                self._prefs.set_cc_amount_override(
+                    cc_id, new_amount, expires_on=self._next_cc_due_date(cc_id)
+                )
             else:
                 self._prefs.clear_cc_amount_override(cc_id)
 
@@ -1408,6 +1648,31 @@ class DashboardView(ft.Column):
                 return cc
         return None
 
+    def _next_cc_due_date(self, cc_id: str) -> date | None:
+        """Best-effort date of the card's next estimated payment.
+
+        Used as the expiry for a manual amount override set from the
+        billing card (where, unlike the per-row edit dialog, no concrete
+        payment row is at hand). Returns None when no estimate exists, in
+        which case the override simply persists until cleared.
+        """
+        cc = next((c for c in self._cc_accounts if c.get("id", "") == cc_id), None)
+        if not cc:
+            return None
+        # Placeholder override: a card with billing settings but no cycle
+        # charges is skipped by the estimator unless an override exists —
+        # which is exactly the card the user is overriding. The placeholder
+        # activates the settings-derived due date; the amount is ignored.
+        payments = estimate_cc_payments(
+            [cc],
+            [],
+            forecast_days=62,
+            transactions=self._txn_history,
+            cc_settings=self._prefs.cc_billing_settings,
+            amount_overrides={cc_id: 1.0},
+        )
+        return payments[0].date if payments else None
+
     def _on_edit_cc_amount_request(self, txn: ForecastTransaction) -> None:
         """Open the amount edit dialog for a credit card payment row."""
         cc = self._find_cc_for_txn(txn)
@@ -1418,7 +1683,10 @@ class DashboardView(ft.Column):
         has_override = cc_id in self._prefs.cc_amount_overrides
 
         def save(new_amount: float) -> None:
-            self._prefs.set_cc_amount_override(cc_id, new_amount)
+            # The override corrects THIS payment; expire it once the
+            # payment date passes so next cycle returns to the computed
+            # estimate instead of pinning a stale manual amount forever.
+            self._prefs.set_cc_amount_override(cc_id, new_amount, expires_on=txn.date)
             # Rebuild the CC section so its "Payment amount" field
             # reflects the new override. Guarded so an in-flight edit on
             # another card doesn't lose its dirty state and pending value.
@@ -1463,17 +1731,18 @@ class DashboardView(ft.Column):
     def _on_edit_recurring_amount_request(self, txn: ForecastTransaction) -> None:
         """Open the amount edit dialog for a recurring transaction row."""
         name = txn.name
-        has_override = name in self._prefs.amount_overrides
+        account_id = txn.account_id
+        has_override = self._prefs.get_amount_override(name, account_id) is not None
         is_expense = txn.amount < 0
 
         def save(new_positive_amount: float) -> None:
             signed = -abs(new_positive_amount) if is_expense else abs(new_positive_amount)
-            self._prefs.set_amount_override(name, signed)
+            self._prefs.set_amount_override(name, signed, account_id=account_id)
             self.adjustments_panel.refresh_override_display()
             self._run_task(self._run_forecast)
 
         def reset() -> None:
-            self._prefs.clear_amount_override(name)
+            self._prefs.clear_amount_override(name, account_id=account_id)
             self.adjustments_panel.refresh_override_display()
             self._run_task(self._run_forecast)
 
@@ -1492,9 +1761,14 @@ class DashboardView(ft.Column):
         self.adjustments_panel.update_recurring_items(
             self._recurring_items, account_id=self._selected_account_id
         )
+        self.recent_transactions_view.set_account_filter(self._selected_account_id or "")
         self._set_loading_stage("Updating forecast\u2026")
         await self._run_forecast()
-        self._update_cc_info()
+        # Skip the CC rebuild while a card has unsaved edits \u2014 rebuilding
+        # would discard the pending TextField values (same guard as
+        # _on_cc_toggle and the edit-dialog paths).
+        if not self._dirty_cc_cards:
+            self._update_cc_info()
         self._set_loading_stage(None)
 
     def _on_days_slider_move(self, e: ft.Event[ft.Slider]) -> None:
@@ -1619,7 +1893,9 @@ class DashboardView(ft.Column):
 
     def trigger_refresh(self) -> None:
         """Kick off a data refresh — the same action as the Refresh nav rail button."""
-        self._run_task(self._on_refresh_action)
+        # Same dirty-CC guard as the nav rail path: a refresh rebuilds the
+        # CC cards, so unsaved billing edits would be silently lost.
+        self._on_refresh_click()
 
     def _show_unsaved_cc_dialog(self) -> None:
         """Warn that the user has unsaved CC billing edits before leaving.
@@ -1655,15 +1931,17 @@ class DashboardView(ft.Column):
 
         def discard(_: ft.Event[ft.TextButton]) -> None:
             self.page.pop_dialog()
-            # Clear dirty state without saving. The fields still show the
-            # edited values, but the dashboard will rebuild them on the
-            # next _update_cc_info (typically after a forecast refresh).
+            # Clear dirty state without saving, then rebuild the CC cards
+            # immediately — otherwise the fields keep showing the discarded
+            # text and re-present it as pending when the user returns to
+            # the Adjustments tab.
             for info in list(self._dirty_cc_cards.values()):
                 indicator = info.get("indicator")
                 if indicator is not None:
                     indicator.visible = False
                     _safe_update(indicator)
             self._dirty_cc_cards.clear()
+            self._update_cc_info()
             self._proceed_pending_nav()
 
         def cancel(_: ft.Event[ft.TextButton]) -> None:
@@ -1706,7 +1984,10 @@ class DashboardView(ft.Column):
             # Land in the search field — primary entry point for
             # keyboard users scanning the ledger. The Add-One-Off button
             # sits one Tab away.
-            target = self.transactions_view.search_field
+            if self._txn_mode == _TXN_MODE_RECENT:
+                target = self.recent_transactions_view.search_field
+            else:
+                target = self.transactions_view.search_field
         elif index == 2:  # Adjustments
             target = self.adjustments_panel._oneoff_name
         if target is not None:
@@ -1845,9 +2126,23 @@ class DashboardView(ft.Column):
 
     async def _on_refresh_action(self) -> None:
         self._set_loading_stage("Syncing banks\u2026")
-        await self.monarch.refresh_accounts()
+        await self.monarch.refresh_accounts(self._forecast_account_ids())
         await self.load_data(force_refresh=True)
         self._set_loading_stage(None)
+
+    def _forecast_account_ids(self) -> list[str] | None:
+        """The accounts the forecast actually consumes: checking accounts
+        plus credit cards (the same set the transaction fetch uses).
+        Scoping the bank sync to these avoids waiting on the slowest
+        institution of accounts the app never reads (investments,
+        mortgages, savings). None before the first load, when the account
+        list isn't known yet, which syncs everything.
+        """
+        excluded = self._prefs.excluded_cc_ids
+        ids = [a["id"] for a in self._checking_accounts] + [
+            cc["id"] for cc in self._cc_accounts if cc.get("id", "") not in excluded
+        ]
+        return ids or None
 
     async def _on_adjustment_change(self) -> None:
         await self._run_forecast()

@@ -27,6 +27,7 @@ Public API:
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import date
 
@@ -409,7 +410,7 @@ def _day_block(
     on_edit_oneoff: Callable[[ForecastTransaction], None] | None,
     on_edit_recurring: Callable[[ForecastTransaction], None] | None,
     is_first: bool,
-) -> tuple[ft.Control | None, float]:
+) -> tuple[ft.Container | None, float]:
     """Build one day-block.
 
     Returns ``(control, running_balance_after_day)`` or ``(None, ...)`` if
@@ -485,6 +486,48 @@ def _column_label(text: str, width: int, *, align_right: bool = False) -> ft.Con
         content=label,
         width=width,
         alignment=ft.Alignment(1, 0) if align_right else ft.Alignment(-1, 0),
+    )
+
+
+def _build_search_field(
+    *,
+    label: str,
+    hint_text: str,
+    on_change: Callable[[ft.Event[ft.TextField]], None],
+    tooltip: str,
+    width: int = 320,
+) -> ft.TextField:
+    """Search input shared by the Upcoming and Recent transaction ledgers.
+
+    Only the copy (label / hint / tooltip) differs between the two ledgers;
+    the paper-and-ink styling is identical, so both build from here.
+    """
+    return ft.TextField(
+        label=label,
+        label_style=ft.TextStyle(
+            font_family=tokens.FONT_BODY,
+            size=12,
+            color=tokens.INK_2,
+        ),
+        hint_text=hint_text,
+        prefix_icon=ft.Icons.SEARCH,
+        on_change=on_change,
+        dense=True,
+        border_color=tokens.RULE,
+        focused_border_color=tokens.CORAL,
+        border_width=1,
+        focused_border_width=2,
+        bgcolor=tokens.PAPER,
+        color=tokens.INK,
+        text_size=13,
+        hint_style=ft.TextStyle(
+            font_family=tokens.FONT_BODY,
+            size=13,
+            color=tokens.INK_3,
+        ),
+        content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+        width=width,
+        tooltip=tooltip,
     )
 
 
@@ -571,8 +614,12 @@ def build_transactions_table(
     today_d = today or date.today()
     blocks: list[ft.Control] = [_ledger_header()]
 
+    # Balances accumulate chronologically, but the ledger DISPLAYS newest
+    # first (checkbook-register order): the furthest projected day leads
+    # and the list reads down toward today — and, in the combined Both
+    # view, straight on into the completed past below the TODAY line.
     running = result.starting_balance
-    rendered_blocks = 0
+    day_blocks: list[ft.Container] = []
     for day in result.days:
         if not day.transactions:
             continue
@@ -585,14 +632,19 @@ def build_transactions_table(
             on_edit_cc,
             on_edit_oneoff,
             on_edit_recurring,
-            is_first=rendered_blocks == 0,
+            is_first=False,
         )
         if block is None:
             continue
-        rendered_blocks += 1
-        blocks.append(block)
+        day_blocks.append(block)
 
-    if rendered_blocks == 0:
+    day_blocks.reverse()
+    if day_blocks:
+        # The header already rules the top edge; the first rendered block
+        # doesn't need its own hairline.
+        day_blocks[0].border = None
+        blocks.extend(day_blocks)
+    else:
         blocks.append(_empty_state(empty_headline, empty_hint))
 
     return ft.Column(controls=blocks, spacing=0, tight=True)
@@ -638,7 +690,7 @@ class _FilterChip(ft.Container):
         super().__init__(
             content=self._label,
             bgcolor=tokens.CORAL_TINT if selected else tokens.PAPER,
-            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
             border_radius=ft.BorderRadius.all(999),  # pill — small, fine in product
             border=ft.Border.all(
                 1,
@@ -662,6 +714,29 @@ class _FilterChip(ft.Container):
             self.update()
         except (RuntimeError, AssertionError):
             pass
+
+
+def build_filter_chip(
+    *,
+    label: str,
+    value: str,
+    selected: bool,
+    on_select: Callable[[str], None],
+    sr_prefix: str = "Filter",
+) -> ft.Control:
+    """A ``_FilterChip`` wrapped in labeled ``Semantics``.
+
+    Chips are Containers, which screen readers don't announce as
+    interactive on Flet desktop; the wrapper carries the accessible name
+    and selection state, mirroring the icon-button contract in
+    AGENTS.md. Chips rebuild on every selection change, so the label's
+    ", selected" suffix stays current.
+    """
+    return ft.Semantics(
+        button=True,
+        label=f"{sr_prefix}: {label}" + (", selected" if selected else ""),
+        content=_FilterChip(label=label, value=value, selected=selected, on_select=on_select),
+    )
 
 
 class TransactionsView(ft.Column):
@@ -688,27 +763,13 @@ class TransactionsView(ft.Column):
         self._forecast: ForecastResult | None = None
         self._search: str = ""
         self._filter: str = _FILTER_ALL
+        self._rebuild_seq = 0  # Debounce token for search-driven rebuilds.
 
         # --- Search input -------------------------------------------------
-        self._search_field = ft.TextField(
+        self._search_field = _build_search_field(
+            label="Search transactions",
             hint_text="Search description",
-            prefix_icon=ft.Icons.SEARCH,
             on_change=self._on_search_change,
-            dense=True,
-            border_color=tokens.RULE,
-            focused_border_color=tokens.CORAL,
-            border_width=1,
-            focused_border_width=2,
-            bgcolor=tokens.PAPER,
-            color=tokens.INK,
-            text_size=13,
-            hint_style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=13,
-                color=tokens.INK_3,
-            ),
-            content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
-            width=320,
             tooltip="Filter transactions by description",
         )
 
@@ -752,7 +813,31 @@ class TransactionsView(ft.Column):
 
     def _on_search_change(self, e: ft.Event[ft.TextField]) -> None:
         self._search = (e.control.value or "").strip().lower()
-        self._rebuild_ledger()
+        self._schedule_ledger_rebuild()
+
+    def _schedule_ledger_rebuild(self) -> None:
+        """Debounce search-driven rebuilds: reconstructing the full ledger
+        per keystroke is wasteful at hundreds of rows. Falls back to an
+        immediate synchronous rebuild when unmounted (tests, teardown)."""
+        self._rebuild_seq += 1
+        seq = self._rebuild_seq
+        try:
+            page = self.page
+        except RuntimeError:
+            page = None
+        if not isinstance(page, ft.Page):
+            self._rebuild_ledger()
+            return
+
+        async def _later() -> None:
+            await asyncio.sleep(0.18)
+            if seq == self._rebuild_seq:
+                self._rebuild_ledger()
+
+        try:
+            page.run_task(_later)
+        except (AssertionError, RuntimeError):
+            self._rebuild_ledger()
 
     def _on_chip_select(self, value: str) -> None:
         if self._filter == value:
@@ -778,7 +863,7 @@ class TransactionsView(ft.Column):
 
     def _rebuild_chips(self) -> None:
         self._chip_row.controls = [
-            _FilterChip(
+            build_filter_chip(
                 label=label,
                 value=value,
                 selected=value == self._filter,

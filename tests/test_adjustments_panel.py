@@ -326,28 +326,81 @@ class TestAdjustedRecurringItems:
 
 class TestOverrideHandlers:
     def test_on_override_change_sets_signed_override(self, recurring_items, prefs):
+        import flet as ft
+
         panel = make_panel(recurring_items, prefs)
-        # Rent is an expense (negative). Override "1800" → -1800.
-        panel._on_override_change("Rent", -1500.0, "1800")
-        assert prefs.amount_overrides["Rent"] == -1800.0
+        rent = recurring_items[0]
+        # Rent is an expense (negative). Override "1800" → -1800, scoped
+        # to Rent's account so a same-named item elsewhere is untouched.
+        panel._on_override_change(rent, ft.TextField(), "1800")
+        assert prefs.get_amount_override("Rent", "acct-A") == -1800.0
+        assert prefs.get_amount_override("Rent", "acct-B") is None
 
     def test_on_override_change_preserves_income_sign(self, recurring_items, prefs):
-        panel = make_panel(recurring_items, prefs)
-        # Salary is income (positive). Override "3500" → 3500.
-        panel._on_override_change("Salary", 3000.0, "3500")
-        assert prefs.amount_overrides["Salary"] == 3500.0
+        import flet as ft
 
-    def test_on_override_change_invalid_clears(self, recurring_items, prefs):
         panel = make_panel(recurring_items, prefs)
-        prefs.set_amount_override("Rent", -1800.0)
-        panel._on_override_change("Rent", -1500.0, "garbage")
-        assert "Rent" not in prefs.amount_overrides
+        salary = recurring_items[1]
+        panel._on_override_change(salary, ft.TextField(), "3500")
+        assert prefs.get_amount_override("Salary", "acct-A") == 3500.0
+
+    def test_on_override_change_accepts_formatted_currency(self, recurring_items, prefs):
+        import flet as ft
+
+        panel = make_panel(recurring_items, prefs)
+        rent = recurring_items[0]
+        # "$2,500.00" used to raise ValueError and silently DELETE the
+        # existing override; it must parse.
+        prefs.set_amount_override("Rent", -1800.0, account_id="acct-A")
+        panel._on_override_change(rent, ft.TextField(), "$2,500.00")
+        assert prefs.get_amount_override("Rent", "acct-A") == -2500.0
+
+    def test_on_override_change_invalid_keeps_override_and_flags_field(
+        self, recurring_items, prefs
+    ):
+        import flet as ft
+
+        panel = make_panel(recurring_items, prefs)
+        rent = recurring_items[0]
+        prefs.set_amount_override("Rent", -1800.0, account_id="acct-A")
+        field = ft.TextField()
+        panel._on_override_change(rent, field, "garbage")
+        assert prefs.get_amount_override("Rent", "acct-A") == -1800.0
+        assert field.error
+
+    def test_on_override_change_rejects_non_finite(self, recurring_items, prefs):
+        import flet as ft
+
+        panel = make_panel(recurring_items, prefs)
+        rent = recurring_items[0]
+        field = ft.TextField()
+        panel._on_override_change(rent, field, "inf")
+        assert prefs.get_amount_override("Rent", "acct-A") is None
+        assert field.error
+
+    def test_on_override_change_empty_clears(self, recurring_items, prefs):
+        import flet as ft
+
+        panel = make_panel(recurring_items, prefs)
+        rent = recurring_items[0]
+        prefs.set_amount_override("Rent", -1800.0, account_id="acct-A")
+        panel._on_override_change(rent, ft.TextField(), "")
+        assert prefs.get_amount_override("Rent", "acct-A") is None
 
     def test_reset_override_clears(self, recurring_items, prefs):
         panel = make_panel(recurring_items, prefs)
+        rent = recurring_items[0]
+        prefs.set_amount_override("Rent", -1800.0, account_id="acct-A")
+        panel._reset_override(rent)
+        assert prefs.get_amount_override("Rent", "acct-A") is None
+
+    def test_reset_override_also_clears_legacy_entry(self, recurring_items, prefs):
+        panel = make_panel(recurring_items, prefs)
+        rent = recurring_items[0]
+        # Override recorded before account scoping existed.
         prefs.set_amount_override("Rent", -1800.0)
-        panel._reset_override("Rent")
-        assert "Rent" not in prefs.amount_overrides
+        panel._reset_override(rent)
+        assert prefs.get_amount_override("Rent", "acct-A") is None
 
 
 class TestExcludeToggle:
@@ -367,8 +420,10 @@ class TestExcludeToggle:
             ft.Event[ft.Checkbox],
             cast(Any, SimpleNamespace(control=SimpleNamespace(value=False))),
         )
-        panel._on_exclude_toggle(event, "Rent")
-        assert "Rent" in prefs.excluded_recurring_names
+        panel._on_exclude_toggle(event, recurring_items[0])
+        assert prefs.is_recurring_excluded("Rent", "acct-A")
+        # Scoped: the same name on another account stays included.
+        assert not prefs.is_recurring_excluded("Rent", "acct-B")
 
     def test_rechecking_removes_from_excluded(self, recurring_items, prefs):
         from types import SimpleNamespace
@@ -382,7 +437,9 @@ class TestExcludeToggle:
             ft.Event[ft.Checkbox],
             cast(Any, SimpleNamespace(control=SimpleNamespace(value=True))),
         )
-        panel._on_exclude_toggle(event, "Rent")
+        panel._on_exclude_toggle(event, recurring_items[0])
+        # Re-including removes the legacy account-agnostic entry too.
+        assert not prefs.is_recurring_excluded("Rent", "acct-A")
         assert "Rent" not in prefs.excluded_recurring_names
 
 

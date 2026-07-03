@@ -191,7 +191,9 @@ class TestMainEntry:
         # The dashboard sets a Flet title, theme_mode, fonts, theme,
         # keyboard handler. Spot-check a few.
         assert "Monarch Forecast" in (page.title or "")
-        assert page.theme_mode == ft.ThemeMode.SYSTEM
+        # LIGHT until the dark token ramp is wired into the views; SYSTEM
+        # would hand dark-OS users ink text on Material's default dark.
+        assert page.theme_mode == ft.ThemeMode.LIGHT
         assert page.fonts is not None
         assert page.theme is not None
         assert page.on_keyboard_event is not None

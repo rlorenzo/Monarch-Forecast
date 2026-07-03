@@ -438,7 +438,10 @@ class SideNav(ft.Container):
         seal = e.control
         seal.scale = ft.Scale(scale=1.04 if is_in else 1.0)
         seal.border = ft.Border.all(1, tokens.CORAL if is_in else "transparent")
-        seal.update()
+        try:
+            seal.update()
+        except (RuntimeError, AssertionError):
+            pass  # Control not mounted yet — first paint will pick it up.
 
     def _on_logo_click(self, _e: ft.Event[ft.Container]) -> None:
         # Logo-as-home: route to the first destination, honouring the

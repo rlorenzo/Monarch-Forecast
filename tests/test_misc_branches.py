@@ -250,3 +250,45 @@ class TestIsMatchingCcRecurring:
         )
         # "a b" filters both out, leaving no keywords.
         assert _is_matching_cc_recurring(item, {"a b"}) is False
+
+
+class TestIsMatchingCcRecurringPaymentIndicator:
+    """The matcher must not strip non-payment items that merely share a
+    word with a card name (e.g. a Chase mortgage vs "Chase Reserve")."""
+
+    def test_same_issuer_non_payment_item_not_matched(self):
+        from src.views.dashboard import _is_matching_cc_recurring
+
+        mortgage = RecurringItem(
+            name="Chase",
+            amount=-2400.0,
+            frequency="monthly",
+            base_date=date(2026, 1, 1),
+            category="Mortgage & Rent",
+        )
+        assert _is_matching_cc_recurring(mortgage, {"chase reserve"}) is False
+
+    def test_payment_categorised_item_matched(self):
+        from src.views.dashboard import _is_matching_cc_recurring
+
+        autopay = RecurringItem(
+            name="Chase",
+            amount=-500.0,
+            frequency="monthly",
+            base_date=date(2026, 1, 1),
+            category="Credit Card Payment",
+        )
+        assert _is_matching_cc_recurring(autopay, {"chase reserve"}) is True
+
+    def test_flagged_cc_payment_item_matched_without_text_indicator(self):
+        from src.views.dashboard import _is_matching_cc_recurring
+
+        flagged = RecurringItem(
+            name="Chase Reserve",
+            amount=-500.0,
+            frequency="monthly",
+            base_date=date(2026, 1, 1),
+            category="Transfer",
+            is_credit_card_payment=True,
+        )
+        assert _is_matching_cc_recurring(flagged, {"chase reserve"}) is True

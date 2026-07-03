@@ -154,3 +154,99 @@ def _find_text_containing(control, needle: str) -> bool:
             if _find_text_containing(value, needle):
                 return True
     return False
+
+
+class TestRunForecastCcStrip:
+    """_run_forecast must strip detected recurring CC-payment items ONLY
+    for cards that produced an estimate or that the user excluded."""
+
+    def _dash(self, patched_session_manager) -> DashboardView:
+        from datetime import date, timedelta
+
+        from src.data.models import RecurringItem
+
+        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash._selected_account_id = "chk1"
+        dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 1000.0}]
+        dash._txn_history = []
+        autopay = RecurringItem(
+            name="Chase Reserve Autopay",
+            amount=-500.0,
+            frequency="monthly",
+            base_date=date.today() - timedelta(days=10),
+            category="Credit Card Payment",
+            account_id="chk1",
+        )
+        dash.adjustments_panel.update_recurring_items([autopay], account_id="chk1")
+        return dash
+
+    def _forecast_names(self, dash: DashboardView) -> list[str]:
+        assert dash._forecast is not None
+        return [t.name for day in dash._forecast.days for t in day.transactions]
+
+    async def test_card_without_estimate_keeps_detected_autopay(self, patched_session_manager):
+        dash = self._dash(patched_session_manager)
+        # Chase Reserve: billing settings but no charges → no estimate.
+        # Amex: no settings → balance-due fallback → estimate emitted.
+        dash._cc_accounts = [
+            {"id": "cc1", "name": "Chase Reserve", "balance": -500.0},
+            {"id": "cc2", "name": "Amex Gold", "balance": -300.0},
+        ]
+        dash._prefs.set_cc_billing("cc1", due_day=15, close_day=20)
+
+        await dash._run_forecast()
+
+        names = self._forecast_names(dash)
+        # The old code stripped the Chase autopay because ANY estimate
+        # existed and the strip set was built from ALL cards — the Chase
+        # payment vanished from the forecast entirely.
+        assert any(n == "Chase Reserve Autopay" for n in names)
+        assert any(n.startswith("Amex Gold Payment") for n in names)
+
+    async def test_estimated_card_strips_matching_autopay(self, patched_session_manager):
+        dash = self._dash(patched_session_manager)
+        dash._cc_accounts = [{"id": "cc1", "name": "Chase Reserve", "balance": -500.0}]
+        # No settings, no matching recurring by name→ falls back to
+        # balance-due estimate → payment emitted → autopay stripped.
+        await dash._run_forecast()
+
+        names = self._forecast_names(dash)
+        assert any(n.startswith("Chase Reserve Payment") for n in names)
+        assert not any(n == "Chase Reserve Autopay" for n in names)
+
+    async def test_excluded_card_strips_matching_autopay(self, patched_session_manager):
+        dash = self._dash(patched_session_manager)
+        dash._cc_accounts = [{"id": "cc1", "name": "Chase Reserve", "balance": -500.0}]
+        dash._prefs.set_cc_excluded("cc1", excluded=True)
+
+        await dash._run_forecast()
+
+        names = self._forecast_names(dash)
+        assert not any(n.startswith("Chase Reserve Payment") for n in names)
+        assert not any(n == "Chase Reserve Autopay" for n in names)
+
+
+class TestNextCcDueDate:
+    async def test_settings_only_card_still_yields_expiry_date(self, patched_session_manager):
+        from datetime import date
+
+        from src.forecast.credit_cards import _next_month_day
+
+        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        # Billing settings but NO charges in history: the estimator skips
+        # such a card unless an override exists, so _next_cc_due_date must
+        # inject a placeholder override to recover the settings due date.
+        dash._cc_accounts = [{"id": "cc1", "name": "Chase Reserve", "balance": -500.0}]
+        dash._txn_history = []
+        dash._prefs.set_cc_billing("cc1", due_day=15, close_day=20)
+
+        due = dash._next_cc_due_date("cc1")
+        assert due is not None
+        assert due.day == 15
+        assert due >= date.today()
+        assert due == _next_month_day(date.today(), 15) or due > date.today()
+
+    async def test_unknown_card_returns_none(self, patched_session_manager):
+        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash._cc_accounts = []
+        assert dash._next_cc_due_date("nope") is None

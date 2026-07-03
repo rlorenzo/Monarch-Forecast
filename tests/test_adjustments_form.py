@@ -131,11 +131,19 @@ class TestAddOneOffFormSuccess:
     def test_adds_income_when_type_dropdown_set(self, panel):
         panel._oneoff_name.value = "Tax refund"
         panel._oneoff_amount.value = "500"
-        panel._oneoff_date_display.value = "2026-04-15"
+        panel._oneoff_date_display.value = (date.today() + timedelta(days=30)).isoformat()
         panel._oneoff_type.value = "income"
         panel._add_one_off(MagicMock())
         txn = panel.one_off_transactions[0]
         assert txn.amount == 500.0  # positive
+
+    def test_typed_past_date_rejected(self, panel):
+        panel._oneoff_name.value = "Backdated"
+        panel._oneoff_amount.value = "50"
+        panel._oneoff_date_display.value = (date.today() - timedelta(days=30)).isoformat()
+        panel._add_one_off(MagicMock())
+        assert panel.one_off_transactions == []
+        assert panel._oneoff_error.value == "Date must be today or later."
 
     def test_unparseable_date_falls_back_to_picked_date(self, panel):
         panel._oneoff_name.value = "Test"
