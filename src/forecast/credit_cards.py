@@ -153,11 +153,16 @@ def _estimate_from_cycle(
     # A payment due TODAY is still upcoming (strict <, not <=): the
     # forecast starts from today's balance, and treating a due-today
     # payment as already gone silently drops it from the checkbook on the
-    # one morning it matters most. Separately, if a payment credit has
-    # actually posted on the card since the statement closed, the
-    # statement IS settled — regardless of whether the due date has
-    # passed — so move on to the next cycle instead of double-billing.
-    if next_due < today or _statement_already_paid(cc_id, transactions, last_close, today):
+    # one morning it matters most. Separately, payments that have posted
+    # on the card since the statement closed count against the statement
+    # amount-aware: fully settled statements move on to the next cycle,
+    # while a PARTIAL payment leaves the unpaid remainder billed on the
+    # upcoming due date instead of vanishing until next cycle.
+    stmt_amount = _sum_cc_charges(cc_id, transactions, prev_close, last_close)
+    paid_since_close = _sum_payment_credits(cc_id, transactions, last_close, today)
+    statement_settled = stmt_amount > 0 and paid_since_close >= stmt_amount - 0.01
+
+    if next_due < today or statement_settled:
         # Look at the NEXT cycle: (last_close, next_close]
         next_close = _next_month_day(last_close, close_day)
         cycle_start = last_close
@@ -165,7 +170,8 @@ def _estimate_from_cycle(
         next_due = _next_month_day(next_close, due_day)
         label = "partial" if next_close > today else "stmt"
     else:
-        # Due date is still upcoming — try the last closed cycle first
+        # Due date is still upcoming — bill the last closed statement,
+        # net of any partial payments already made against it.
         cycle_start = prev_close
         cycle_end = last_close
         label = "stmt"
@@ -174,6 +180,8 @@ def _estimate_from_cycle(
         return None
 
     amount = _sum_cc_charges(cc_id, transactions, cycle_start, cycle_end)
+    if label == "stmt" and cycle_end == last_close:
+        amount = max(amount - paid_since_close, 0.0)
 
     # If the closed cycle has no charges, check the open (next) cycle
     if amount == 0 and label == "stmt":
@@ -266,16 +274,14 @@ _PAYMENT_CREDIT_WORDS = (
 )
 
 
-def _statement_already_paid(
-    cc_id: str, transactions: list[dict], last_close: date, today: date
-) -> bool:
-    """True when a payment credit posted on the card in (last_close, today].
+def _sum_payment_credits(cc_id: str, transactions: list[dict], start: date, end: date) -> float:
+    """Total payment credits posted on the card in (start, end].
 
-    Payments made between statement close and the due date settle the
-    statement that just closed. One caveat, accepted for simplicity: any
-    payment-like credit in the window counts, so a deliberate partial
-    payment also suppresses the forecast row for that cycle.
+    Payments made between statement close and the due date count against
+    the statement that just closed — amount-aware, so a partial payment
+    reduces (rather than suppresses) the forecast for that statement.
     """
+    total = 0.0
     for txn in transactions:
         if (txn.get("account") or {}).get("id", "") != cc_id:
             continue
@@ -288,9 +294,9 @@ def _statement_already_paid(
             txn_date = date.fromisoformat(txn["date"][:10])
         except (ValueError, TypeError, KeyError):
             continue
-        if last_close < txn_date <= today:
-            return True
-    return False
+        if start < txn_date <= end:
+            total += amount
+    return total
 
 
 def _is_payment_credit(txn: dict) -> bool:

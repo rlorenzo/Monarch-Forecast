@@ -661,6 +661,11 @@ class DashboardView(ft.Column):
         """
         if self._current_nav_index != 1:
             self.switch_to_tab(1)
+            if self._current_nav_index != 1:
+                # The switch was deferred by the unsaved-changes dialog;
+                # don't rotate the mode behind it — canceling the dialog
+                # must leave all navigation state untouched.
+                return
         order = [value for value, _ in _TXN_MODE_DEFS]
         self._on_txn_mode_select(order[(order.index(self._txn_mode) + 1) % len(order)])
         self._focus_tab_entry(1)
@@ -945,7 +950,16 @@ class DashboardView(ft.Column):
             self._run_task(self._run_forecast)
 
     async def _reinclude_cc_refresh(self) -> None:
-        await self._load_txn_history()
+        """Pull fresh history when a card rejoins the forecast.
+
+        force_refresh bypasses the cache-freshness window so the card's
+        charges come from Monarch's current snapshot (checking re-fetches
+        only its cheap delta). Known limit: while excluded, the card got
+        no bank-side syncs from us, so Monarch's data is as fresh as its
+        own daily institution sync until the user's next manual refresh —
+        acceptable against blocking a checkbox toggle on a 60s bank sync.
+        """
+        await self._load_txn_history(force_refresh=True)
         self._set_loading_stage(None)
         await self._run_forecast()
 

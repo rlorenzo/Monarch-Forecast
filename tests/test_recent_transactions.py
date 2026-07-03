@@ -377,9 +377,29 @@ class TestBothMode:
     def test_cycle_covers_all_modes(self, patched_session_manager, monkeypatch):
         dash = self._dashboard(patched_session_manager)
         monkeypatch.setattr(dash, "_focus_tab_entry", lambda i: None)
-        monkeypatch.setattr(dash, "switch_to_tab", lambda i: None)
+        # Already on the Transactions tab: the toggle only cycles when no
+        # tab switch is needed (a blocked switch must not rotate the mode).
+        dash._current_nav_index = 1
         seen = [dash._txn_mode]
         for _ in range(3):
             dash.toggle_txn_mode()
             seen.append(dash._txn_mode)
         assert seen == ["upcoming", "recent", "both", "upcoming"]
+
+
+class TestToggleGuard:
+    def test_mode_does_not_rotate_when_tab_switch_is_blocked(
+        self, patched_session_manager, monkeypatch
+    ):
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        assert dash._current_nav_index == 0  # Overview
+        dash._dirty_cc_cards = {"cc1": {"name": "Card"}}
+        monkeypatch.setattr(dash, "_show_unsaved_cc_dialog", lambda: None)
+        before = dash._txn_mode
+        dash.toggle_txn_mode()
+        # switch_to_tab deferred behind the unsaved-changes dialog: the
+        # sub-mode must not rotate behind the user's back.
+        assert dash._txn_mode == before
+        assert dash._current_nav_index == 0

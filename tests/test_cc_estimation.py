@@ -605,3 +605,40 @@ class TestDueTodayAndAlreadyPaid:
         assert len(payments) == 1
         assert payments[0].date == date(2026, 7, 10)
         assert payments[0].amount == -500.0
+
+
+class TestPartialPayments:
+    """Codex review finding: a partial payment must reduce the forecast
+    to the unpaid remainder, not suppress the statement entirely."""
+
+    def test_partial_payment_bills_the_remainder(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-800.0, date(2026, 6, 10)),  # statement (May 15, Jun 15]
+            _on_card_payment(300.0, date(2026, 6, 18)),  # partial
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -500.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == date(2026, 7, 10)
+        assert payments[0].amount == -500.0  # 800 charged, 300 already paid
+
+    def test_overpayment_settles_statement(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-800.0, date(2026, 6, 10)),
+            _on_card_payment(900.0, date(2026, 6, 18)),
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -0.01)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert all(p.date != date(2026, 7, 10) for p in payments)
