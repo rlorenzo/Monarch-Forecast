@@ -429,3 +429,44 @@ class TestLongCadences:
         items = detect_recurring(txns)
         assert len(items) == 1
         assert items[0].frequency == "yearly"
+
+
+class TestIntervalConsistency:
+    """A median inside a band is not a schedule unless the intervals
+    cluster around it."""
+
+    def test_renamed_descriptor_scatter_is_not_quarterly(self):
+        # Real report: a $1 monthly subscription whose bank descriptor was
+        # renamed partway through history left four same-named rows with
+        # gaps of [30, 91, 305] days — median 91, squarely "quarterly".
+        today = date.today()
+        offsets = [433, 342, 37, 7]  # produces gaps of 91, 305, 30 days
+        txns = [_txn("Subscription Withdrawal", -1.0, today - timedelta(days=o)) for o in offsets]
+        assert detect_recurring(txns) == []
+
+    def test_monthly_with_one_skip_still_clusters(self):
+        today = date.today()
+        txns = [
+            _txn("Gym", -45.0, today - timedelta(days=120)),
+            _txn("Gym", -45.0, today - timedelta(days=90)),
+            _txn("Gym", -45.0, today - timedelta(days=30)),  # one month missed
+            _txn("Gym", -45.0, today),
+        ]
+        items = detect_recurring(txns)
+        assert len(items) == 1
+        assert items[0].frequency == "monthly"
+
+    def test_mercury_pattern_with_midterm_adjustment(self):
+        # Semiannual premiums 188/181 days apart plus a small mid-term
+        # adjustment: the outlier amount drops out, the gaps cluster.
+        today = date.today()
+        txns = [
+            _txn("Mercury Insurance", -1755.76, today - timedelta(days=369)),
+            _txn("Mercury Insurance", -89.0, today - timedelta(days=306)),
+            _txn("Mercury Insurance", -1844.76, today - timedelta(days=181)),
+            _txn("Mercury Insurance", -1844.76, today),
+        ]
+        items = detect_recurring(txns)
+        assert len(items) == 1
+        assert items[0].frequency == "semiannual"
+        assert items[0].amount == -1844.76

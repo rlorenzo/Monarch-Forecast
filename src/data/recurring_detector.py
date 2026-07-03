@@ -253,6 +253,17 @@ def _detect_frequency(dates: list[date]) -> str | None:
     intervals = sorted((dates[i + 1] - dates[i]).days for i in range(len(dates) - 1))
     typical = median(intervals)
 
+    # A band only counts if the intervals actually cluster around the
+    # median. Four sightings of a bank descriptor that got renamed midway
+    # ("Subscription" vs "Subscription Withdrawal") sat [30, 91, 305] days
+    # apart: the median lands squarely in the quarterly band while
+    # describing no schedule at all. Require a majority of intervals
+    # within ±35% of the median (small absolute floor for weekly jitter).
+    tolerance = max(typical * 0.35, 4)
+    near = [i for i in intervals if abs(i - typical) <= tolerance]
+    if len(near) < (len(intervals) + 1) // 2:
+        return None
+
     # Weekly: ~7 days
     if 5 <= typical <= 9:
         return "weekly"
