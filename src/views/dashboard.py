@@ -733,7 +733,8 @@ class DashboardView(ft.Column):
         elif value == _TXN_MODE_BOTH:
             self._txn_tab_title.value = "Ledger"
             self._txn_tab_subtitle.value = (
-                "Recently completed activity above the today line, projected transactions below it."
+                "One timeline, newest first: projected transactions on top, "
+                "completed activity dulled below the today line."
             )
             self.recent_transactions_view.set_compact(True)
             self._txn_tab_body.content = self._build_combined_txn_body()

@@ -333,8 +333,8 @@ class RecentTransactionsView(ft.Column):
         # phantom income next to checking outflows.
         self._account_id: str = ""
         # Compact mode (used inside the combined Both ledger): filter strip
-        # hidden, days oldest-first so the page reads chronologically into
-        # the today line.
+        # hidden and rows muted; order stays newest-first so the ledger
+        # reads down from the projected section through the today line.
         self._compact = False
         self._rebuild_seq = 0  # Debounce token for search-driven rebuilds.
         self._cutoff_date: date = date.today() - timedelta(days=int(self._period))
