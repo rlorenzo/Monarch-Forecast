@@ -1,0 +1,8 @@
+{
+  "threshold": 0,
+  "minTokens": 70,
+  "reporters": ["console"],
+  "format": ["python"],
+  "gitignore": true,
+  "ignore": ["**/__pycache__/**"]
+}

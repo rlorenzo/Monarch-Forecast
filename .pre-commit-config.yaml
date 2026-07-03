@@ -36,3 +36,12 @@ repos:
         types: [python]
         pass_filenames: false
         verbose: true
+      - id: jscpd
+        name: jscpd (copy-paste detection)
+        entry: jscpd
+        args: [src]
+        language: node
+        additional_dependencies: ["jscpd@5.0.11"]
+        types: [python]
+        pass_filenames: false
+        verbose: true
