@@ -98,6 +98,56 @@ class TestTooltipBuilder:
         assert "+3 more" in text
 
 
+def _make_windowed_forecast(days_out: int) -> ForecastResult:
+    """A bare balance-only forecast spanning ``days_out`` days.
+
+    Uses ``timedelta`` (unlike ``tests.factories.make_forecast``, which
+    overflows past January because it adds directly to the day-of-month)
+    so this works for windows longer than a month, e.g. the default 45-day
+    view.
+    """
+    start = date(2026, 1, 1)
+    days = [
+        ForecastDay(date=start + timedelta(days=i), starting_balance=1000.0, transactions=[])
+        for i in range(days_out)
+    ]
+    return ForecastResult(days=days, starting_balance=1000.0, safety_threshold=500.0)
+
+
+class TestChartAxisLabels:
+    """Regression: the final day must always get an x-axis label.
+
+    ``label_interval = total_days // 6`` rarely divides total_days evenly
+    (44 // 6 == 7 for a 45-day window, and 44 % 7 != 0), so the old
+    modulo-only placement left the forecast's last day unlabeled at every
+    common window size.
+    """
+
+    def test_last_day_always_labeled_at_default_window(self):
+        forecast = _make_windowed_forecast(45)
+        chart = build_forecast_chart(forecast)
+        assert chart.bottom_axis is not None
+        total_days = (forecast.days[-1].date - forecast.days[0].date).days
+        values = [lbl.value for lbl in chart.bottom_axis.labels]
+        assert values.count(total_days) == 1
+        last_label = chart.bottom_axis.labels[values.index(total_days)]
+        label_text = last_label.label
+        assert isinstance(label_text, ft.Text)
+        assert label_text.value == forecast.days[-1].date.strftime("%b %d")
+
+    def test_no_crowded_label_immediately_before_the_end(self):
+        forecast = _make_windowed_forecast(45)
+        chart = build_forecast_chart(forecast)
+        assert chart.bottom_axis is not None
+        values = sorted(lbl.value for lbl in chart.bottom_axis.labels)
+        total_days = values[-1]
+        label_interval = max(total_days // 6, 1)
+        second_last = values[-2]
+        # A regular-interval label within half an interval of the end
+        # would crowd the always-shown final label, so it's dropped.
+        assert total_days - second_last >= label_interval / 2
+
+
 # ---------------------------------------------------------------------------
 # Credit-card estimator branches
 # ---------------------------------------------------------------------------
@@ -317,6 +367,17 @@ class TestSideNavLogo:
         _m(nav._on_logo_hover)(SimpleNamespace(data="false", control=seal))
         scale = seal.scale
         assert scale is not None and getattr(scale, "scale", 1.0) == 1.0
+
+    def test_logo_hover_unmounted_does_not_raise(self):
+        """``seal`` is a real, never-mounted Container here (``update`` is
+        NOT stubbed) — ``update()`` raises ``RuntimeError`` on an unmounted
+        control, and the handler must swallow that the same way its sibling
+        methods (``refresh_display``, ``_repaint_destinations``) do."""
+        nav = _make_side_nav(icon_path="data:image/png;base64,XX")
+        seal = nav._logo_seal
+        assert seal is not None
+        nav._on_logo_hover(_m(SimpleNamespace(data="true", control=seal)))
+        assert seal.scale is not None and getattr(seal.scale, "scale", 1.0) > 1.0
 
     def test_logo_click_routes_to_first_destination(self):
         picked: list[int] = []

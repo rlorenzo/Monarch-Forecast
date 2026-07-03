@@ -24,16 +24,16 @@ uv run ty check                      # type check (blocking; zero diagnostics ex
 - **`src/forecast/`**: Core engine (`engine.py`) projects balance day-by-day. Credit card payment estimation (`credit_cards.py`) lives here because it's forecast logic, not raw data fetching. Output models in `models.py` (`ForecastDay`, `ForecastResult`).
 - **`src/views/`**: Flet UI components: dashboard (tabbed: Overview/Transactions/Adjustments), chart (`flet-charts` `LineChart`), alerts, adjustments panel (ExpansionTile), transactions table, update banner.
 - **`src/data/preferences.py`**: JSON-backed user preferences (excluded items, CC selections, overrides, account selection). Stored at `~/.monarch-forecast/preferences.json`.
-- **`src/data/recurring_detector.py`**: Detects recurring transactions from 90 days of history (replaces Monarch's recurring API).
+- **`src/data/recurring_detector.py`**: Detects recurring transactions from 750 days of history (replaces Monarch's recurring API; the window fits two occurrences of a yearly renewal, and `cached_client.py` refreshes it incrementally).
 - **`src/utils/`**: Date recurrence calculations (`date_helpers.py`), GitHub release update checker (`updater.py`).
 
 ## Key conventions
 
-- **Python 3.10+**. When a dataclass field name would shadow a type name, always use a qualified/aliased type such as `_dt.date` (see `src/views/alerts.py::Alert.date`). `from __future__ import annotations` alone is not enough: it postpones evaluation, but decorators like `@dataclass` and runtime resolvers (`typing.get_type_hints()`) still look the name up in the class namespace where the field default has already shadowed it.
+- **Python 3.12+**. When a dataclass field name would shadow a type name, always use a qualified/aliased type such as `_dt.date` (see `src/views/alerts.py::Alert.date`). `from __future__ import annotations` alone is not enough: it postpones evaluation, but decorators like `@dataclass` and runtime resolvers (`typing.get_type_hints()`) still look the name up in the class namespace where the field default has already shadowed it.
 - **Flet 0.85 API**: Charts use `LineChart` from `flet-charts` (`from flet_charts import LineChart`), NOT `MatplotlibChart` (which has canvas manager bugs). Use `ft.Border.all()` not `ft.border.all()`. Dialogs: `page.show_dialog()` / `page.pop_dialog()`, not `page.open()` / `page.close()`.
 - **Imports**: `src` is the package root. Use `from src.data.preferences import ...` style. isort configured with `known-first-party = ["src"]`.
 - **Line length**: 100 characters.
-- **Pre-commit hooks**: ruff check (with `--fix`), ruff format, and ty (strict: any diagnostic blocks the commit). Hooks run automatically on commit.
+- **Pre-commit hooks**: ruff check (with `--fix`), ruff format, ty (strict: any diagnostic blocks the commit), vulture (dead code), tach (module boundaries), bandit (security), and jscpd (copy-paste detection over `src`). Hooks run automatically on commit. jscpd runs in an isolated pre-commit `node` env, so no Node dependency lands in the project.
 - **Flet event handlers use `ft.Event[SpecificControl]`, not the legacy `ft.ControlEvent`.** Strongly-typed event generics (added in 0.84, still the convention in 0.85). Use `ft.Event[ft.TextField]`, `ft.Event[ft.Button]`, `ft.Event[ft.Dropdown]`, etc. so `e.control.value` and similar narrow correctly. `ft.ControlEvent` is `Event[BaseControl]` and will trigger `unresolved-attribute` on anything specific.
 - **`page.run_task` is only on `ft.Page`, not `ft.BasePage`.** `BaseControl.page` is typed as `Page | BasePage`, so you need to narrow before calling `run_task`/`register_service`/etc. `DashboardView` has `_run_task` and `_register_service` helpers that `assert isinstance(self.page, ft.Page)`. Dialog helpers that take `page` accept `ft.Page | ft.BasePage` and use `isinstance` narrowing internally.
 - **Flet services attach via `page.services = [...]`, not `page.register_service(...)`.** The latter doesn't exist; use list assignment against the root view's service list.
@@ -51,7 +51,7 @@ This app ships with screen-reader, keyboard-only, text-scaling, and high-contras
 - **Dialogs must be Escape-dismissable.** The global handler is in `src/main.py` on `page.on_keyboard_event`; don't swallow Escape inside a dialog. Primary action buttons should carry `autofocus=True` (or the dialog's first TextField should) so focus enters the modal.
 - **Chart changes must update `build_forecast_chart_summary()`** in `src/views/chart.py`: that function produces the text alternative used by the `ft.Semantics(label=..., container=True)` wrapper around the chart. The Transactions tab is also a complete text equivalent; when changing the chart, consider whether the summary needs to mention new information.
 - **Alerts are a live region.** `build_alerts_banner` in `src/views/alerts.py` returns `ft.Semantics(live_region=True, ...)`; new alert types must be added via the same builder so they're announced automatically.
-- **Global keyboard shortcuts** live in `src/main.py` (`page.on_keyboard_event`): `Esc` closes dialogs, `Cmd/Ctrl+R` refreshes, `Cmd/Ctrl+1/2/3` switches dashboard tabs. Add new shortcuts here, not in individual views, and dispatch through public methods on `DashboardView` (`switch_to_tab`, `trigger_refresh`). Don't synthesise ControlEvents.
+- **Global keyboard shortcuts** live in `src/main.py` (`page.on_keyboard_event`): `Esc` closes dialogs, `Cmd/Ctrl+R` refreshes, `Cmd/Ctrl+1/2/3` switches dashboard tabs, `Cmd/Ctrl+4` cycles the Transactions tab through Upcoming, Recent, and Both. Add new shortcuts here, not in individual views, and dispatch through public methods on `DashboardView` (`switch_to_tab`, `trigger_refresh`, `toggle_txn_mode`). Don't synthesise ControlEvents.
 - **Date fields accept typed input.** Use `_parse_date_input()` in `src/views/adjustments.py` (accepts `YYYY-MM-DD`, `Jan 05, 2026`, `01/05/2026`) so keyboard users aren't forced into the calendar popover. Pair every date TextField with an adjacent `ft.IconButton(icon=Icons.CALENDAR_MONTH, ...)` (wrapped in Semantics) for mouse users.
 - **Reduce motion:** the chart takes a `reduce_motion` kwarg. Read `DashboardView._reduce_motion` (populated best-effort from `SemanticsService.get_accessibility_features()` in `_refresh_accessibility_features`) and pass it through.
 - **Tab switching focuses content.** `DashboardView._focus_tab_entry()` focuses the first meaningful control when a tab becomes active (account dropdown / add-one-off button / description field). New tabs should extend that mapping.
@@ -69,13 +69,14 @@ User-facing documentation of the accessibility contract lives in the "Accessibil
 
 ## CI/CD
 
-- **CI** (`ci.yml`): lint, type-check, test on push to main and all PRs. Uses `uv`.
+- **CI** (`ci.yml`): lint, type-check, dead-code (vulture), module boundaries (tach), security (semgrep), copy-paste detection (jscpd, via `npx`), and test on push to main and all PRs. Uses `uv` (jscpd is the one Node-based job).
 - **Build** (`build.yml`): triggered by `v*` tags or manual dispatch. Builds macOS/Windows/Linux desktop apps via `flet build`. Creates draft GitHub release.
 - **Versioning**: `pyproject.toml` is the source of truth. `updater.py` reads it via `importlib.metadata.version()` at runtime. **When bumping `version`, run `uv sync` in the same commit so `uv.lock` doesn't drift.** The 1.0.2 release commit missed this step and the lockfile lagged a release behind until 1.0.3.
 
 ## Common pitfalls
 
 - The `TCH` ruff rule is intentionally ignored. Moving imports into `TYPE_CHECKING` blocks breaks Flet at runtime.
+- **jscpd** (`.jscpd.json`) runs at `minTokens: 70` with `threshold: 0` over `src`. The 70-token floor (above jscpd's default of 50) is deliberate: declarative Flet UI produces many coincidental sub-70-token look-alikes that are not real copy-paste, and a 50-token floor flags ~14 such false positives. Fix genuine duplication rather than raising the floor. The config is JSON so it cannot carry inline comments; this note is the rationale.
 - `ty` is configured to block on every diagnostic (errors and warnings). The codebase is expected to run clean with zero findings. If Flet's stubs genuinely regress, open an upstream ticket on `flet-dev/flet` before demoting a rule in `[tool.ty.rules]`. The only rule currently demoted today is `unresolved-import` for optional runtime imports.
 - `requirements.txt` exists only for build workflow fallback. Always use `uv sync` for local development.
 - Local data is stored in `~/.monarch-forecast/` (session, cache SQLite DB, preferences).

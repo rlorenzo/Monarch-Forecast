@@ -114,6 +114,39 @@ class TestNoUpdate:
 
             assert check_for_update() is None
 
+    def test_returns_none_when_tag_name_is_null(self, monkeypatch):
+        """A well-formed response can carry an explicit JSON null for
+        tag_name (key present, value null) rather than an absent key or
+        empty string. That must not raise AttributeError from `.lstrip`
+        on None, and must honor the return-None-on-failure contract."""
+        _patch_version(monkeypatch, "0.1.0")
+        payload = {"tag_name": None, "assets": [], "html_url": None, "body": None}
+        with patch("src.utils.updater.urlopen", return_value=_mock_response(payload)):
+            from src.utils.updater import check_for_update
+
+            assert check_for_update() is None
+
+    def test_null_assets_falls_back_to_html_url(self, monkeypatch):
+        """assets can be an explicit JSON null instead of an empty list or
+        absent key. _find_platform_asset must not be handed None (which
+        would raise TypeError iterating it), and download_url must fall
+        back to html_url."""
+        _patch_version(monkeypatch, "0.1.0")
+        payload = {
+            "tag_name": "v0.2.0",
+            "body": None,
+            "html_url": "https://github.com/owner/repo/releases/tag/v0.2.0",
+            "assets": None,
+        }
+        with patch("src.utils.updater.urlopen", return_value=_mock_response(payload)):
+            from src.utils.updater import check_for_update
+
+            result = check_for_update()
+        assert result is not None
+        assert result["version"] == "0.2.0"
+        assert result["download_url"] == "https://github.com/owner/repo/releases/tag/v0.2.0"
+        assert result["release_notes"] == ""
+
     def test_returns_none_when_version_unknown(self, monkeypatch):
         # Simulates run-from-source mode (no installed metadata).
         _patch_version(monkeypatch, "0.0.0", known=False)

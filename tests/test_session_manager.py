@@ -61,6 +61,24 @@ class TestCredentials:
         sm.clear_credentials()  # should not raise
 
 
+class TestSessionDirPermissions:
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
+    @patch("src.auth.session_manager.keyring")
+    def test_tightens_perms_on_preexisting_loose_dir(self, mock_keyring, tmp_session, tmp_path):
+        """SESSION_DIR.mkdir(mode=0o700) only applies the mode on creation;
+        if the directory already existed with looser perms (e.g. a stale
+        run under a looser umask), the constructor must chmod it down to
+        0o700 rather than leaving it as-is."""
+        import stat as _stat
+
+        tmp_path.chmod(0o755)
+
+        SessionManager()
+
+        mode = _stat.S_IMODE(tmp_path.stat().st_mode)
+        assert mode == 0o700, f"expected 0o700, got {oct(mode)}"
+
+
 class TestSessionRestore:
     @patch("src.auth.session_manager.keyring")
     async def test_restore_no_session_file(self, mock_keyring, tmp_session):

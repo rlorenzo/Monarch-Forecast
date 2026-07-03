@@ -139,19 +139,31 @@ def build_forecast_chart(
         )
         data_series.append(threshold_series)
 
-    # X-axis labels
+    # X-axis labels. The final day always gets a label — with an interval
+    # that rarely divides evenly into total_days, the modulo-only approach
+    # left the forecast's end date unlabeled — and a regular-interval label
+    # that would land within half an interval of the end is dropped so it
+    # doesn't crowd the final label.
     total_days = (result.days[-1].date - start_date).days
     label_interval = max(total_days // 6, 1)
     x_labels = []
     for day in result.days:
         day_offset = (day.date - start_date).days
-        if day_offset % label_interval == 0:
+        if day_offset == total_days:
+            continue
+        if day_offset % label_interval == 0 and total_days - day_offset >= label_interval / 2:
             x_labels.append(
                 ChartAxisLabel(
                     value=day_offset,
                     label=ft.Text(day.date.strftime("%b %d"), size=12),
                 )
             )
+    x_labels.append(
+        ChartAxisLabel(
+            value=total_days,
+            label=ft.Text(result.days[-1].date.strftime("%b %d"), size=12),
+        )
+    )
 
     all_balances = [d.ending_balance for d in result.days]
     min_bal = min(all_balances)

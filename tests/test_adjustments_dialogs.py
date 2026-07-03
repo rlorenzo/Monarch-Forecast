@@ -14,7 +14,7 @@ inspect ``error_text.value`` afterward.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -321,7 +321,8 @@ class TestAddOneOffDialog:
         _page, dialog, saves = self._setup()
         _field(dialog, "DESCRIPTION").value = "Tax refund"
         _field(dialog, "AMOUNT").value = "1500"
-        _field(dialog, "DATE").value = "2026-04-15"
+        future = date.today() + timedelta(days=30)
+        _field(dialog, "DATE").value = future.isoformat()
         # Flip the Type dropdown to income.
         for c in _walk(dialog):
             if isinstance(c, ft.Dropdown) and c.label == "TYPE":
@@ -330,7 +331,7 @@ class TestAddOneOffDialog:
         save = _find_action_on_click(dialog, "Add transaction")
         assert save is not None
         _click(save)
-        assert saves == [("Tax refund", 1500.0, date(2026, 4, 15), False)]
+        assert saves == [("Tax refund", 1500.0, future, False)]
 
 
 # ---------------------------------------------------------------------------
@@ -370,11 +371,12 @@ class TestEditOneOffDialog:
         page, dialog, saves = self._setup()
         _field(dialog, "DESCRIPTION").value = "Renamed"
         _field(dialog, "AMOUNT").value = "250"
-        _field(dialog, "DATE").value = "2026-07-01"
+        future = date.today() + timedelta(days=14)
+        _field(dialog, "DATE").value = future.isoformat()
         save = _find_action_on_click(dialog, "Save")
         assert save is not None
         _click(save)
-        assert saves == [("Renamed", 250.0, date(2026, 7, 1))]
+        assert saves == [("Renamed", 250.0, future)]
         page.pop_dialog.assert_called_once()
 
     def test_empty_description_rejected(self):

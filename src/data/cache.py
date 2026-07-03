@@ -19,6 +19,14 @@ class DataCache:
 
     def __init__(self, db_path: Path = CACHE_DB) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # mode= on mkdir only applies when the directory is created; if it
+        # already existed (e.g. from a looser umask on a prior run) it keeps
+        # whatever perms it had. Tighten explicitly so we don't silently
+        # leave a group/world-readable cache directory.
+        try:
+            db_path.parent.chmod(0o700)
+        except OSError:
+            pass
         # Idempotent pre-create at 0o600 so there's no umask-default
         # window where sqlite3.connect() creates the file with loose
         # perms. Only run this path when O_NOFOLLOW is available: without
@@ -101,6 +109,12 @@ class DataCache:
             "INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)",
             (key, json.dumps(value), expires_at.isoformat()),
         )
+        self._conn.commit()
+
+    def delete(self, key: str) -> None:
+        """Remove a single key (targeted invalidation, e.g. account data
+        after a bank sync, without discarding the transaction backfill)."""
+        self._conn.execute("DELETE FROM cache WHERE key = ?", (key,))
         self._conn.commit()
 
     def clear(self) -> None:

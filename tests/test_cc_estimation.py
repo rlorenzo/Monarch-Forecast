@@ -13,7 +13,7 @@ from datetime import date
 
 import pytest
 
-from src.forecast.credit_cards import estimate_cc_payments
+from src.forecast.credit_cards import estimate_cc_payments, infer_due_day
 
 # --- Helpers ---
 
@@ -391,3 +391,254 @@ class TestEdgeCases:
         )
         assert len(payments) == 1
         assert payments[0].amount == pytest.approx(-500.0)
+
+
+def _refund(amount: float, txn_date: date, account_id: str = "cc1") -> dict:
+    """A merchant refund ON the card (positive amount, non-payment text)."""
+    return {
+        "merchant": {"name": "Store Refund"},
+        "amount": amount,
+        "date": txn_date.isoformat(),
+        "account": {"id": account_id, "displayName": "Credit Card"},
+        "category": {"name": "Shopping"},
+    }
+
+
+def _on_card_payment(amount: float, txn_date: date, account_id: str = "cc1") -> dict:
+    """A payment credit ON the card account (positive, payment-like text)."""
+    return {
+        "merchant": {"name": "AUTOPAY PAYMENT - THANK YOU"},
+        "amount": amount,
+        "date": txn_date.isoformat(),
+        "account": {"id": account_id, "displayName": "Credit Card"},
+        "category": {"name": "Payment"},
+    }
+
+
+class TestRefundNetting:
+    """Refunds and statement credits reduce the estimated payment;
+    payments and transfers do not."""
+
+    def test_refund_reduces_estimate(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-500.0, date(2026, 6, 5)),
+            _refund(100.0, date(2026, 6, 6)),
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -400.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].amount == -400.0
+
+    def test_payment_credit_not_subtracted(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-500.0, date(2026, 6, 5)),
+            _on_card_payment(450.0, date(2026, 6, 7)),  # last month's payment posting
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -500.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].amount == -500.0
+
+    def test_credits_exceeding_charges_floor_at_zero(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-100.0, date(2026, 6, 5)),
+            _refund(300.0, date(2026, 6, 6)),  # e.g. travel credit + return
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -50.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        # Estimate is 0 and there's no override → card is skipped entirely.
+        assert payments == []
+
+
+class TestAccountScopedDueDayInference:
+    def test_on_card_payment_credits_win_over_text_matches(self):
+        # Two same-issuer cards: text matching alone would let the other
+        # card's checking payments (on the 3rd) contaminate the inference.
+        txns = [
+            _on_card_payment(450.0, date(2026, 4, 15)),
+            _on_card_payment(450.0, date(2026, 5, 15)),
+            _payment("Chase", -200.0, date(2026, 4, 3)),
+            _payment("Chase", -200.0, date(2026, 5, 3)),
+        ]
+        assert infer_due_day("Chase Sapphire Reserve", txns, cc_id="cc1") == 15
+
+    def test_falls_back_to_text_heuristic_without_on_card_credits(self):
+        txns = [
+            _payment("Chase Sapphire Reserve", -200.0, date(2026, 4, 3)),
+            _payment("Chase Sapphire Reserve", -200.0, date(2026, 5, 3)),
+        ]
+        assert infer_due_day("Chase Sapphire Reserve", txns, cc_id="cc1") == 3
+
+    def test_estimated_payments_carry_account_id(self):
+        today = date(2026, 6, 20)
+        payments = estimate_cc_payments(
+            [_cc("Card", -500.0, cc_id="cc9")],
+            [],
+            transactions=[_charge(-500.0, date(2026, 6, 5), account_id="cc9")],
+            today=today,
+            cc_settings={"cc9": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].account_id == "cc9"
+
+
+class TestNullAmountTolerance:
+    """Explicit JSON null amounts must be skipped, not raise TypeError."""
+
+    def _null_amount_txn(self, txn_date: date, account_id: str = "cc1") -> dict:
+        return {
+            "merchant": {"name": "Store"},
+            "amount": None,
+            "date": txn_date.isoformat(),
+            "account": {"id": account_id, "displayName": "Credit Card"},
+            "category": {"name": "Shopping"},
+        }
+
+    def test_sum_skips_null_amounts(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-500.0, date(2026, 6, 5)),
+            self._null_amount_txn(date(2026, 6, 6)),
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -500.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].amount == -500.0
+
+    def test_infer_due_day_skips_null_amounts(self):
+        txns = [
+            self._null_amount_txn(date(2026, 4, 15)),
+            _on_card_payment(450.0, date(2026, 5, 15)),
+        ]
+        assert infer_due_day("Chase Sapphire Reserve", txns, cc_id="cc1") == 15
+
+
+class TestDueTodayAndAlreadyPaid:
+    """A payment due TODAY is upcoming (the July 2 / due-day-2 report);
+    a statement with a posted payment credit is settled, due date or not."""
+
+    def test_payment_due_today_is_listed(self):
+        # Due day 2, close day 5, today IS the 2nd: the statement that
+        # closed June 5 is due today and must appear in today's forecast.
+        today = date(2026, 7, 2)
+        txns = [_charge(-800.0, date(2026, 5, 20))]  # in cycle (May 5, Jun 5]
+        payments = estimate_cc_payments(
+            [_cc("Chase Reserve", -800.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 2, "close_day": 5}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == today
+        assert payments[0].amount == -800.0
+
+    def test_due_today_but_already_paid_moves_to_next_cycle(self):
+        today = date(2026, 7, 2)
+        txns = [
+            _charge(-800.0, date(2026, 5, 20)),
+            _charge(-150.0, date(2026, 6, 20)),  # next cycle's spend
+            _on_card_payment(800.0, date(2026, 6, 28)),  # settled early
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Chase Reserve", -150.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 2, "close_day": 5}},
+        )
+        assert len(payments) == 1
+        # Next cycle: charges since June 5, due August 2.
+        assert payments[0].date == date(2026, 8, 2)
+        assert payments[0].amount == -150.0
+
+    def test_early_payment_before_future_due_date_not_double_billed(self):
+        # Statement closed June 15, due July 10, paid in full June 20:
+        # a settled statement must not be billed again on its due date.
+        today = date(2026, 6, 25)
+        txns = [
+            _charge(-500.0, date(2026, 6, 10)),
+            _on_card_payment(500.0, date(2026, 6, 20)),
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -0.01)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert all(p.date != date(2026, 7, 10) or p.amount != -500.0 for p in payments)
+
+    def test_unpaid_future_due_date_still_billed(self):
+        today = date(2026, 6, 25)
+        txns = [_charge(-500.0, date(2026, 6, 10))]
+        payments = estimate_cc_payments(
+            [_cc("Card", -500.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == date(2026, 7, 10)
+        assert payments[0].amount == -500.0
+
+
+class TestPartialPayments:
+    """A partial payment reduces the forecast to the unpaid remainder;
+    it must not suppress the statement entirely."""
+
+    def test_partial_payment_bills_the_remainder(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-800.0, date(2026, 6, 10)),  # statement (May 15, Jun 15]
+            _on_card_payment(300.0, date(2026, 6, 18)),  # partial
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -500.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == date(2026, 7, 10)
+        assert payments[0].amount == -500.0  # 800 charged, 300 already paid
+
+    def test_overpayment_settles_statement(self):
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-800.0, date(2026, 6, 10)),
+            _on_card_payment(900.0, date(2026, 6, 18)),
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -0.01)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert all(p.date != date(2026, 7, 10) for p in payments)

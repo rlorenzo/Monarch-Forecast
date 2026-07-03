@@ -120,6 +120,28 @@ class TestThresholdChange:
         await dashboard._on_threshold_change(_m(SimpleNamespace(control=dashboard.threshold_field)))
         assert dashboard._safety_threshold == 0.0
 
+    async def test_blur_commits_too(self, dashboard):
+        # Typing a value and clicking away must save without Enter.
+        assert dashboard.threshold_field.on_blur == dashboard._on_threshold_change
+        assert dashboard.threshold_field.on_submit == dashboard._on_threshold_change
+
+    async def test_unchanged_value_is_a_noop(self, dashboard):
+        # Blur fires right after Enter; the second call with the same
+        # value must not re-save, re-toast, or re-run the forecast.
+        dashboard.threshold_field.value = f"{dashboard._safety_threshold:g}"
+        _m(dashboard.threshold_field).update = MagicMock()
+        await dashboard._on_threshold_change(_m(SimpleNamespace(control=dashboard.threshold_field)))
+        _m(dashboard._show_snackbar).assert_not_called()
+        _m(dashboard._run_forecast).assert_not_awaited()
+
+    async def test_non_finite_rejected(self, dashboard):
+        dashboard.threshold_field.value = "inf"
+        _m(dashboard.threshold_field).update = MagicMock()
+        prior = dashboard._safety_threshold
+        await dashboard._on_threshold_change(_m(SimpleNamespace(control=dashboard.threshold_field)))
+        assert dashboard._safety_threshold == prior
+        _m(dashboard._run_forecast).assert_not_awaited()
+
 
 @pytest.mark.asyncio
 class TestAccountChange:
@@ -470,3 +492,19 @@ class TestSwapNavContent:
         _m(dashboard._scroll_area).update = MagicMock()
         await dashboard._swap_nav_content(2)
         assert dashboard._scroll_area.controls[0] is dashboard._tab_pages[2]
+
+
+class TestForecastAccountIds:
+    def test_scopes_to_checking_plus_cards(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 100.0}]
+        dash._cc_accounts = [{"id": "cc1", "name": "Card", "balance": -50.0}]
+        assert dash._forecast_account_ids() == ["chk1", "cc1"]
+
+    def test_none_before_first_load_syncs_everything(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        assert dash._forecast_account_ids() is None

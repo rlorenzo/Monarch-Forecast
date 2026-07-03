@@ -15,15 +15,17 @@ import flet as ft
 # Coral is the brand mark. Used on <=10% of any screen at rest per the
 # One Voice Rule in DESIGN.md.
 CORAL = "#d97a64"
-CORAL_DEEP = "#b8523f"  # hover / active state for coral surfaces
+CORAL_DEEP = "#a34431"  # hover / active state for coral surfaces; 4.9:1 on CORAL_TINT
 CORAL_TINT = "#fae3d8"  # light-mode emphasis fills
 
 # --- Signal -------------------------------------------------------------
 # Forecast meaning only. Never decorative. Each hue lives in a single role
 # (positive = surplus, negative = shortfall, threshold = the safety line)
-# per the Signal Separation Rule.
-SIGNAL_POSITIVE = "#2e9764"
-SIGNAL_NEGATIVE = "#d04632"
+# per the Signal Separation Rule. Values are tuned so 12-13pt W600 amount
+# text clears WCAG AA (>=4.5:1) on PAPER and PAPER_2 — amounts are small
+# text, so the 3:1 large-text allowance does not apply.
+SIGNAL_POSITIVE = "#217547"
+SIGNAL_NEGATIVE = "#bd3a27"
 SIGNAL_THRESHOLD = "#d4a657"
 
 # --- Light neutrals -----------------------------------------------------
@@ -34,7 +36,7 @@ PAPER_3 = "#ece1d8"  # emphasis fill (selected row, "today" band)
 RULE = "#d6c5ba"  # borders, dividers, axes
 INK = "#392b24"  # body text, headlines
 INK_2 = "#5e4f47"  # secondary text
-INK_3 = "#8c7c72"  # tertiary text (still WCAG AA on PAPER)
+INK_3 = "#77675d"  # tertiary text; 5.0:1 on PAPER, 4.6:1 on PAPER_2 (AA at 11pt)
 
 # --- Dark neutrals ------------------------------------------------------
 # Same warm clay hue, dimmed. Not navy, not charcoal.

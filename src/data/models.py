@@ -23,7 +23,9 @@ class RecurringItem:
 
     name: str
     amount: float  # positive = income, negative = expense
-    frequency: str  # weekly, biweekly, monthly, semimonthly, yearly
+    frequency: (
+        str  # weekly, biweekly, semimonthly, monthly, bimonthly, quarterly, semiannual, yearly
+    )
     base_date: date  # a known occurrence date used as anchor
     category: str = ""
     account_id: str = ""
@@ -49,3 +51,4 @@ class ForecastTransaction:
     category: str = ""
     is_recurring: bool = True
     id: str = ""  # stable identifier for one-offs; empty for engine-generated recurring rows
+    account_id: str = ""  # source account (recurring rows / CC payments); empty for one-offs

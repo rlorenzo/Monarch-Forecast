@@ -11,7 +11,7 @@ no-forecast guard, ``_update_table`` no-forecast guard.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -95,8 +95,11 @@ def _find_action_on_click(dialog: ft.AlertDialog, label: str):
 class TestEditCCAmountClosures:
     def test_save_persists_override_and_reruns_forecast(self, dashboard, fake_page):
         dashboard._cc_accounts = [{"id": "cc1", "name": "Chase", "balance": -500.0}]
+        # Upcoming payment date (relative, not fixed): the override now
+        # expires once the payment date passes, so a past date here would
+        # be filtered out of cc_amount_overrides immediately.
         txn = ForecastTransaction(
-            date=date(2026, 6, 1),
+            date=date.today() + timedelta(days=5),
             name="Chase Payment (1/5)",
             amount=-300.0,
             category="Credit Card Payment",

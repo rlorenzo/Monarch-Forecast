@@ -34,6 +34,7 @@ def dispatch_keyboard_shortcut(
     - Escape pops the current dialog (Flet's AlertDialog doesn't bind it).
     - Cmd/Ctrl+R triggers a refresh on the dashboard.
     - Cmd/Ctrl+1/2/3 jumps to the matching tab.
+    - Cmd/Ctrl+4 cycles the Transactions tab through Upcoming/Recent/Both.
     """
     if event.key == "Escape":
         try:
@@ -60,6 +61,11 @@ def dispatch_keyboard_shortcut(
     if event.key == "3":
         dashboard.switch_to_tab(2)
         return True
+    if event.key == "4":
+        # The mode chips are mouse targets; this is the keyboard path
+        # through the Transactions tab's Upcoming/Recent/Both modes.
+        dashboard.toggle_txn_mode()
+        return True
 
     return False
 
@@ -73,11 +79,19 @@ async def main(page: ft.Page) -> None:
     page.title = f"Monarch Forecast v{get_current_version()}"
     page.window.width = 1100
     page.window.height = 900
-    page.window.min_width = 800
+    # 900, not 800: the transaction ledgers' fixed column set is ~890px
+    # wide and the scroll region only scrolls vertically, so a narrower
+    # window clips the AMOUNT column.
+    page.window.min_width = 900
     page.window.min_height = 600
     page.window.icon = "assets/icon.png"
     page.padding = ft.Padding.only(left=0, top=0, right=16, bottom=8)
-    page.theme_mode = ft.ThemeMode.SYSTEM
+    # LIGHT, not SYSTEM: only the light paper-and-ink theme is defined
+    # below, and every view paints with the light token constants. Under
+    # SYSTEM, a dark-OS machine gets Material's default dark surfaces with
+    # near-black ink text on them — unreadable. Flip back to SYSTEM only
+    # when the dark ramp in tokens.py is actually consumed by the views.
+    page.theme_mode = ft.ThemeMode.LIGHT
     page.fonts = tokens.FONT_URLS
 
     _icon_theme = ft.IconTheme(apply_text_scaling=True)

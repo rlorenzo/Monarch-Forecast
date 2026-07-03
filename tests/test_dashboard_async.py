@@ -54,8 +54,8 @@ def dashboard(patched_session_manager, tmp_path: Path):
     dash.monarch.get_checking_accounts = AsyncMock(return_value=[])
     dash.monarch.get_credit_card_accounts = AsyncMock(return_value=[])
     dash.monarch.refresh_accounts = AsyncMock()
+    dash.monarch.get_transactions = AsyncMock(return_value=[])
     dash._raw_client = MagicMock()
-    dash._raw_client.get_transactions = AsyncMock(return_value=[])
     return dash
 
 
@@ -93,7 +93,7 @@ class TestLoadDataHappyPath:
             ]
         )
         dashboard.monarch.get_credit_card_accounts = AsyncMock(return_value=[])
-        dashboard._raw_client.get_transactions = AsyncMock(return_value=[])
+        dashboard.monarch.get_transactions = AsyncMock(return_value=[])
 
         await dashboard.load_data()
 
@@ -357,3 +357,31 @@ class TestSwitchToTab:
         # Index hasn't changed yet — pending the dialog.
         assert dashboard._current_nav_index == 0
         assert dashboard._pending_nav_target == 1
+
+
+class TestSplitHistoryFetch:
+    async def test_checking_long_cards_short_and_excluded_cards_skipped(
+        self, patched_session_manager
+    ):
+        from src.data.recurring_detector import DEFAULT_LOOKBACK_DAYS
+        from src.forecast.credit_cards import CC_HISTORY_DAYS
+        from src.views.dashboard import DashboardView
+
+        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 100.0}]
+        dash._cc_accounts = [
+            {"id": "cc1", "name": "Card", "balance": -50.0},
+            {"id": "cc2", "name": "Old Card", "balance": -10.0},
+        ]
+        dash._prefs.set_cc_excluded("cc2", excluded=True)
+        dash.monarch = MagicMock()
+        dash.monarch.get_transactions = AsyncMock(return_value=[])
+
+        await dash._load_txn_history()
+
+        assert dash.monarch.get_transactions.await_count == 2
+        first, second = dash.monarch.get_transactions.await_args_list
+        assert first.kwargs["account_ids"] == ["chk1"]
+        assert first.kwargs["lookback_days"] == DEFAULT_LOOKBACK_DAYS
+        assert second.kwargs["account_ids"] == ["cc1"]
+        assert second.kwargs["lookback_days"] == CC_HISTORY_DAYS

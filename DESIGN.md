@@ -3,10 +3,10 @@ name: Monarch Forecast
 description: A warm, editorial almanac for personal cash-flow forecasting.
 colors:
   coral: "#d97a64"
-  coral-deep: "#b8523f"
+  coral-deep: "#a34431"
   coral-tint: "#fae3d8"
-  signal-positive: "#2e9764"
-  signal-negative: "#d04632"
+  signal-positive: "#217547"
+  signal-negative: "#bd3a27"
   signal-threshold: "#d4a657"
   paper: "#faf6f3"
   paper-2: "#f4ece6"
@@ -14,7 +14,7 @@ colors:
   rule: "#d6c5ba"
   ink: "#392b24"
   ink-2: "#5e4f47"
-  ink-3: "#8c7c72"
+  ink-3: "#77675d"
   ink-dark: "#22150f"
   ink-dark-2: "#2c1f17"
   ink-dark-3: "#3a2a22"
@@ -148,13 +148,13 @@ A warm, hue-tinted neutral system, anchored by a single coral accent and three s
 ### Primary
 
 - **Coral** (`#d97a64` / `oklch(64% 0.14 30)`): The brand accent. Used on the brand mark, the primary CTA, the active tab indicator, the chart's headline projected-balance line, and the focused-input outline. Nothing else.
-- **Coral Deep** (`#b8523f` / `oklch(54% 0.16 28)`): Hover and active state for any coral surface (buttons, the threshold crossing's emphasis ring). Never used as a resting color.
+- **Coral Deep** (`#a34431` / `oklch(51% 0.13 33)`): Hover and active state for any coral surface (buttons, the threshold crossing's emphasis ring). Never used as a resting color.
 - **Coral Tint** (`#fae3d8` / `oklch(94% 0.04 30)`): The light-mode emphasis background (selected list rows, focused-input fill at rest, hover tint behind ghost buttons). The dark-mode equivalent is `ink-dark-3` with a coral-tinted overlay.
 
 ### Signal (forecast meaning only)
 
-- **Signal Positive** (`#2e9764` / `oklch(58% 0.13 150)`): Surplus rows in the transactions table, balance trajectory above the threshold, income deltas in the dashboard summary. Always paired with a `+` glyph or `semantics_label` so meaning survives color-blindness.
-- **Signal Negative** (`#d04632` / `oklch(58% 0.18 25)`): Below-threshold balance, overdraft alerts, expense rows. Always paired with a `−` glyph or `semantics_label`. Visually distinct from coral by chroma (coral is muted at 0.14, signal-negative is sharp at 0.18), so the brand color never reads as alarm.
+- **Signal Positive** (`#217547` / `oklch(50% 0.11 155)`): Surplus rows in the transactions table, balance trajectory above the threshold, income deltas in the dashboard summary. Always paired with a `+` glyph or `semantics_label` so meaning survives color-blindness.
+- **Signal Negative** (`#bd3a27` / `oklch(54% 0.17 31)`): Below-threshold balance, overdraft alerts, expense rows. Always paired with a `−` glyph or `semantics_label`. Visually distinct from coral by chroma (coral is muted at 0.14, signal-negative is sharp at 0.18), so the brand color never reads as alarm.
 - **Signal Threshold** (`#d4a657` / `oklch(72% 0.12 70)`): The safety-threshold line on the chart, threshold-crossing markers, "approaching shortfall" alerts. Amber is reserved for this one role.
 
 ### Neutral: Light Theme
@@ -165,7 +165,7 @@ A warm, hue-tinted neutral system, anchored by a single coral accent and three s
 - **Rule** (`#d6c5ba` / `oklch(86% 0.008 30)`): All 1px borders, dividers, table outlines, chart axes. The only acceptable line color in light mode.
 - **Ink** (`#392b24` / `oklch(22% 0.015 30)`): Body text and headline text. Replaces `ON_SURFACE` everywhere. Never `#000`.
 - **Ink 2** (`#5e4f47` / `oklch(38% 0.013 30)`): Secondary text (column subtitles, helper text under inputs, "Forecast window" labels). Replaces `ON_SURFACE_VARIANT`.
-- **Ink 3** (`#8c7c72` / `oklch(56% 0.012 30)`): Tertiary text (disabled labels, week-day headers in the calendar, axis tick labels on the chart). Must still meet WCAG AA against `paper`.
+- **Ink 3** (`#77675d` / `oklch(56% 0.012 30)`): Tertiary text (disabled labels, week-day headers in the calendar, axis tick labels on the chart). Must still meet WCAG AA against `paper`.
 
 ### Neutral: Dark Theme
 

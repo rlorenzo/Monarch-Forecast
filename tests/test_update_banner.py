@@ -91,7 +91,7 @@ class TestBannerCopy:
 
 
 class TestDownloadButton:
-    def test_opens_download_url_when_present(self):
+    def test_untrusted_download_url_not_opened(self):
         banner = build_update_banner(
             {
                 "version": "0.5.0",
@@ -103,20 +103,39 @@ class TestDownloadButton:
         assert dl_btn is not None and dl_btn.on_click is not None
         with patch("src.views.update_banner.webbrowser.open") as mock_open:
             _m(dl_btn.on_click)(MagicMock())
-            mock_open.assert_called_once_with("https://example.com/x.dmg")
+            # example.com is outside the github.com/githubusercontent.com
+            # allowlist, so nothing opens — see TestDownloadUrlValidation
+            # for the full allow/deny matrix.
+            mock_open.assert_not_called()
 
     def test_falls_back_to_html_url(self):
         banner = build_update_banner(
             {
                 "version": "0.5.0",
-                "html_url": "https://example.com/release",
+                "html_url": "https://github.com/acme/app/releases/tag/v0.5.0",
             }
         )
         dl_btn = _find_text_button(banner, "Download")
         assert dl_btn is not None and dl_btn.on_click is not None
         with patch("src.views.update_banner.webbrowser.open") as mock_open:
             _m(dl_btn.on_click)(MagicMock())
-            mock_open.assert_called_once_with("https://example.com/release")
+            mock_open.assert_called_once_with("https://github.com/acme/app/releases/tag/v0.5.0")
+
+    def test_unsafe_download_url_falls_back_to_safe_html_url(self):
+        # A spoofed/malformed asset URL must not strand the user on a dead
+        # button when the release-page URL is safe to open.
+        banner = build_update_banner(
+            {
+                "version": "0.5.0",
+                "download_url": "https://evil.com/x.dmg",
+                "html_url": "https://github.com/acme/app/releases/tag/v0.5.0",
+            }
+        )
+        dl_btn = _find_text_button(banner, "Download")
+        assert dl_btn is not None and dl_btn.on_click is not None
+        with patch("src.views.update_banner.webbrowser.open") as mock_open:
+            _m(dl_btn.on_click)(MagicMock())
+            mock_open.assert_called_once_with("https://github.com/acme/app/releases/tag/v0.5.0")
 
     def test_no_url_is_noop(self):
         banner = build_update_banner({"version": "0.5.0", "download_url": "", "html_url": ""})
@@ -125,6 +144,55 @@ class TestDownloadButton:
         with patch("src.views.update_banner.webbrowser.open") as mock_open:
             _m(dl_btn.on_click)(MagicMock())
             mock_open.assert_not_called()
+
+
+class TestDownloadUrlValidation:
+    """``open_download`` must only hand ``webbrowser.open`` a URL that's
+    actually a GitHub release asset — the URL is sourced from the GitHub
+    API response, so a compromised/spoofed response shouldn't be able to
+    launch an arbitrary URL on the user's machine."""
+
+    def _click_download(self, download_url: str) -> MagicMock:
+        banner = build_update_banner(
+            {"version": "0.5.0", "download_url": download_url, "html_url": ""}
+        )
+        dl_btn = _find_text_button(banner, "Download")
+        assert dl_btn is not None and dl_btn.on_click is not None
+        with patch("src.views.update_banner.webbrowser.open") as mock_open:
+            _m(dl_btn.on_click)(MagicMock())
+            return mock_open
+
+    def test_https_github_url_opens(self):
+        mock_open = self._click_download(
+            "https://github.com/acme/app/releases/download/v0.5.0/app.dmg"
+        )
+        mock_open.assert_called_once_with(
+            "https://github.com/acme/app/releases/download/v0.5.0/app.dmg"
+        )
+
+    def test_https_githubusercontent_subdomain_opens(self):
+        url = "https://objects.githubusercontent.com/acme/app.dmg"
+        mock_open = self._click_download(url)
+        mock_open.assert_called_once_with(url)
+
+    def test_http_scheme_does_not_open(self):
+        mock_open = self._click_download("http://github.com/acme/app/releases/download/app.dmg")
+        mock_open.assert_not_called()
+
+    def test_file_scheme_does_not_open(self):
+        mock_open = self._click_download("file:///etc/passwd")
+        mock_open.assert_not_called()
+
+    def test_untrusted_host_does_not_open(self):
+        mock_open = self._click_download("https://evil.com/app.dmg")
+        mock_open.assert_not_called()
+
+    def test_lookalike_host_does_not_open(self):
+        # "github.com.evil.com" ends with the substring "github.com" but is
+        # not a subdomain of it — the check must be suffix-on-dot, not
+        # substring, to reject this.
+        mock_open = self._click_download("https://github.com.evil.com/app.dmg")
+        mock_open.assert_not_called()
 
 
 class TestDismissButton:
@@ -143,6 +211,23 @@ class TestDismissButton:
         _m(dismiss.on_click)(MagicMock())
         assert banner.visible is False
         _m(banner.update).assert_called_once()
+
+    def test_dismiss_unmounted_does_not_raise(self):
+        """``banner`` here is a real, never-mounted Container (``update``
+        is NOT stubbed) — ``update()`` raises ``RuntimeError`` on an
+        unmounted control, and ``dismiss`` must swallow that the same way
+        the rest of the codebase guards post-update mount races."""
+        banner = build_update_banner(
+            {
+                "version": "0.5.0",
+                "download_url": "",
+                "html_url": "https://example.com/release",
+            }
+        )
+        dismiss = _find_icon_button(banner, ft.Icons.CLOSE)
+        assert dismiss is not None and dismiss.on_click is not None
+        _m(dismiss.on_click)(MagicMock())
+        assert banner.visible is False
 
 
 class TestCheckUpdateAsync:

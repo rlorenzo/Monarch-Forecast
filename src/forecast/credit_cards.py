@@ -18,6 +18,12 @@ from src.data.models import ForecastTransaction, RecurringItem
 # Default grace period assumption when inferring statement close from due date
 DEFAULT_GRACE_PERIOD = 25
 
+# How much card history estimation needs: the current and previous billing
+# cycles for charge summation, plus a few months of payment credits for
+# due-day inference. Cards do NOT need the multi-year window recurring
+# detection uses on checking accounts.
+CC_HISTORY_DAYS = 90
+
 
 def estimate_cc_payments(
     cc_accounts: list[dict[str, Any]],
@@ -103,6 +109,7 @@ def estimate_cc_payments(
                 amount=-amount,
                 category="Credit Card Payment",
                 is_recurring=False,
+                account_id=cc_id,
             )
         )
 
@@ -129,7 +136,7 @@ def _estimate_from_cycle(
             return None
     else:
         # Infer from payment history
-        due_day = infer_due_day(cc_name, transactions)
+        due_day = infer_due_day(cc_name, transactions, cc_id)
         if not due_day:
             return None
         # Default: statement closes ~25 days before due date
@@ -143,8 +150,19 @@ def _estimate_from_cycle(
     # That statement's due date is the next due_day after last_close
     next_due = _next_month_day(last_close, due_day)
 
-    if next_due <= today:
-        # We're past the due date for the last closed statement
+    # A payment due TODAY is still upcoming (strict <, not <=): the
+    # forecast starts from today's balance, and treating a due-today
+    # payment as already gone silently drops it from the checkbook on the
+    # one morning it matters most. Separately, payments that have posted
+    # on the card since the statement closed count against the statement
+    # amount-aware: fully settled statements move on to the next cycle,
+    # while a PARTIAL payment leaves the unpaid remainder billed on the
+    # upcoming due date instead of vanishing until next cycle.
+    stmt_amount = _sum_cc_charges(cc_id, transactions, prev_close, last_close)
+    paid_since_close = _sum_payment_credits(cc_id, transactions, last_close, today)
+    statement_settled = stmt_amount > 0 and paid_since_close >= stmt_amount - 0.01
+
+    if next_due < today or statement_settled:
         # Look at the NEXT cycle: (last_close, next_close]
         next_close = _next_month_day(last_close, close_day)
         cycle_start = last_close
@@ -152,7 +170,8 @@ def _estimate_from_cycle(
         next_due = _next_month_day(next_close, due_day)
         label = "partial" if next_close > today else "stmt"
     else:
-        # Due date is still upcoming — try the last closed cycle first
+        # Due date is still upcoming — bill the last closed statement,
+        # net of any partial payments already made against it.
         cycle_start = prev_close
         cycle_end = last_close
         label = "stmt"
@@ -161,6 +180,8 @@ def _estimate_from_cycle(
         return None
 
     amount = _sum_cc_charges(cc_id, transactions, cycle_start, cycle_end)
+    if label == "stmt" and cycle_end == last_close:
+        amount = max(amount - paid_since_close, 0.0)
 
     # If the closed cycle has no charges, check the open (next) cycle
     if amount == 0 and label == "stmt":
@@ -177,14 +198,37 @@ def _estimate_from_cycle(
     return next_due, amount, label
 
 
-def infer_due_day(cc_name: str, transactions: list[dict]) -> int:
-    """Infer due day-of-month from payment history."""
+def infer_due_day(cc_name: str, transactions: list[dict], cc_id: str = "") -> int:
+    """Infer due day-of-month from payment history.
+
+    Prefers payment credits posted ON the card account itself (exact —
+    immune to two same-issuer cards cross-matching by name), falling back
+    to the older text heuristic over checking-side outflows when the card
+    account has no identifiable payments in the window.
+    """
+    if cc_id:
+        on_card_days: list[int] = []
+        for txn in transactions:
+            if (txn.get("account") or {}).get("id", "") != cc_id:
+                continue
+            amount = txn.get("amount")
+            if not isinstance(amount, (int, float)) or amount <= 0:
+                continue  # Payments post as credits on the card account.
+            if not _is_payment_credit(txn):
+                continue
+            try:
+                on_card_days.append(date.fromisoformat(txn["date"][:10]).day)
+            except (ValueError, TypeError, KeyError):
+                continue
+        if on_card_days:
+            return _most_common_day(on_card_days)
+
     cc_name_lower = cc_name.lower()
     payment_days: list[int] = []
 
     for txn in transactions:
-        amount = txn.get("amount", 0.0)
-        if amount >= 0:
+        amount = txn.get("amount")
+        if not isinstance(amount, (int, float)) or amount >= 0:
             continue  # Not a payment (outflow)
 
         merchant = (txn.get("merchant") or {}).get("name", "").lower()
@@ -204,33 +248,96 @@ def infer_due_day(cc_name: str, transactions: list[dict]) -> int:
     if not payment_days:
         return 0
 
-    # Use the most common day, or the most recent
+    return _most_common_day(payment_days)
+
+
+def _most_common_day(days: list[int]) -> int:
     from collections import Counter
 
-    most_common = Counter(payment_days).most_common(1)[0][0]
-    return most_common
+    return Counter(days).most_common(1)[0][0]
+
+
+# Text markers of a payment/transfer credit on a card account, as opposed
+# to a merchandise refund. Payments must NOT reduce the estimated statement
+# (the previous payment doesn't shrink the new bill) while refunds must.
+_PAYMENT_CREDIT_WORDS = (
+    "payment",
+    "autopay",
+    "pymt",
+    "pmt",
+    "epay",
+    "e-pay",
+    "bill pay",
+    "billpay",
+    "transfer",
+    "thank you",
+)
+
+
+def _sum_payment_credits(cc_id: str, transactions: list[dict], start: date, end: date) -> float:
+    """Total payment credits posted on the card in (start, end].
+
+    Payments made between statement close and the due date count against
+    the statement that just closed — amount-aware, so a partial payment
+    reduces (rather than suppresses) the forecast for that statement.
+    """
+    total = 0.0
+    for txn in transactions:
+        if (txn.get("account") or {}).get("id", "") != cc_id:
+            continue
+        amount = txn.get("amount")
+        if not isinstance(amount, (int, float)) or amount <= 0:
+            continue
+        if not _is_payment_credit(txn):
+            continue
+        try:
+            txn_date = date.fromisoformat(txn["date"][:10])
+        except (ValueError, TypeError, KeyError):
+            continue
+        if start < txn_date <= end:
+            total += amount
+    return total
+
+
+def _is_payment_credit(txn: dict) -> bool:
+    """True when a positive card-account transaction is a payment or
+    transfer rather than a merchant refund/statement credit."""
+    merchant = (txn.get("merchant") or {}).get("name", "").lower()
+    category = (txn.get("category") or {}).get("name", "").lower()
+    combined = f"{merchant} {category}"
+    return any(w in combined for w in _PAYMENT_CREDIT_WORDS)
 
 
 def _sum_cc_charges(cc_id: str, transactions: list[dict], start: date, end: date) -> float:
-    """Sum charges on a CC account between start (exclusive) and end (inclusive)."""
+    """Net charges on a CC account between start (exclusive) and end (inclusive).
+
+    Charges add; merchant refunds and statement credits subtract (they
+    reduce the bill the issuer sends); payments and transfers are ignored.
+    Floors at 0 — a credit-heavy cycle can't produce a negative payment.
+    """
     total = 0.0
     for txn in transactions:
         account_id = (txn.get("account") or {}).get("id", "")
         if account_id != cc_id:
             continue
-        amount = txn.get("amount", 0.0)
-        if amount >= 0:
-            continue  # Skip payments/credits, only charges
+        amount = txn.get("amount")
+        if not isinstance(amount, (int, float)):
+            continue  # Explicit JSON null (or garbage) — not summable.
 
         try:
             txn_date = date.fromisoformat(txn["date"][:10])
         except (ValueError, TypeError, KeyError):
             continue
 
-        if start < txn_date <= end:
-            total += abs(amount)
+        if not start < txn_date <= end:
+            continue
 
-    return total
+        if amount < 0:
+            total += abs(amount)
+        elif amount > 0 and not _is_payment_credit(txn):
+            total -= amount  # Refund/credit shrinks the statement.
+
+    return max(total, 0.0)
 
 
 def _is_cc_payment_txn(text: str, cc_name_lower: str) -> bool:

@@ -24,6 +24,7 @@ Public API (consumed by dashboard.py) is unchanged: ``adjusted_recurring_items``
 
 from __future__ import annotations
 
+import math
 import uuid
 from collections.abc import Callable
 from dataclasses import replace
@@ -36,6 +37,7 @@ from src.data.models import ForecastTransaction, RecurringItem
 from src.data.preferences import Preferences
 from src.views import tokens
 from src.views.calendar_popover import show_calendar_popover
+from src.views.transactions_table import _column_label
 
 # Formats accepted when a user types a date into the one-off date TextField.
 # Keep the canonical ISO form first so round-trips are stable.
@@ -509,6 +511,19 @@ def _dialog_error_text() -> ft.Text:
     )
 
 
+def _error_live_region(error_text: ft.Text) -> ft.Control:
+    """Wrap a dialog error Text in a fixed-height screen-reader live region.
+
+    Every dialog announces validation errors the same way: an ARIA live
+    region over a height-locked container so the layout does not jump when
+    a message appears or clears.
+    """
+    return ft.Semantics(
+        live_region=True,
+        content=ft.Container(content=error_text, height=18),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dialogs
 # ---------------------------------------------------------------------------
@@ -568,7 +583,7 @@ def show_amount_edit_dialog(
             error_text.update()
             _schedule_focus(page, amount_field)
             return
-        if value <= 0:
+        if not math.isfinite(value) or value <= 0:
             error_text.value = "Amount must be greater than 0."
             error_text.update()
             _schedule_focus(page, amount_field)
@@ -597,10 +612,7 @@ def show_amount_edit_dialog(
                 _dialog_subtitle(subtitle),
                 ft.Container(height=12),
                 amount_field,
-                ft.Semantics(
-                    live_region=True,
-                    content=ft.Container(content=error_text, height=18),
-                ),
+                _error_live_region(error_text),
             ],
             spacing=4,
             tight=True,
@@ -608,6 +620,104 @@ def show_amount_edit_dialog(
         actions=actions,
     )
     page.show_dialog(dialog)
+
+
+def _build_one_off_date_field(
+    page: ft.Page | ft.BasePage, initial: date
+) -> tuple[ft.TextField, ft.Control, list[date]]:
+    """Date input + calendar button shared by the add/edit one-off dialogs.
+
+    Returns ``(date_display, calendar_button, picked_date)``. ``picked_date``
+    is a single-item list used as a mutable cell so both the typed-input
+    handler and the calendar callback can update the pending selection; the
+    caller re-reads it in its save handler.
+    """
+    picked_date: list[date] = [initial]
+    date_display = _ledger_field(
+        label="DATE",
+        width=160,
+        value=initial.strftime("%Y-%m-%d"),
+        hint="YYYY-MM-DD",
+        tooltip="Type a date or click the calendar button",
+    )
+
+    def on_date_typed(_: ft.Event[ft.TextField]) -> None:
+        parsed = _parse_date_input(date_display.value or "")
+        if parsed is not None:
+            picked_date[0] = parsed
+            date_display.value = parsed.strftime("%Y-%m-%d")
+            date_display.update()
+
+    date_display.on_submit = on_date_typed
+    date_display.on_blur = on_date_typed
+
+    def on_calendar_pick(d: date) -> None:
+        picked_date[0] = d
+        date_display.value = d.strftime("%Y-%m-%d")
+        date_display.update()
+
+    def open_calendar(_: ft.Event[ft.IconButton]) -> None:
+        current = _parse_date_input(date_display.value or "") or picked_date[0]
+        show_calendar_popover(
+            page,
+            initial_date=current,
+            on_pick=on_calendar_pick,
+            first_date=date.today(),
+            last_date=date.today() + timedelta(days=365),
+        )
+
+    calendar_button = _calendar_icon_button(open_calendar)
+    return date_display, calendar_button, picked_date
+
+
+def _validate_one_off_fields(
+    page: ft.Page | ft.BasePage,
+    *,
+    name_field: ft.TextField,
+    amount_field: ft.TextField,
+    date_display: ft.TextField,
+    error_text: ft.Text,
+) -> tuple[str, float, date] | None:
+    """Validate the shared one-off dialog fields (description, amount, date).
+
+    On success returns ``(name, positive_amount, date)``. On any failure it
+    writes the message into ``error_text``, moves focus to the offending
+    field, and returns ``None`` so the caller aborts the save.
+    """
+    new_name = (name_field.value or "").strip()
+    if not new_name:
+        error_text.value = "Description is required."
+        error_text.update()
+        _schedule_focus(page, name_field)
+        return None
+    raw = (amount_field.value or "").replace(",", "").replace("$", "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        error_text.value = "Enter a valid number."
+        error_text.update()
+        _schedule_focus(page, amount_field)
+        return None
+    if not math.isfinite(value) or value <= 0:
+        error_text.value = "Amount must be greater than 0."
+        error_text.update()
+        _schedule_focus(page, amount_field)
+        return None
+    typed_date = _parse_date_input(date_display.value or "")
+    if typed_date is None:
+        error_text.value = "Enter a valid date (YYYY-MM-DD)."
+        error_text.update()
+        _schedule_focus(page, date_display)
+        return None
+    if typed_date < date.today():
+        # The calendar popover already enforces this floor; typed input
+        # must too, or the one-off silently vanishes on next launch
+        # (Preferences drops past-dated entries on load).
+        error_text.value = "Date must be today or later."
+        error_text.update()
+        _schedule_focus(page, date_display)
+        return None
+    return new_name, value, typed_date
 
 
 def show_add_one_off_dialog(
@@ -640,69 +750,20 @@ def show_add_one_off_dialog(
         options=[("expense", "Expense"), ("income", "Income")],
     )
     default_date = date.today() + timedelta(days=7)
-    picked_date: list[date] = [default_date]
-    date_display = _ledger_field(
-        label="DATE",
-        width=160,
-        value=default_date.strftime("%Y-%m-%d"),
-        hint="YYYY-MM-DD",
-        tooltip="Type a date or click the calendar button",
-    )
-
-    def on_date_typed(_: ft.Event[ft.TextField]) -> None:
-        parsed = _parse_date_input(date_display.value or "")
-        if parsed is not None:
-            picked_date[0] = parsed
-            date_display.value = parsed.strftime("%Y-%m-%d")
-            date_display.update()
-
-    date_display.on_submit = on_date_typed
-    date_display.on_blur = on_date_typed
-
-    def on_calendar_pick(d: date) -> None:
-        picked_date[0] = d
-        date_display.value = d.strftime("%Y-%m-%d")
-        date_display.update()
-
-    def open_calendar(_: ft.Event[ft.IconButton]) -> None:
-        current = _parse_date_input(date_display.value or "") or picked_date[0]
-        show_calendar_popover(
-            page,
-            initial_date=current,
-            on_pick=on_calendar_pick,
-            first_date=date.today(),
-            last_date=date.today() + timedelta(days=365),
-        )
-
-    calendar_button = _calendar_icon_button(open_calendar)
+    date_display, calendar_button, picked_date = _build_one_off_date_field(page, default_date)
     error_text = _dialog_error_text()
 
     def handle_save(_: ft.Event[ft.Container]) -> None:
-        new_name = (name_field.value or "").strip()
-        if not new_name:
-            error_text.value = "Description is required."
-            error_text.update()
-            _schedule_focus(page, name_field)
+        result = _validate_one_off_fields(
+            page,
+            name_field=name_field,
+            amount_field=amount_field,
+            date_display=date_display,
+            error_text=error_text,
+        )
+        if result is None:
             return
-        raw = (amount_field.value or "").replace(",", "").replace("$", "").strip()
-        try:
-            value = float(raw)
-        except ValueError:
-            error_text.value = "Enter a valid number."
-            error_text.update()
-            _schedule_focus(page, amount_field)
-            return
-        if value <= 0:
-            error_text.value = "Amount must be greater than 0."
-            error_text.update()
-            _schedule_focus(page, amount_field)
-            return
-        typed_date = _parse_date_input(date_display.value or "")
-        if typed_date is None:
-            error_text.value = "Enter a valid date (YYYY-MM-DD)."
-            error_text.update()
-            _schedule_focus(page, date_display)
-            return
+        new_name, value, typed_date = result
         picked_date[0] = typed_date
         is_expense = type_dropdown.value == "expense"
         page.pop_dialog()
@@ -732,10 +793,7 @@ def show_add_one_off_dialog(
                     spacing=8,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                ft.Semantics(
-                    live_region=True,
-                    content=ft.Container(content=error_text, height=18),
-                ),
+                _error_live_region(error_text),
             ],
             spacing=10,
             tight=True,
@@ -775,69 +833,20 @@ def show_edit_one_off_dialog(
         width=200,
     )
 
-    picked_date: list[date] = [existing.date]
-    date_display = _ledger_field(
-        label="DATE",
-        width=160,
-        value=existing.date.strftime("%Y-%m-%d"),
-        hint="YYYY-MM-DD",
-        tooltip="Type a date or click the calendar button",
-    )
-
-    def on_date_typed(_: ft.Event[ft.TextField]) -> None:
-        parsed = _parse_date_input(date_display.value or "")
-        if parsed is not None:
-            picked_date[0] = parsed
-            date_display.value = parsed.strftime("%Y-%m-%d")
-            date_display.update()
-
-    date_display.on_submit = on_date_typed
-    date_display.on_blur = on_date_typed
-
-    def on_calendar_pick(d: date) -> None:
-        picked_date[0] = d
-        date_display.value = d.strftime("%Y-%m-%d")
-        date_display.update()
-
-    def open_calendar(_: ft.Event[ft.IconButton]) -> None:
-        current = _parse_date_input(date_display.value or "") or picked_date[0]
-        show_calendar_popover(
-            page,
-            initial_date=current,
-            on_pick=on_calendar_pick,
-            first_date=date.today(),
-            last_date=date.today() + timedelta(days=365),
-        )
-
-    calendar_button = _calendar_icon_button(open_calendar)
+    date_display, calendar_button, picked_date = _build_one_off_date_field(page, existing.date)
     error_text = _dialog_error_text()
 
     def handle_save(_: ft.Event[ft.Container]) -> None:
-        new_name = (name_field.value or "").strip()
-        if not new_name:
-            error_text.value = "Description is required."
-            error_text.update()
-            _schedule_focus(page, name_field)
+        result = _validate_one_off_fields(
+            page,
+            name_field=name_field,
+            amount_field=amount_field,
+            date_display=date_display,
+            error_text=error_text,
+        )
+        if result is None:
             return
-        raw = (amount_field.value or "").replace(",", "").replace("$", "").strip()
-        try:
-            value = float(raw)
-        except ValueError:
-            error_text.value = "Enter a valid number."
-            error_text.update()
-            _schedule_focus(page, amount_field)
-            return
-        if value <= 0:
-            error_text.value = "Amount must be greater than 0."
-            error_text.update()
-            _schedule_focus(page, amount_field)
-            return
-        typed_date = _parse_date_input(date_display.value or "")
-        if typed_date is None:
-            error_text.value = "Enter a valid date (YYYY-MM-DD)."
-            error_text.update()
-            _schedule_focus(page, date_display)
-            return
+        new_name, value, typed_date = result
         picked_date[0] = typed_date
         page.pop_dialog()
         on_save(new_name, value, picked_date[0])
@@ -859,10 +868,7 @@ def show_edit_one_off_dialog(
                     spacing=8,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                ft.Semantics(
-                    live_region=True,
-                    content=ft.Container(content=error_text, height=18),
-                ),
+                _error_live_region(error_text),
             ],
             spacing=10,
             tight=True,
@@ -897,26 +903,6 @@ _RC_FREQ_W = 84
 _RC_NEXT_W = 88
 _RC_AMOUNT_W = 96
 _RC_OVERRIDE_W = 92
-
-
-def _column_label(text: str, width: int, *, align_right: bool = False) -> ft.Control:
-    """Mini-ledger column header, same vocabulary as Transactions."""
-    label = ft.Text(
-        text.upper(),
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_600,
-            color=tokens.INK_3,
-            letter_spacing=0.66,
-            height=1.2,
-        ),
-    )
-    return ft.Container(
-        content=label,
-        width=width,
-        alignment=ft.Alignment(1, 0) if align_right else ft.Alignment(-1, 0),
-    )
 
 
 def _signed_glyph(amount: float) -> str:
@@ -1093,9 +1079,9 @@ class AdjustmentsPanel(ft.Column):
         ledger_header = ft.Container(
             content=ft.Row(
                 controls=[
-                    _column_label("Date", _OFF_DATE_W),
-                    _column_label("Description", _OFF_NAME_W),
-                    _column_label("Amount", _OFF_AMOUNT_W, align_right=True),
+                    _column_label("DATE", _OFF_DATE_W),
+                    _column_label("DESCRIPTION", _OFF_NAME_W),
+                    _column_label("AMOUNT", _OFF_AMOUNT_W, align_right=True),
                 ],
                 spacing=0,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1140,11 +1126,11 @@ class AdjustmentsPanel(ft.Column):
             content=ft.Row(
                 controls=[
                     ft.Container(width=_RC_CHECK_W + _RC_ARROW_W + 8),
-                    _column_label("Name", _RC_NAME_W),
-                    _column_label("Frequency", _RC_FREQ_W),
-                    _column_label("Next", _RC_NEXT_W),
-                    _column_label("Amount", _RC_AMOUNT_W, align_right=True),
-                    _column_label("Override", _RC_OVERRIDE_W, align_right=True),
+                    _column_label("NAME", _RC_NAME_W),
+                    _column_label("FREQUENCY", _RC_FREQ_W),
+                    _column_label("NEXT", _RC_NEXT_W),
+                    _column_label("AMOUNT", _RC_AMOUNT_W, align_right=True),
+                    _column_label("OVERRIDE", _RC_OVERRIDE_W, align_right=True),
                 ],
                 spacing=8,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1186,7 +1172,7 @@ class AdjustmentsPanel(ft.Column):
         return list(self._one_offs)
 
     def _is_item_included(self, item: RecurringItem) -> bool:
-        if item.name in self._prefs.excluded_recurring_names:
+        if self._prefs.is_recurring_excluded(item.name, item.account_id):
             return False
         return not (
             self._selected_account_id
@@ -1196,13 +1182,13 @@ class AdjustmentsPanel(ft.Column):
 
     @property
     def adjusted_recurring_items(self) -> list[RecurringItem]:
-        overrides = self._prefs.amount_overrides
         adjusted = []
         for item in self._recurring_items:
             if not self._is_item_included(item):
                 continue
-            if item.name in overrides:
-                adjusted.append(replace(item, amount=overrides[item.name]))
+            override = self._prefs.get_amount_override(item.name, item.account_id)
+            if override is not None:
+                adjusted.append(replace(item, amount=override))
             else:
                 adjusted.append(item)
         return adjusted
@@ -1271,7 +1257,7 @@ class AdjustmentsPanel(ft.Column):
             self._oneoff_error.update()
             _schedule_focus(self.page, self._oneoff_amount)
             return
-        if amount <= 0:
+        if not math.isfinite(amount) or amount <= 0:
             self._oneoff_error.value = "Amount must be greater than 0."
             self._oneoff_error.update()
             _schedule_focus(self.page, self._oneoff_amount)
@@ -1282,6 +1268,11 @@ class AdjustmentsPanel(ft.Column):
             txn_date = self._oneoff_picked_date
         if txn_date is None:
             self._oneoff_error.value = "Enter a valid date (YYYY-MM-DD)."
+            self._oneoff_error.update()
+            _schedule_focus(self.page, self._oneoff_date_display)
+            return
+        if txn_date < date.today():
+            self._oneoff_error.value = "Date must be today or later."
             self._oneoff_error.update()
             _schedule_focus(self.page, self._oneoff_date_display)
             return
@@ -1508,23 +1499,55 @@ class AdjustmentsPanel(ft.Column):
     # Recurring rows
     # ------------------------------------------------------------------
 
-    def _on_override_change(self, name: str, original_amount: float, value: str) -> None:
+    def _set_field_error(self, field: ft.TextField, message: str) -> None:
+        field.error = message
         try:
-            new_amount = float(value)
-            new_amount = -abs(new_amount) if original_amount < 0 else abs(new_amount)
-            self._prefs.set_amount_override(name, new_amount)
-        except ValueError:
-            self._prefs.clear_amount_override(name)
-        self._on_change()
+            field.update()
+        except (RuntimeError, AssertionError):
+            pass
+        try:
+            page = self.page  # Raises RuntimeError when the panel is unmounted.
+        except RuntimeError:
+            return
+        if page is not None:
+            _schedule_focus(page, field)
 
-    def _reset_override(self, name: str) -> None:
-        self._prefs.clear_amount_override(name)
+    def _on_override_change(self, item: RecurringItem, field: ft.TextField, value: str) -> None:
+        raw = value.replace(",", "").replace("$", "").strip()
+        if not raw:
+            # An emptied field is an intentional reset to the calculated
+            # amount. Any other unparseable input must leave the stored
+            # override untouched: a typo must surface as a field error,
+            # never as a silently deleted override.
+            self._prefs.clear_amount_override(item.name, account_id=item.account_id)
+            self._rebuild_override_rows()
+            self._on_change()
+            return
+        try:
+            new_amount = float(raw)
+        except ValueError:
+            self._set_field_error(field, "Enter a number like 123.45")
+            return
+        if not math.isfinite(new_amount) or new_amount <= 0:
+            self._set_field_error(field, "Enter an amount greater than 0")
+            return
+        signed = -abs(new_amount) if item.amount < 0 else abs(new_amount)
+        self._prefs.set_amount_override(item.name, signed, account_id=item.account_id)
+        # Rebuild so the coral border, strikethrough original, and reset
+        # button reflect the new override immediately.
         self._rebuild_override_rows()
         self._on_change()
 
-    def _on_exclude_toggle(self, e: ft.Event[ft.Checkbox], name: str) -> None:
+    def _reset_override(self, item: RecurringItem) -> None:
+        self._prefs.clear_amount_override(item.name, account_id=item.account_id)
+        self._rebuild_override_rows()
+        self._on_change()
+
+    def _on_exclude_toggle(self, e: ft.Event[ft.Checkbox], item: RecurringItem) -> None:
         included = e.control.value
-        self._prefs.set_recurring_excluded(name, excluded=not included)
+        self._prefs.set_recurring_excluded(
+            item.name, excluded=not included, account_id=item.account_id
+        )
         self._rebuild_override_rows()
         self._on_change()
 
@@ -1550,7 +1573,7 @@ class AdjustmentsPanel(ft.Column):
 
         checkbox = ft.Checkbox(
             value=not is_excluded,
-            on_change=lambda e, n=item.name: self._on_exclude_toggle(e, n),
+            on_change=lambda e, it=item: self._on_exclude_toggle(e, it),
             tooltip=f"{'Exclude' if not is_excluded else 'Include'} {item.name} from forecast",
             active_color=tokens.CORAL,
             check_color=tokens.PAPER,
@@ -1632,8 +1655,11 @@ class AdjustmentsPanel(ft.Column):
             value=f"{abs(current_amount):.2f}",
             width=_RC_OVERRIDE_W,
             keyboard_type=ft.KeyboardType.NUMBER,
-            on_submit=lambda e, n=item.name, a=item.amount: self._on_override_change(
-                n, a, e.control.value or ""
+            on_submit=lambda e, it=item: self._on_override_change(
+                it, e.control, e.control.value or ""
+            ),
+            on_blur=lambda e, it=item: self._on_override_change(
+                it, e.control, e.control.value or ""
             ),
             dense=True,
             tooltip=(
@@ -1659,7 +1685,7 @@ class AdjustmentsPanel(ft.Column):
                 icon_size=16,
                 icon_color=tokens.INK_3,
                 tooltip="Reset to original",
-                on_click=lambda _, n=item.name: self._reset_override(n),
+                on_click=lambda _, it=item: self._reset_override(it),
             ),
         )
 
@@ -1689,7 +1715,6 @@ class AdjustmentsPanel(ft.Column):
         )
 
     def _rebuild_override_rows(self) -> None:
-        excluded = self._prefs.excluded_recurring_names
         matching: list[tuple[int, RecurringItem]] = []
         other_account: list[tuple[int, RecurringItem]] = []
         for i, item in enumerate(self._recurring_items):
@@ -1702,7 +1727,6 @@ class AdjustmentsPanel(ft.Column):
             else:
                 matching.append((i, item))
 
-        overrides = self._prefs.amount_overrides
         included_count = 0
         rows: list[ft.Control] = []
 
@@ -1710,9 +1734,10 @@ class AdjustmentsPanel(ft.Column):
 
         today = date.today()
         for idx, (_orig_i, item) in enumerate(matching):
-            is_excluded = item.name in excluded
-            is_overridden = item.name in overrides
-            current_amount = overrides.get(item.name, item.amount)
+            is_excluded = self._prefs.is_recurring_excluded(item.name, item.account_id)
+            override = self._prefs.get_amount_override(item.name, item.account_id)
+            is_overridden = override is not None
+            current_amount = override if override is not None else item.amount
             if not is_excluded:
                 included_count += 1
 

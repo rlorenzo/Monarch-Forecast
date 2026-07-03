@@ -20,4 +20,5 @@ env/
 .tach/
 .DS_Store
 .claude
+.review-pr-ignored-*
 .antigravitycli/

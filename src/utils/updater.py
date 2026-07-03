@@ -48,22 +48,25 @@ def check_for_update() -> dict[str, Any] | None:
     except (URLError, json.JSONDecodeError, OSError):
         return None
 
-    tag = data.get("tag_name", "")
+    # Fields can be explicit JSON null in an otherwise well-formed response,
+    # which a plain dict.get(..., default) doesn't catch since the key is
+    # present. "or default" null-coalesces each one before use.
+    tag = data.get("tag_name") or ""
     latest_version = tag.lstrip("v")
 
     if not latest_version or not _is_newer(latest_version, CURRENT_VERSION):
         return None
 
     # Find the best download asset for the current platform
-    download_url = _find_platform_asset(data.get("assets", []))
+    download_url = _find_platform_asset(data.get("assets") or [])
     if not download_url:
-        download_url = data.get("html_url", "")
+        download_url = data.get("html_url") or ""
 
     return {
         "version": latest_version,
         "download_url": download_url,
-        "release_notes": data.get("body", ""),
-        "html_url": data.get("html_url", ""),
+        "release_notes": data.get("body") or "",
+        "html_url": data.get("html_url") or "",
     }
 
 

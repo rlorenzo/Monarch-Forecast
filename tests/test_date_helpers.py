@@ -93,7 +93,30 @@ class TestNextOccurrenceYearly:
 
 class TestNextOccurrenceUnknown:
     def test_unknown_frequency(self):
-        assert next_occurrence(date(2026, 1, 1), "quarterly", date(2026, 1, 1)) is None
+        assert next_occurrence(date(2026, 1, 1), "fortnightly", date(2026, 1, 1)) is None
+
+    def test_bimonthly_steps_two_months(self):
+        base = date(2026, 1, 10)
+        assert next_occurrence(base, "bimonthly", date(2026, 1, 11)) == date(2026, 3, 10)
+        assert next_occurrence(base, "bimonthly", date(2026, 3, 10)) == date(2026, 3, 10)
+        # Keeps the anchor's month phase: Feb asks land on March, not Feb.
+        assert next_occurrence(base, "bimonthly", date(2026, 2, 1)) == date(2026, 3, 10)
+
+    def test_quarterly_steps_three_months(self):
+        base = date(2026, 1, 5)
+        assert next_occurrence(base, "quarterly", date(2026, 1, 6)) == date(2026, 4, 5)
+        assert next_occurrence(base, "quarterly", date(2026, 4, 6)) == date(2026, 7, 5)
+
+    def test_quarterly_day_31_capped_at_28(self):
+        base = date(2026, 1, 31)
+        assert next_occurrence(base, "quarterly", date(2026, 2, 1)) == date(2026, 4, 28)
+
+    def test_semimonthly_anchor_past_midmonth_pairs_downward(self):
+        # An anchor on the 15th pairs with the 1st, not the 28th; a
+        # wrong companion day puts half the occurrences on wrong dates.
+        base = date(2026, 6, 15)
+        assert next_occurrence(base, "semimonthly", date(2026, 6, 16)) == date(2026, 7, 1)
+        assert next_occurrence(base, "semimonthly", date(2026, 7, 2)) == date(2026, 7, 15)
 
 
 class TestOccurrencesInRange:
@@ -125,3 +148,10 @@ class TestOccurrencesInRange:
             date(2026, 2, 14),
         )
         assert dates == []
+
+
+class TestSemiannual:
+    def test_semiannual_steps_six_months(self):
+        base = date(2026, 1, 15)
+        assert next_occurrence(base, "semiannual", date(2026, 1, 16)) == date(2026, 7, 15)
+        assert next_occurrence(base, "semiannual", date(2026, 7, 16)) == date(2027, 1, 15)

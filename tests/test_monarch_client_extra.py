@@ -108,7 +108,16 @@ class TestRefreshAccounts:
         mm.request_accounts_refresh_and_wait = AsyncMock(return_value=True)
         client = MonarchClient(mm)
         await client.refresh_accounts()
-        mm.request_accounts_refresh_and_wait.assert_awaited_with(timeout=60)
+        mm.request_accounts_refresh_and_wait.assert_awaited_with(account_ids=None, timeout=60)
+
+    async def test_scopes_sync_to_given_accounts(self):
+        mm = MagicMock()
+        mm.request_accounts_refresh_and_wait = AsyncMock(return_value=True)
+        client = MonarchClient(mm)
+        await client.refresh_accounts(["chk1", "cc1"])
+        mm.request_accounts_refresh_and_wait.assert_awaited_with(
+            account_ids=["chk1", "cc1"], timeout=60
+        )
 
 
 class TestRecurringItemsEdgeCases:
@@ -204,6 +213,79 @@ class TestRecurringItemsEdgeCases:
         client = MonarchClient(mm)
         items = await client.get_recurring_items()
         assert items[0].is_credit_card_payment is True
+
+    async def test_null_amount_falls_back_to_stream_amount(self):
+        """r["amount"] can be explicit JSON null (key present, value null);
+        that must fall back to stream.amount rather than propagating None
+        into the RecurringItem."""
+        mm = MagicMock()
+        mm.get_recurring_transactions = AsyncMock(
+            return_value={
+                "recurringTransactionItems": [
+                    {
+                        "stream": {
+                            "id": "s1",
+                            "frequency": "monthly",
+                            "amount": -25.0,
+                            "merchant": {"name": "X"},
+                        },
+                        "date": "2026-02-15",
+                        "amount": None,
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        items = await client.get_recurring_items()
+        assert items[0].amount == -25.0
+
+    async def test_null_amount_both_tiers_defaults_to_zero(self):
+        """Both r["amount"] and stream["amount"] null must default to 0.0,
+        not raise or propagate None."""
+        mm = MagicMock()
+        mm.get_recurring_transactions = AsyncMock(
+            return_value={
+                "recurringTransactionItems": [
+                    {
+                        "stream": {
+                            "id": "s1",
+                            "frequency": "monthly",
+                            "amount": None,
+                            "merchant": {"name": "X"},
+                        },
+                        "date": "2026-02-15",
+                        "amount": None,
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        items = await client.get_recurring_items()
+        assert items[0].amount == 0.0
+
+    async def test_legitimate_zero_amount_not_overridden_by_stream(self):
+        """A genuine 0.0 occurrence amount must not be replaced by a
+        different, non-zero stream amount."""
+        mm = MagicMock()
+        mm.get_recurring_transactions = AsyncMock(
+            return_value={
+                "recurringTransactionItems": [
+                    {
+                        "stream": {
+                            "id": "s1",
+                            "frequency": "monthly",
+                            "amount": -15.99,
+                            "merchant": {"name": "X"},
+                        },
+                        "date": "2026-02-15",
+                        "amount": 0.0,
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        items = await client.get_recurring_items()
+        assert items[0].amount == 0.0
 
     async def test_unknown_frequency_defaults_to_monthly(self):
         mm = MagicMock()

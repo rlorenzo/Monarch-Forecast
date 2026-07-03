@@ -1,6 +1,7 @@
 """User preferences persisted to disk (excluded items, CC selections, etc.)."""
 
 import json
+import os
 from datetime import date
 from pathlib import Path
 
@@ -16,6 +17,13 @@ class Preferences:
     def __init__(self, path: Path = PREFS_FILE) -> None:
         self._path = path
         self._path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            # ``mode=`` above only applies when the directory is created;
+            # tighten a pre-existing directory too so the per-file 0600
+            # checks aren't undermined by a group/world-writable parent.
+            self._path.parent.chmod(0o700)
+        except OSError:
+            pass  # chmod not supported on all platforms
         self._data: dict = {}
         self._load()
 
@@ -27,23 +35,72 @@ class Preferences:
                 self._data = {}
 
     def _save(self) -> None:
-        self._path.write_text(json.dumps(self._data, indent=2))
+        # Write-to-temp + atomic rename so a crash mid-write can't leave a
+        # truncated preferences.json (which _load would silently reset,
+        # dropping every exclusion, override, and one-off).
+        #
+        # The temp file is created O_EXCL (after removing any stale one via
+        # unlink, which removes a planted symlink itself, never its target)
+        # and O_NOFOLLOW where available, at 0600 from the first byte. A
+        # predictable temp path plus a symlink-following write would let
+        # anything that could write to a once-loose ~/.monarch-forecast
+        # redirect this save over an arbitrary file. If something reappears
+        # at the temp path in the unlink-to-open window, the save fails
+        # closed instead of writing through it. os.replace does not follow
+        # a symlink at the destination; it replaces the link itself.
+        tmp_path = self._path.with_suffix(".json.tmp")
         try:
-            self._path.chmod(0o600)
-        except OSError:
-            pass  # chmod not supported on all platforms
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(str(tmp_path), flags, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(json.dumps(self._data, indent=2))
+        os.replace(tmp_path, self._path)
 
     @property
     def excluded_recurring_names(self) -> set[str]:
+        """Legacy account-agnostic exclusions. Prefer ``is_recurring_excluded``."""
         return set(self._data.get("excluded_recurring", []))
 
-    def set_recurring_excluded(self, name: str, excluded: bool) -> None:
-        items = set(self._data.get("excluded_recurring", []))
-        if excluded:
-            items.add(name)
-        else:
-            items.discard(name)
-        self._data["excluded_recurring"] = sorted(items)
+    def is_recurring_excluded(self, name: str, account_id: str = "") -> bool:
+        """True if the item is excluded, checking the account-scoped entry
+        first and falling back to the legacy account-agnostic list."""
+        if account_id:
+            scoped = self._data.get("excluded_recurring_by_account", {})
+            if name in scoped.get(account_id, []):
+                return True
+        return name in self._data.get("excluded_recurring", [])
+
+    def set_recurring_excluded(self, name: str, excluded: bool, account_id: str = "") -> None:
+        """Exclude/include a recurring item.
+
+        With an ``account_id``, exclusions are scoped to that account so a
+        same-named stream on another account isn't silently affected.
+        Re-including also removes any legacy account-agnostic entry, so
+        pre-scoping exclusions can still be undone from the row.
+        """
+        if account_id:
+            by_account = {
+                k: set(v) for k, v in self._data.get("excluded_recurring_by_account", {}).items()
+            }
+            scoped = by_account.setdefault(account_id, set())
+            if excluded:
+                scoped.add(name)
+            else:
+                scoped.discard(name)
+            self._data["excluded_recurring_by_account"] = {
+                k: sorted(v) for k, v in by_account.items() if v
+            }
+        legacy = set(self._data.get("excluded_recurring", []))
+        if excluded and not account_id:
+            legacy.add(name)
+        elif not excluded:
+            legacy.discard(name)
+        self._data["excluded_recurring"] = sorted(legacy)
         self._save()
 
     @property
@@ -69,16 +126,48 @@ class Preferences:
 
     @property
     def amount_overrides(self) -> dict[str, float]:
-        """Recurring item name → overridden amount."""
+        """Legacy account-agnostic overrides. Prefer ``get_amount_override``."""
         return dict(self._data.get("amount_overrides", {}))
 
-    def set_amount_override(self, name: str, amount: float) -> None:
-        overrides = dict(self._data.get("amount_overrides", {}))
-        overrides[name] = amount
-        self._data["amount_overrides"] = overrides
+    def get_amount_override(self, name: str, account_id: str = "") -> float | None:
+        """Overridden amount for an item, or None. Account-scoped entries
+        win over the legacy account-agnostic ones."""
+        if account_id:
+            scoped = self._data.get("amount_overrides_by_account", {})
+            value = scoped.get(account_id, {}).get(name)
+            if value is not None:
+                return float(value)
+        value = self._data.get("amount_overrides", {}).get(name)
+        return None if value is None else float(value)
+
+    def set_amount_override(self, name: str, amount: float, account_id: str = "") -> None:
+        """Override an item's amount, scoped to ``account_id`` when given so
+        a same-named stream on another account keeps its own amount."""
+        if account_id:
+            by_account = dict(self._data.get("amount_overrides_by_account", {}))
+            scoped = dict(by_account.get(account_id, {}))
+            scoped[name] = amount
+            by_account[account_id] = scoped
+            self._data["amount_overrides_by_account"] = by_account
+        else:
+            overrides = dict(self._data.get("amount_overrides", {}))
+            overrides[name] = amount
+            self._data["amount_overrides"] = overrides
         self._save()
 
-    def clear_amount_override(self, name: str) -> None:
+    def clear_amount_override(self, name: str, account_id: str = "") -> None:
+        """Remove an override. With an ``account_id``, the legacy entry is
+        removed too, so resetting a row really returns it to the calculated
+        amount rather than falling back to a stale pre-scoping override."""
+        if account_id:
+            by_account = dict(self._data.get("amount_overrides_by_account", {}))
+            scoped = dict(by_account.get(account_id, {}))
+            scoped.pop(name, None)
+            if scoped:
+                by_account[account_id] = scoped
+            else:
+                by_account.pop(account_id, None)
+            self._data["amount_overrides_by_account"] = by_account
         overrides = dict(self._data.get("amount_overrides", {}))
         overrides.pop(name, None)
         self._data["amount_overrides"] = overrides
@@ -138,19 +227,49 @@ class Preferences:
 
     @property
     def cc_amount_overrides(self) -> dict[str, float]:
-        """Per-CC payment amount overrides: {cc_id: amount}."""
-        return dict(self._data.get("cc_amount_overrides", {}))
+        """Per-CC payment amount overrides: {cc_id: amount}.
 
-    def set_cc_amount_override(self, cc_id: str, amount: float) -> None:
+        Overrides recorded with an expiry (the payment's due date) drop out
+        automatically once that date passes, so a manual correction for one
+        statement doesn't silently pin every future estimate. Entries
+        without an expiry (set before expiry existed, or where no due date
+        was known) persist until cleared.
+        """
+        expiry = self._data.get("cc_override_expiry", {})
+        today = date.today()
+        result: dict[str, float] = {}
+        for cc_id, amount in self._data.get("cc_amount_overrides", {}).items():
+            raw = expiry.get(cc_id)
+            if raw:
+                try:
+                    if date.fromisoformat(raw) < today:
+                        continue
+                except ValueError:
+                    pass  # Unparseable expiry — treat as no expiry.
+            result[cc_id] = amount
+        return result
+
+    def set_cc_amount_override(
+        self, cc_id: str, amount: float, expires_on: date | None = None
+    ) -> None:
         overrides = dict(self._data.get("cc_amount_overrides", {}))
         overrides[cc_id] = amount
         self._data["cc_amount_overrides"] = overrides
+        expiry = dict(self._data.get("cc_override_expiry", {}))
+        if expires_on is not None:
+            expiry[cc_id] = expires_on.isoformat()
+        else:
+            expiry.pop(cc_id, None)
+        self._data["cc_override_expiry"] = expiry
         self._save()
 
     def clear_cc_amount_override(self, cc_id: str) -> None:
         overrides = dict(self._data.get("cc_amount_overrides", {}))
         overrides.pop(cc_id, None)
         self._data["cc_amount_overrides"] = overrides
+        expiry = dict(self._data.get("cc_override_expiry", {}))
+        expiry.pop(cc_id, None)
+        self._data["cc_override_expiry"] = expiry
         self._save()
 
     @property
