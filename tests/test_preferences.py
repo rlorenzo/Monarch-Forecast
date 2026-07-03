@@ -105,3 +105,104 @@ class TestPreferences:
         prefs1.set_safety_threshold(750.0)
         prefs2 = Preferences(path=path)
         assert prefs2.safety_threshold == 750.0
+
+
+class TestSaveSafety:
+    def test_save_leaves_no_temp_file(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        assert path.exists()
+        assert not (tmp_path / "prefs.json.tmp").exists()
+
+    def test_preexisting_loose_dir_tightened(self, tmp_path: Path):
+        import stat
+        import sys
+
+        if sys.platform.startswith("win"):
+            return  # POSIX permission semantics only.
+        subdir = tmp_path / "cfg"
+        subdir.mkdir(mode=0o755)
+        if stat.S_IMODE(subdir.stat().st_mode) == 0o700:
+            return  # A restrictive umask already tightened it; nothing to assert.
+        Preferences(path=subdir / "prefs.json")
+        assert stat.S_IMODE(subdir.stat().st_mode) == 0o700
+
+
+class TestScopedAmountOverrides:
+    def test_scoped_override_does_not_leak_to_other_accounts(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_amount_override("Amazon", -25.0, account_id="acct-A")
+        assert prefs.get_amount_override("Amazon", "acct-A") == -25.0
+        assert prefs.get_amount_override("Amazon", "acct-B") is None
+        assert prefs.get_amount_override("Amazon") is None
+
+    def test_legacy_override_applies_to_any_account(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_amount_override("Rent", -1800.0)  # pre-scoping entry
+        assert prefs.get_amount_override("Rent", "acct-A") == -1800.0
+        assert prefs.get_amount_override("Rent") == -1800.0
+
+    def test_scoped_wins_over_legacy(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_amount_override("Rent", -1800.0)
+        prefs.set_amount_override("Rent", -2000.0, account_id="acct-A")
+        assert prefs.get_amount_override("Rent", "acct-A") == -2000.0
+        assert prefs.get_amount_override("Rent", "acct-B") == -1800.0
+
+    def test_scoped_clear_removes_legacy_too(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_amount_override("Rent", -1800.0)
+        prefs.set_amount_override("Rent", -2000.0, account_id="acct-A")
+        prefs.clear_amount_override("Rent", account_id="acct-A")
+        assert prefs.get_amount_override("Rent", "acct-A") is None
+
+
+class TestScopedExclusions:
+    def test_scoped_exclusion_is_per_account(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_recurring_excluded("Amazon", excluded=True, account_id="acct-A")
+        assert prefs.is_recurring_excluded("Amazon", "acct-A")
+        assert not prefs.is_recurring_excluded("Amazon", "acct-B")
+        assert not prefs.is_recurring_excluded("Amazon")
+
+    def test_legacy_exclusion_applies_everywhere(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        assert prefs.is_recurring_excluded("Netflix", "acct-A")
+        assert prefs.is_recurring_excluded("Netflix")
+
+    def test_scoped_reinclude_clears_legacy(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        prefs.set_recurring_excluded("Netflix", excluded=False, account_id="acct-A")
+        assert not prefs.is_recurring_excluded("Netflix", "acct-A")
+        assert not prefs.is_recurring_excluded("Netflix")
+
+
+class TestCcOverrideExpiry:
+    def test_override_with_future_expiry_active(self, tmp_path: Path):
+        from datetime import date, timedelta
+
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_cc_amount_override("cc1", 500.0, expires_on=date.today() + timedelta(days=10))
+        assert prefs.cc_amount_overrides == {"cc1": 500.0}
+
+    def test_override_expires_after_payment_date(self, tmp_path: Path):
+        from datetime import date, timedelta
+
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_cc_amount_override("cc1", 500.0, expires_on=date.today() - timedelta(days=1))
+        assert prefs.cc_amount_overrides == {}
+
+    def test_override_without_expiry_persists(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_cc_amount_override("cc1", 500.0)
+        assert prefs.cc_amount_overrides == {"cc1": 500.0}
+
+    def test_expiry_active_on_the_payment_day_itself(self, tmp_path: Path):
+        from datetime import date
+
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs.set_cc_amount_override("cc1", 500.0, expires_on=date.today())
+        assert prefs.cc_amount_overrides == {"cc1": 500.0}

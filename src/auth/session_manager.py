@@ -96,6 +96,14 @@ class SessionManager:
 
     def __init__(self) -> None:
         SESSION_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # mode= on mkdir only applies when the directory is created; if it
+        # already existed (e.g. from a looser umask on a prior run) it keeps
+        # whatever perms it had. Tighten explicitly so we don't silently
+        # leave a group/world-readable session directory.
+        try:
+            SESSION_DIR.chmod(0o700)
+        except OSError:
+            pass
         self._mm = MonarchMoney(session_file=str(SESSION_FILE))
         self._authenticated = False
 

@@ -84,6 +84,115 @@ class TestGetCheckingAccounts:
         assert accounts[0]["balance"] == 5000.0
 
 
+class TestNullFields:
+    """Monarch can return explicit JSON null for fields the normalizer
+    otherwise only guards against absence. These must not raise and must
+    fall back to the same defaults as a missing field."""
+
+    async def test_null_type_and_subtype_do_not_raise(self):
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Checking",
+                        "currentBalance": 100.0,
+                        "type": None,
+                        "subtype": None,
+                        "institution": {"name": "Chase"},
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        # Falls through _is_checking_account's final `depository`/`checking`
+        # type check, which returns False for a null type — so this account
+        # is excluded, but crucially without raising AttributeError.
+        accounts = await client.get_checking_accounts()
+        assert accounts == []
+
+    async def test_null_type_and_subtype_in_credit_card_filter(self):
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Mystery Card",
+                        "currentBalance": -100.0,
+                        "type": None,
+                        "subtype": None,
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        cards = await client.get_credit_card_accounts()
+        assert cards == []
+
+    async def test_null_current_balance_defaults_to_zero(self):
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Checking",
+                        "currentBalance": None,
+                        "type": {"name": "depository"},
+                        "subtype": {"name": "checking"},
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        accounts = await client.get_checking_accounts()
+        assert len(accounts) == 1
+        assert accounts[0]["balance"] == 0.0
+
+    async def test_legitimate_zero_balance_stays_zero(self):
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Checking",
+                        "currentBalance": 0.0,
+                        "type": {"name": "depository"},
+                        "subtype": {"name": "checking"},
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        accounts = await client.get_checking_accounts()
+        assert accounts[0]["balance"] == 0.0
+
+    async def test_null_type_still_includes_checking_when_subtype_checking(self):
+        """A null `type` shouldn't block inclusion when `subtype` alone is
+        enough to identify a checking account."""
+        mm = MagicMock()
+        mm.get_accounts = AsyncMock(
+            return_value={
+                "accounts": [
+                    {
+                        "id": "1",
+                        "displayName": "Checking",
+                        "currentBalance": 50.0,
+                        "type": None,
+                        "subtype": {"name": "checking"},
+                    },
+                ]
+            }
+        )
+        client = MonarchClient(mm)
+        accounts = await client.get_checking_accounts()
+        assert len(accounts) == 1
+        assert accounts[0]["type"] == ""
+
+
 class TestGetCreditCardAccounts:
     async def test_filters_credit(self):
         mm = MagicMock()
@@ -288,3 +397,39 @@ class TestGetRecurringItems:
         client = MonarchClient(mm)
         items = await client.get_recurring_items()
         assert len(items) == 0
+
+
+class TestFetchProgress:
+    async def test_progress_reports_pages_against_total(self):
+        from unittest.mock import AsyncMock
+
+        from src.data.monarch_client import MonarchClient
+
+        page1 = {"allTransactions": {"totalCount": 750, "results": [{"id": i} for i in range(500)]}}
+        page2 = {"allTransactions": {"totalCount": 750, "results": [{"id": i} for i in range(250)]}}
+        mm = AsyncMock()
+        mm.get_transactions = AsyncMock(side_effect=[page1, page2])
+        client = MonarchClient(mm)
+
+        seen: list[tuple[int, int]] = []
+        txns = await client.get_transactions(
+            lookback_days=750, on_progress=lambda done, total: seen.append((done, total))
+        )
+        assert len(txns) == 750
+        assert seen == [(500, 750), (750, 750)]
+
+    async def test_progress_callback_errors_do_not_break_fetch(self):
+        from unittest.mock import AsyncMock
+
+        from src.data.monarch_client import MonarchClient
+
+        page = {"allTransactions": {"totalCount": 1, "results": [{"id": 1}]}}
+        mm = AsyncMock()
+        mm.get_transactions = AsyncMock(return_value=page)
+        client = MonarchClient(mm)
+
+        def boom(done: int, total: int) -> None:
+            raise RuntimeError("ui went away")
+
+        txns = await client.get_transactions(on_progress=boom)
+        assert len(txns) == 1

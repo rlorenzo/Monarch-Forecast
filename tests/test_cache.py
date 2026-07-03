@@ -78,6 +78,22 @@ class TestDataCache:
         finally:
             os.umask(old_umask)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
+    def test_tightens_perms_on_preexisting_loose_parent_dir(self, tmp_path: Path):
+        """db_path.parent.mkdir(mode=0o700) only applies the mode on
+        creation; if the parent dir already existed with looser perms (e.g.
+        a stale run under a looser umask), the constructor must chmod it
+        down to 0o700 rather than leaving it as-is."""
+        parent = tmp_path / "cache_dir"
+        parent.mkdir(mode=0o755)
+
+        c = DataCache(db_path=parent / "test_cache.db")
+        try:
+            mode = stat.S_IMODE(parent.stat().st_mode)
+            assert mode == 0o700, f"expected 0o700, got {oct(mode)}"
+        finally:
+            c.close()
+
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
     def test_db_path_refuses_symlink(self, tmp_path: Path):
         """A symlink planted at db_path must be rejected outright —

@@ -43,6 +43,7 @@ def build_forecast(
                 amount=item.amount,
                 category=item.category,
                 is_recurring=True,
+                account_id=item.account_id,
             )
             txn_by_date.setdefault(occ_date, []).append(txn)
 

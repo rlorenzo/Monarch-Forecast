@@ -1,5 +1,6 @@
 """Async wrapper around monarchmoneycommunity for the data we need."""
 
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
@@ -60,7 +61,15 @@ class MonarchClient:
             stream = r.get("stream") or {}
             merchant = stream.get("merchant", {}) or {}
             name = merchant.get("name", "Unknown")
-            amount = r.get("amount", stream.get("amount", 0.0))
+            # r["amount"] can be explicit JSON null (not just absent), which
+            # a plain dict.get(..., default) wouldn't catch since the key is
+            # present. Treat null the same as missing at each fallback tier,
+            # so a legitimate 0.0 amount at either tier is preserved.
+            amount = r.get("amount")
+            if amount is None:
+                amount = stream.get("amount")
+            if amount is None:
+                amount = 0.0
             frequency = _parse_frequency(stream.get("frequency", "monthly"))
 
             # Use the item's date as the base occurrence
@@ -100,8 +109,14 @@ class MonarchClient:
         self,
         account_ids: list[str] | None = None,
         lookback_days: int = 90,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> list[dict[str, Any]]:
-        """Fetch transaction history for the given accounts."""
+        """Fetch transaction history for the given accounts.
+
+        ``on_progress(fetched, total)`` fires after each 500-row page; the
+        API reports totalCount on every page, so the total is exact from
+        the first page and callers can render determinate progress.
+        """
         today = date.today()
         start = (today - timedelta(days=lookback_days)).isoformat()
         end = today.isoformat()
@@ -117,22 +132,35 @@ class MonarchClient:
                 end_date=end,
                 account_ids=account_ids or [],
             )
-            results = data.get("allTransactions", {}).get("results", [])
+            payload = data.get("allTransactions") or {}
+            results = payload.get("results", []) or []
             all_txns.extend(results)
+            if on_progress is not None:
+                total = payload.get("totalCount") or 0
+                try:
+                    on_progress(len(all_txns), max(total, len(all_txns)))
+                except Exception:
+                    pass  # Progress display must never break the fetch.
             if len(results) < limit:
                 break
             offset += limit
 
         return all_txns
 
-    async def refresh_accounts(self) -> bool:
+    async def refresh_accounts(self, account_ids: list[str] | None = None) -> bool:
         """Trigger a bank sync and wait for completion.
 
-        Capped at 60s because institutions that stall past a minute typically
-        don't finish at all on this request; a fresh retry works better.
+        ``account_ids`` scopes the sync; None refreshes every account in
+        the Monarch profile (the library fetches the full id list), which
+        waits on the slowest institution — pass the accounts the forecast
+        actually uses. Capped at 60s because institutions that stall past
+        a minute typically don't finish at all on this request; a fresh
+        retry works better.
         """
         try:
-            return await self._mm.request_accounts_refresh_and_wait(timeout=60)
+            return await self._mm.request_accounts_refresh_and_wait(
+                account_ids=account_ids, timeout=60
+            )
         except Exception:
             return False
 
@@ -172,8 +200,8 @@ def _is_active_visible(account: dict) -> bool:
 
 def _is_checking_account(account: dict) -> bool:
     """Filter for checking accounts only, excluding savings."""
-    acct_type = account.get("type", {}).get("name", "").lower()
-    subtype = account.get("subtype", {}).get("name", "").lower()
+    acct_type = (account.get("type", {}) or {}).get("name", "").lower()
+    subtype = (account.get("subtype", {}) or {}).get("name", "").lower()
     savings_subtypes = {"savings", "money market", "cd", "certificate of deposit"}
     if subtype in savings_subtypes:
         return False
@@ -185,8 +213,8 @@ def _is_checking_account(account: dict) -> bool:
 
 def _is_credit_card(account: dict) -> bool:
     """Filter for credit card accounts."""
-    acct_type = account.get("type", {}).get("name", "").lower()
-    subtype = account.get("subtype", {}).get("name", "").lower()
+    acct_type = (account.get("type", {}) or {}).get("name", "").lower()
+    subtype = (account.get("subtype", {}) or {}).get("name", "").lower()
     return acct_type == "credit" or subtype == "credit card"
 
 
@@ -200,14 +228,17 @@ def _normalize_account(account: dict, *, include_type: bool = False) -> dict[str
     out: dict[str, Any] = {
         "id": account["id"],
         "name": account.get("displayName", account.get("name", "Unknown")),
-        "balance": account.get("currentBalance", 0.0),
+        # currentBalance can be explicit JSON null; "or 0.0" is safe here
+        # specifically because the fallback equals the falsy sentinel, so a
+        # legitimate 0.0 balance and a missing/null balance both land on 0.0.
+        "balance": account.get("currentBalance") or 0.0,
         "institution": (
             account.get("institution", {}).get("name", "") if account.get("institution") else ""
         ),
     }
     if include_type:
-        out["type"] = account.get("type", {}).get("name", "")
-        out["subtype"] = account.get("subtype", {}).get("name", "")
+        out["type"] = (account.get("type", {}) or {}).get("name", "")
+        out["subtype"] = (account.get("subtype", {}) or {}).get("name", "")
     return out
 
 

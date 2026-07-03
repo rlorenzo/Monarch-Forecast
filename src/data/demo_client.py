@@ -1,5 +1,6 @@
 """Stand-in for MonarchClient that serves demo_data — no network."""
 
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
@@ -29,6 +30,7 @@ class DemoClient(MonarchClient):
         self,
         account_ids: list[str] | None = None,
         lookback_days: int = 90,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> list[dict[str, Any]]:
         txns = demo_data.build_transactions()
         cutoff = date.today() - timedelta(days=lookback_days)
@@ -38,5 +40,5 @@ class DemoClient(MonarchClient):
             txns = [t for t in txns if t["account"]["id"] in allowed]
         return txns
 
-    async def refresh_accounts(self) -> bool:
+    async def refresh_accounts(self, account_ids: list[str] | None = None) -> bool:
         return True

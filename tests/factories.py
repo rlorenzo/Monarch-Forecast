@@ -1,6 +1,6 @@
 """Test data factories shared across test modules."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from src.data.models import ForecastTransaction
 from src.forecast.models import ForecastDay, ForecastResult
@@ -21,7 +21,9 @@ def make_forecast(
     days = []
     b = balance
     for i in range(days_out):
-        d = date(2026, 1, 1 + i)
+        # timedelta, not date(2026, 1, 1 + i): the raw form raises
+        # "day is out of range for month" for any days_out > 31.
+        d = date(2026, 1, 1) + timedelta(days=i)
         txns = []
         if i == 2:
             txns = [ForecastTransaction(date=d, name="Rent", amount=-1500.0, category="Housing")]
