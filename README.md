@@ -20,8 +20,15 @@ day-by-day balance projection chart.
 
 ### Transactions
 
-Every projected transaction in the forecast window, grouped by day with the
-running balance. Filterable by income, expense, one-off, and card payment.
+Three modes, toggled by the pills at the top of the tab (default: Upcoming).
+**Upcoming** lists every projected transaction in the forecast window
+newest first, grouped by day with the running balance, filterable by
+income, expense, one-off, and card payment. **Recent** lists the selected checking account's
+completed transactions (last 7 days by default; 30 and 90 available), newest
+first, so you can see where your money went. **Both** stacks them into one
+reverse-chronological ledger: projected transactions on top, reading down
+through a coral TODAY line into recently completed activity, which sits
+muted on a tinted band.
 
 ![Transactions tab listing upcoming bills, paychecks, rent, and groceries day by day](screenshots/transactions.png)
 
@@ -44,7 +51,8 @@ period.
   expected refunds) to refine the forecast
 - **Editorial design**: Custom paper-and-ink design system, Fraunces
   display serif paired with Inter, tabular lining figures across every
-  money column. Light and dark themes are first-class equals
+  money column. The app ships light-only for now: a dark token ramp is
+  defined in the design system but not yet wired into the views
 - **Auto-update notifications**: Checks GitHub Releases for newer
   versions on startup
 - **Cross-platform**: Builds for macOS (.dmg), Windows (.msix), and Linux
@@ -52,9 +60,17 @@ period.
 
 ### How it works
 
-- **Recurring transactions** are detected by analyzing 90 days of
-  transaction history. The app groups by merchant, checks amount
-  consistency, and infers frequency (weekly, biweekly, monthly, or yearly)
+- **Recurring transactions** are detected by analyzing about two years
+  (750 days) of checking history (credit cards only need ~3 months, for
+  billing-cycle estimation), cached locally and refreshed incrementally
+  so only recent activity is re-downloaded on each load. Cards excluded
+  under Adjustments are not fetched or bank-synced at all.
+  The app groups by merchant, checks amount consistency (tolerating
+  one-off outliers and refunds), infers frequency (weekly, biweekly,
+  semimonthly, monthly, bimonthly, quarterly, semiannual, or yearly),
+  and drops streams that have gone quiet for more than about 1.5 cycles.
+  Penalty fees (NSF, overdraft, late fees) and bare bank descriptors
+  ("Deposit", "ATM") are never projected
 - **Credit card payments** are estimated by inferring each card's statement
   close and due days (from user settings or payment history) and summing
   charges across the current billing cycle, falling back to the card's
@@ -81,7 +97,7 @@ Download the latest installer for your platform from
 
 ### From source
 
-Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/rlorenzo/Monarch-Forecast.git
@@ -142,9 +158,12 @@ uv run pytest                    # run tests
 uv run ruff check                # lint
 uv run ruff format               # format
 uv run ty check                  # type check
+npx jscpd src                    # copy-paste detection (requires Node; config in .jscpd.json)
 ```
 
-Set up pre-commit hooks (ruff lint/format + ty on every commit):
+Set up pre-commit hooks (ruff lint/format, ty type-check, vulture dead-code,
+tach module boundaries, bandit security, and jscpd copy-paste detection on
+every commit):
 
 ```bash
 uv run pre-commit install
@@ -159,7 +178,8 @@ uv run pre-commit run --all-files  # every file in the repo
 ```
 
 Tests are expected to pass before opening a PR. CI runs lint, type check,
-and pytest on all pull requests.
+dead-code, module-boundary, security, and copy-paste checks plus the full
+test suite on all pull requests.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution and testing
 policy, and [SECURITY.md](SECURITY.md) if you've found a vulnerability.
@@ -234,6 +254,8 @@ level:
   - `⌘1` / `Ctrl+1`: Overview tab
   - `⌘2` / `Ctrl+2`: Transactions tab
   - `⌘3` / `Ctrl+3`: Adjustments tab
+  - `⌘4` / `Ctrl+4`: cycle the Transactions tab through Upcoming, Recent,
+    and Both
 
   Switching tabs auto-focuses the first meaningful control of the new
   tab. Date fields in the one-off transaction forms accept typed input
