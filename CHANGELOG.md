@@ -7,6 +7,52 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.1.0] (2026-07-02)
+
+A forecast-accuracy release: recurring detection is rebuilt around a
+two-year window, credit card estimates net out refunds, and the
+Transactions tab gains Recent and Both ledgers.
+
+### Added
+
+- **Recent and Both ledgers.** The Transactions tab now has three
+  modes (pills; Cmd/Ctrl+4 cycles). Recent shows the checking
+  account's completed transactions (7/30/90 days, search, flow
+  filters); Both stacks projected and completed activity into one
+  ledger split by a TODAY divider.
+- **Recurring detection across two years.** A 750-day lookback
+  (backed by a new incremental cache) detects bimonthly through
+  yearly cadences. Median-based intervals tolerate missed or split
+  charges, stale streams stop projecting, and penalty fees and bare
+  descriptors ("Deposit", "ATM") are never projected.
+
+### Fixed
+
+- **Credit card estimates:** refunds and statement credits net into
+  the estimate, due days come from the card's own payment history,
+  due-today payments stay in the forecast, early payments no longer
+  double-count, and partial payments bill the unpaid remainder.
+- **Name collisions:** recurring card-payment stripping is tightly
+  scoped, so a Chase mortgage survives a "Chase Reserve" card.
+- **Inputs:** the recurring override parses "\$2,500.00" and shows
+  an error instead of silently deleting; it and the safety threshold
+  commit on blur; non-finite amounts and past dates are rejected.
+- **Guards and robustness:** Cmd/Ctrl+R and account switches honor
+  unsaved card edits; preferences saves are atomic and
+  symlink-hardened; null account fields no longer crash the load.
+- **Contrast:** colour tokens retuned to clear WCAG AA at the small
+  sizes money columns actually render at.
+
+### Security
+
+- msgpack 1.2.1 (fixes GHSA-6v7p-g79w-8964, high severity),
+  aiohttp 3.14.1, cryptography 48.0.1.
+
+### Internal
+
+- Least-privilege, SHA-pinned release CI; jscpd copy-paste gate;
+  Python 3.12 and Node pins; commit hook strips AI session trailers.
+
 ## [1.0.3] (2026-05-25)
 
 A small UX release focused on making the left-rail refresh timestamp
@@ -142,7 +188,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.1.0
 [1.0.3]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.3
 [1.0.2]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.2
 [1.0.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.1
