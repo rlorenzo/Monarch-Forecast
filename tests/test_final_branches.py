@@ -216,12 +216,15 @@ class TestEditOneOffClosure:
         # Seed one-off so find_one_off_index returns an index.
         dashboard.adjustments_panel.add_one_off("Old", 100.0, date(2026, 6, 1), is_expense=True)
         existing = dashboard.adjustments_panel.one_off_transactions[0]
+        # Relative future date: the edit-save path rejects past dates, so a
+        # fixed literal would rot once today moves past it.
+        future = date.today() + timedelta(days=30)
         with _with_mock_page(fake_page):
             dashboard._on_edit_oneoff_request(existing)
             dialog = fake_page.show_dialog.call_args[0][0]
             _find_field_by_label(dialog, "DESCRIPTION").value = "Renamed"
             _find_field_by_label(dialog, "AMOUNT").value = "250"
-            _find_field_by_label(dialog, "DATE").value = "2026-07-15"
+            _find_field_by_label(dialog, "DATE").value = future.isoformat()
             save = _find_action_on_click(dialog, "Save")
             assert save is not None
             try:
@@ -231,7 +234,7 @@ class TestEditOneOffClosure:
         updated = dashboard.adjustments_panel.one_off_transactions[0]
         assert updated.name == "Renamed"
         assert updated.amount == -250.0
-        assert updated.date == date(2026, 7, 15)
+        assert updated.date == future
 
 
 # ---------------------------------------------------------------------------
@@ -241,12 +244,13 @@ class TestEditOneOffClosure:
 
 class TestAddOneOffDialogClosure:
     def test_save_appends_one_off(self, dashboard, fake_page):
+        future = date.today() + timedelta(days=14)
         with _with_mock_page(fake_page):
             dashboard._open_add_one_off_dialog()
             dialog = fake_page.show_dialog.call_args[0][0]
             _find_field_by_label(dialog, "DESCRIPTION").value = "Car repair"
             _find_field_by_label(dialog, "AMOUNT").value = "300"
-            _find_field_by_label(dialog, "DATE").value = "2026-08-01"
+            _find_field_by_label(dialog, "DATE").value = future.isoformat()
             save = _find_action_on_click(dialog, "Add transaction")
             assert save is not None
             try:

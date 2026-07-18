@@ -308,13 +308,14 @@ class TestAddOneOffDialog:
 
     def test_valid_input_saves_expense(self):
         page, dialog, saves = self._setup()
+        future = date.today() + timedelta(days=14)
         _field(dialog, "DESCRIPTION").value = "Car repair"
         _field(dialog, "AMOUNT").value = "200"
-        _field(dialog, "DATE").value = "2026-08-01"
+        _field(dialog, "DATE").value = future.isoformat()
         save = _find_action_on_click(dialog, "Add transaction")
         assert save is not None
         _click(save)
-        assert saves == [("Car repair", 200.0, date(2026, 8, 1), True)]
+        assert saves == [("Car repair", 200.0, future, True)]
         page.pop_dialog.assert_called_once()
 
     def test_valid_input_saves_income(self):
