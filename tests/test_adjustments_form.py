@@ -100,7 +100,7 @@ class TestAddOneOffFormValidation:
     def test_amount_with_dollar_sign_and_comma_normalised(self, panel):
         panel._oneoff_name.value = "Car repair"
         panel._oneoff_amount.value = "$1,234.56"
-        panel._oneoff_date_display.value = "2026-08-01"
+        panel._oneoff_date_display.value = (date.today() + timedelta(days=14)).isoformat()
         panel._oneoff_type.value = "expense"
         panel._add_one_off(MagicMock())
         assert len(panel.one_off_transactions) == 1
@@ -109,9 +109,10 @@ class TestAddOneOffFormValidation:
 
 class TestAddOneOffFormSuccess:
     def test_adds_expense_and_resets_form(self, panel):
+        future = date.today() + timedelta(days=14)
         panel._oneoff_name.value = "Car repair"
         panel._oneoff_amount.value = "200"
-        panel._oneoff_date_display.value = "2026-08-01"
+        panel._oneoff_date_display.value = future.isoformat()
         panel._oneoff_type.value = "expense"
         panel._add_one_off(MagicMock())
         # Transaction added.
@@ -119,7 +120,7 @@ class TestAddOneOffFormSuccess:
         txn = panel.one_off_transactions[0]
         assert txn.name == "Car repair"
         assert txn.amount == -200.0
-        assert txn.date == date(2026, 8, 1)
+        assert txn.date == future
         # Form reset.
         assert panel._oneoff_name.value == ""
         assert panel._oneoff_amount.value == ""
@@ -146,13 +147,14 @@ class TestAddOneOffFormSuccess:
         assert panel._oneoff_error.value == "Date must be today or later."
 
     def test_unparseable_date_falls_back_to_picked_date(self, panel):
+        picked = date.today() + timedelta(days=60)
         panel._oneoff_name.value = "Test"
         panel._oneoff_amount.value = "100"
         panel._oneoff_date_display.value = "garbage"
-        panel._oneoff_picked_date = date(2026, 9, 15)
+        panel._oneoff_picked_date = picked
         panel._add_one_off(MagicMock())
         # Falls back to the tracked picked date.
-        assert panel.one_off_transactions[0].date == date(2026, 9, 15)
+        assert panel.one_off_transactions[0].date == picked
 
 
 # ---------------------------------------------------------------------------

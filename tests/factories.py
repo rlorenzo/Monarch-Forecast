@@ -21,9 +21,10 @@ def make_forecast(
     days = []
     b = balance
     for i in range(days_out):
-        # timedelta, not date(2026, 1, 1 + i): the raw form raises
-        # "day is out of range for month" for any days_out > 31.
-        d = date(2026, 1, 1) + timedelta(days=i)
+        # Relative base so forecast days never drift out of a today-relative
+        # window in consumers. timedelta, not date(y, m, 1 + i): the raw form
+        # raises "day is out of range for month" for any days_out > 31.
+        d = date.today() + timedelta(days=i)
         txns = []
         if i == 2:
             txns = [ForecastTransaction(date=d, name="Rent", amount=-1500.0, category="Housing")]
