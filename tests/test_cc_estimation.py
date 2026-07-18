@@ -1,12 +1,16 @@
 """Tests for credit card statement balance estimation.
 
-TDD tests — written before implementation.
-
 How CC billing works:
 - Statement closes on the same day each month (e.g., the 4th)
 - Due date is the same day each month (e.g., the 1st), 21-27 days after close
-- Statement balance = charges between two consecutive statement close dates
+- Statement balance = everything outstanding at close, which the issuer
+  builds from POST dates, not transaction dates
 - We infer cycle from payment history or user-provided dates
+
+The estimator anchors the statement amount on the account balance rolled
+back to the close (current balance minus posted post-close activity), so
+test fixtures must keep the account balance consistent with the story the
+transactions tell: balance = statement amount owed + post-close activity.
 """
 
 from datetime import date
@@ -52,12 +56,12 @@ def _payment(cc_name: str, amount: float, txn_date: date) -> dict:
 
 
 class TestStatementChargesSummation:
-    """Sum charges between two consecutive statement close dates."""
+    """The closed statement's amount is billed on its due date."""
 
     def test_sums_charges_in_billing_cycle(self):
         """Statement closes on the 4th. Charges from Mar 4 to Apr 4
         should be the estimated payment due May 1."""
-        cc = _cc("Chase Visa", -2000.0)
+        cc = _cc("Chase Visa", -550.0)
         cc_settings = {"cc1": {"due_day": 1, "close_day": 4}}
         txns = [
             # Charges in the Mar 4 - Apr 4 billing cycle
@@ -78,11 +82,11 @@ class TestStatementChargesSummation:
         assert payments[0].amount == pytest.approx(-550.0)
 
     def test_excludes_charges_outside_cycle(self):
-        """Charges before the billing cycle should not be included."""
-        cc = _cc("Chase Visa", -3000.0)
+        """Charges posted after the close belong to the next statement."""
+        # Balance: 300 on the closed statement + 50 accrued after close.
+        cc = _cc("Chase Visa", -350.0)
         cc_settings = {"cc1": {"due_day": 1, "close_day": 4}}
         txns = [
-            _charge(-999.0, date(2026, 2, 15)),  # previous cycle
             _charge(-300.0, date(2026, 3, 10)),  # current cycle
             _charge(-50.0, date(2026, 4, 10)),  # next cycle (after Apr 4 close)
         ]
@@ -98,8 +102,9 @@ class TestStatementChargesSummation:
         assert payments[0].amount == pytest.approx(-300.0)
 
     def test_partial_cycle_uses_charges_so_far(self):
-        """If the statement hasn't closed yet, use charges accumulated so far."""
-        cc = _cc("Chase Visa", -1000.0)
+        """If nothing was owed at the last close, forecast the open
+        cycle's accrual (the current balance) at the following due date."""
+        cc = _cc("Chase Visa", -300.0)
         cc_settings = {"cc1": {"due_day": 28, "close_day": 5}}
         txns = [
             # We're mid-cycle (today is Mar 20, statement closes Apr 5)
@@ -116,12 +121,15 @@ class TestStatementChargesSummation:
         )
         assert len(payments) == 1
         assert payments[0].amount == pytest.approx(-300.0)
+        assert payments[0].date == date(2026, 4, 28)
+        assert "partial" in payments[0].name
 
     def test_real_scenario_chase_sapphire(self):
         """Real scenario: Chase Sapphire Reserve, due 1st, close 4th.
         Today is Apr 9. Statement closed Apr 4 (covers Mar 4 - Apr 4).
         Payment due May 1. Should show 'stmt', not 'partial'."""
-        cc = _cc("Chase Sapphire Reserve", -3000.0)
+        # Balance: 1150 on the closed statement + 100 accrued after close.
+        cc = _cc("Chase Sapphire Reserve", -1250.0)
         cc_settings = {"cc1": {"due_day": 1, "close_day": 4}}
         txns = [
             # Charges in the Mar 4 - Apr 4 billing cycle (the closed statement)
@@ -197,7 +205,7 @@ class TestDueDateInference:
 
     def test_inferred_statement_close_defaults_to_due_minus_25(self):
         """Without user override, statement close = due_day - 25."""
-        cc = _cc("Visa", -1000.0)
+        cc = _cc("Visa", -400.0)
         # Due on the 28th → close on ~3rd
         # Charges from Mar 3 to Apr 3 should be summed
         txns = [
@@ -266,13 +274,15 @@ class TestUserOverrides:
         assert "manual" in payments[0].name
 
     def test_user_close_day_controls_charge_window(self):
-        """User sets close_day=4. Charges summed from 4th to 4th."""
-        cc = _cc("Chase Visa", -2000.0)
+        """User sets close_day=4: it decides which activity is rolled
+        back off the balance as post-close (next statement's) spend."""
+        # Balance: 500 on the Apr 4 statement + 50 accrued after close.
+        cc = _cc("Chase Visa", -550.0)
         cc_settings = {"cc1": {"due_day": 1, "close_day": 4}}
         txns = [
-            _charge(-100.0, date(2026, 3, 3)),  # before close → previous cycle
-            _charge(-200.0, date(2026, 3, 5)),  # after close → current cycle
+            _charge(-200.0, date(2026, 3, 5)),  # current cycle
             _charge(-300.0, date(2026, 4, 3)),  # still current cycle (before Apr 4)
+            _charge(-50.0, date(2026, 4, 10)),  # after close → next cycle
         ]
         payments = estimate_cc_payments(
             [cc],
@@ -283,7 +293,7 @@ class TestUserOverrides:
             cc_settings=cc_settings,
         )
         assert len(payments) == 1
-        # Only charges from Mar 4 to Apr 4: 200 + 300 = 500
+        # Only the Apr 4 statement: 550 balance minus 50 post-close = 500
         assert payments[0].amount == pytest.approx(-500.0)
 
 
@@ -298,8 +308,10 @@ class TestEdgeCases:
         payments = estimate_cc_payments([cc], [], transactions=[])
         assert len(payments) == 0
 
-    def test_no_charges_in_cycle_no_payment(self):
-        """No charges in the billing cycle → no payment forecast."""
+    def test_balance_billed_even_without_visible_charges(self):
+        """A card that owes money is billed at the next due date even when
+        no transactions are visible in the window: the balance is the
+        evidence (charges may predate the fetch window or post slowly)."""
         cc = _cc("Visa", -100.0)
         cc_settings = {"cc1": {"due_day": 15, "close_day": 20}}
         payments = estimate_cc_payments(
@@ -310,7 +322,9 @@ class TestEdgeCases:
             today=date(2026, 11, 1),
             cc_settings=cc_settings,
         )
-        assert len(payments) == 0
+        assert len(payments) == 1
+        assert payments[0].amount == pytest.approx(-100.0)
+        assert payments[0].date == date(2026, 11, 15)
 
     def test_multiple_ccs_independent(self):
         """Each CC gets its own estimate."""
@@ -451,21 +465,29 @@ class TestRefundNetting:
         assert len(payments) == 1
         assert payments[0].amount == -500.0
 
-    def test_credits_exceeding_charges_floor_at_zero(self):
+    def test_credit_balance_at_close_floors_statement_at_zero(self):
+        """A statement that closed with a credit balance bills nothing;
+        the card's current debt is the open cycle's accrual instead."""
         today = date(2026, 6, 20)
         txns = [
             _charge(-100.0, date(2026, 6, 5)),
-            _refund(300.0, date(2026, 6, 6)),  # e.g. travel credit + return
+            _refund(300.0, date(2026, 6, 6)),  # travel credit + return
+            _charge(-250.0, date(2026, 6, 18)),  # new spend after the close
         ]
+        # At the Jun 15 close the card held a +200 credit; the 250 charge
+        # after it leaves the balance at -50.
         payments = estimate_cc_payments(
             [_cc("Card", -50.0)],
             [],
+            forecast_days=60,
             transactions=txns,
             today=today,
             cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
         )
-        # Estimate is 0 and there's no override → card is skipped entirely.
-        assert payments == []
+        assert len(payments) == 1
+        assert payments[0].amount == pytest.approx(-50.0)
+        assert payments[0].date == date(2026, 8, 10)
+        assert "partial" in payments[0].name
 
 
 class TestAccountScopedDueDayInference:
@@ -642,3 +664,63 @@ class TestPartialPayments:
             cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
         )
         assert all(p.date != date(2026, 7, 10) for p in payments)
+
+
+class TestBalanceAnchoring:
+    """The statement amount comes from the balance at close, so charges
+    that POST after the close (regardless of their transaction date) fall
+    into the right statement. Regression for a real-world report: a
+    slow-posting travel charge dated just before the close posted after
+    it, so the issuer billed it on the following statement while the
+    date-bucketed charge sum dropped it entirely."""
+
+    def test_slow_posting_charge_stays_on_the_statement_it_was_billed_to(self):
+        today = date(2026, 7, 18)
+        txns = [
+            # Slow-posting travel booking: dated Jun 4, posted Jun 7 —
+            # after the Jun 5 close, so it is on the statement due Aug 2.
+            # The balance reflects that; the transaction date does not.
+            _charge(-4000.0, date(2026, 6, 4)),
+            _charge(-7000.0, date(2026, 6, 15)),  # regular cycle spend
+            _on_card_payment(3000.0, date(2026, 7, 1)),  # paid Jul-due stmt
+            _charge(-1300.0, date(2026, 7, 10)),  # open-cycle spend
+        ]
+        # Statement at Jul 5 close: 4000 + 7000 = 11000, plus 1300
+        # accrued since → balance 12300.
+        payments = estimate_cc_payments(
+            [_cc("Chase Sapphire Reserve", -12300.0)],
+            [],
+            forecast_days=45,
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 2, "close_day": 5}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == date(2026, 8, 2)
+        assert payments[0].amount == pytest.approx(-11000.0)
+        assert "stmt" in payments[0].name
+
+    def test_pending_post_close_spend_is_rolled_back(self):
+        """Monarch's balance includes pending charges, so pending rows
+        dated after the close roll back like posted ones."""
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-500.0, date(2026, 6, 5)),
+            {
+                "merchant": {"name": "Gas Station"},
+                "amount": -100.0,
+                "date": date(2026, 6, 18).isoformat(),
+                "account": {"id": "cc1", "displayName": "Credit Card"},
+                "category": {"name": "Gas"},
+                "pending": True,
+            },
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -600.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].amount == pytest.approx(-500.0)
