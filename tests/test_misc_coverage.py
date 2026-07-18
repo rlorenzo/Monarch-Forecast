@@ -159,18 +159,54 @@ class TestCcEstimatorEdges:
         result = estimate_cc_payments(cc_accounts, recurring_items=[], forecast_days=45)
         assert result == []
 
-    def test_user_settings_but_no_charges_no_override_skipped(self):
+    def test_user_settings_due_beyond_window_no_override_skipped(self):
         cc_accounts = [{"id": "cc1", "name": "Card", "balance": -200.0}]
-        # Cycle settings provided, but no transactions → no cycle estimate.
-        # Without an amount override, the card is skipped entirely.
+        # Next due date (Nov 15) beyond the 5-day window and no override
+        # → the card is skipped entirely.
+        result = estimate_cc_payments(
+            cc_accounts,
+            recurring_items=[],
+            forecast_days=5,
+            transactions=[],
+            today=date(2026, 11, 1),
+            cc_settings={"cc1": {"due_day": 15, "close_day": 20}},
+        )
+        assert result == []
+
+    def test_settled_card_with_override_emits_manual_payment(self):
+        # Statement settled and nothing accrued → no cycle estimate; a
+        # manual amount override still emits a payment at the next due
+        # date from the user's settings.
+        cc_accounts = [{"id": "cc1", "name": "Card", "balance": -0.005}]
+        txns = [
+            {
+                "merchant": {"name": "Store"},
+                "amount": -300.0,
+                "date": "2026-10-10",
+                "account": {"id": "cc1", "displayName": "Card"},
+                "category": {"name": "Shopping"},
+            },
+            {
+                "merchant": {"name": "AUTOPAY PAYMENT - THANK YOU"},
+                "amount": 300.0,
+                "date": "2026-10-25",
+                "account": {"id": "cc1", "displayName": "Card"},
+                "category": {"name": "Payment"},
+            },
+        ]
         result = estimate_cc_payments(
             cc_accounts,
             recurring_items=[],
             forecast_days=45,
-            transactions=[],
+            transactions=txns,
+            today=date(2026, 11, 1),
             cc_settings={"cc1": {"due_day": 15, "close_day": 20}},
+            amount_overrides={"cc1": 250.0},
         )
-        assert result == []
+        assert len(result) == 1
+        assert result[0].date == date(2026, 11, 15)
+        assert result[0].amount == -250.0
+        assert "manual" in result[0].name
 
     def test_user_settings_with_override_emits_payment(self):
         cc_accounts = [{"id": "cc1", "name": "Card", "balance": -200.0}]

@@ -186,13 +186,12 @@ class TestRunForecastCcStrip:
 
     async def test_card_without_estimate_keeps_detected_autopay(self, patched_session_manager):
         dash = self._dash(patched_session_manager)
-        # Chase Reserve: billing settings but no charges → no estimate.
+        # Chase Reserve: paid off (zero balance) → no estimate.
         # Amex: no settings → balance-due fallback → estimate emitted.
         dash._cc_accounts = [
-            {"id": "cc1", "name": "Chase Reserve", "balance": -500.0},
+            {"id": "cc1", "name": "Chase Reserve", "balance": 0.0},
             {"id": "cc2", "name": "Amex Gold", "balance": -300.0},
         ]
-        dash._prefs.set_cc_billing("cc1", due_day=15, close_day=20)
 
         await dash._run_forecast()
 

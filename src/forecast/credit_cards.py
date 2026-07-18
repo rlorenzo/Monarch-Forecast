@@ -1,10 +1,19 @@
-"""Credit card statement balance estimation from transaction history.
+"""Credit card statement balance estimation from balance and history.
 
 Estimates upcoming CC payments by:
 1. Using user-provided due date and statement close day (if set)
 2. Inferring from payment history (last payment day-of-month)
-3. Summing charges in the billing cycle (statement close to statement close)
+3. Anchoring the statement amount on the account balance rolled back to
+   the statement close (removing posted post-close activity)
 4. Falling back to recurring payment amount or current balance
+
+Anchoring on the balance rather than summing cycle charges matters because
+issuers bill by POST date while transaction feeds carry transaction dates:
+a slow-posting charge dated just before the close (travel bookings are the
+classic case) lands on the NEXT statement, which a date-bucketed charge sum
+puts on the wrong side. The balance already reflects where every posted
+charge actually landed; only activity near the close boundary needs
+rolling back.
 """
 
 from __future__ import annotations
@@ -63,15 +72,15 @@ def estimate_cc_payments(
         cc_id = cc.get("id", "")
         cc_name = cc.get("name", "Credit Card")
 
-        # Try estimation from transaction history + settings
+        # Try estimation from balance + transaction history + settings
         cc_setting = settings.get(cc_id)
-        result = _estimate_from_cycle(cc_id, cc_name, txns, today, end, cc_setting)
+        result = _estimate_from_cycle(cc_id, cc_name, txns, today, end, cc_setting, balance)
         if result:
             due_date, amount, label = result
         elif cc_setting:
-            # User provided settings but no charges in the cycle. If the user
-            # also set a manual amount override we still emit a payment using
-            # the next due date from settings; otherwise skip the card.
+            # User provided settings but no billable amount was found. If the
+            # user also set a manual amount override we still emit a payment
+            # using the next due date from settings; otherwise skip the card.
             if cc_id not in overrides:
                 continue
             due_day = cc_setting.get("due_day")
@@ -123,8 +132,9 @@ def _estimate_from_cycle(
     today: date,
     end: date,
     user_settings: dict[str, int] | None,
+    balance: float,
 ) -> tuple[date, float, str] | None:
-    """Estimate payment from billing cycle charges.
+    """Estimate payment anchored on the balance at statement close.
 
     Returns (due_date, amount, label) or None.
     """
@@ -142,57 +152,61 @@ def _estimate_from_cycle(
         # Default: statement closes ~25 days before due date
         close_day = _day_minus(due_day, DEFAULT_GRACE_PERIOD)
 
-    # Find the most recent statement close on or before today
+    # Find the most recent statement close on or before today. That
+    # statement's due date is the next due_day after last_close.
     last_close = _most_recent_day_of_month(close_day, today)
-    prev_close = _prev_month_day(last_close, close_day)
-
-    # The statement that closed on last_close covers (prev_close, last_close]
-    # That statement's due date is the next due_day after last_close
     next_due = _next_month_day(last_close, due_day)
+
+    # The statement amount is the account balance rolled back to the
+    # close, NOT a sum of the cycle's charges: the issuer bills whatever
+    # was outstanding at close, so the balance also carries slow-posting
+    # charges dated before the close that a date-bucketed sum would drop.
+    stmt_balance = max(-_balance_at_close(cc_id, transactions, balance, last_close, today), 0.0)
 
     # A payment due TODAY is still upcoming (strict <, not <=): the
     # forecast starts from today's balance, and treating a due-today
     # payment as already gone silently drops it from the checkbook on the
-    # one morning it matters most. Separately, payments that have posted
-    # on the card since the statement closed count against the statement
-    # amount-aware: fully settled statements move on to the next cycle,
-    # while a PARTIAL payment leaves the unpaid remainder billed on the
-    # upcoming due date instead of vanishing until next cycle.
-    stmt_amount = _sum_cc_charges(cc_id, transactions, prev_close, last_close)
+    # one morning it matters most. Separately, payments posted on the
+    # card since the close count against the statement amount-aware:
+    # fully settled statements move on to the next cycle, while a PARTIAL
+    # payment leaves the unpaid remainder billed on the upcoming due date
+    # instead of vanishing until next cycle.
     paid_since_close = _sum_payment_credits(cc_id, transactions, last_close, today)
-    statement_settled = stmt_amount > 0 and paid_since_close >= stmt_amount - 0.01
+    remaining = max(stmt_balance - paid_since_close, 0.0)
+    statement_settled = stmt_balance > 0 and paid_since_close >= stmt_balance - 0.01
 
     if next_due < today or statement_settled:
-        # Look at the NEXT cycle: (last_close, next_close]
+        # Forecast the NEXT cycle instead. Whatever is on the card now —
+        # open-cycle accrual plus any unpaid remainder rolling over — is
+        # what the next statement will bill.
         next_close = _next_month_day(last_close, close_day)
-        cycle_start = last_close
-        cycle_end = min(next_close, today)
         next_due = _next_month_day(next_close, due_day)
-        label = "partial" if next_close > today else "stmt"
+        if next_close <= today:
+            # That cycle has closed too (stale settings or a data gap):
+            # anchor on the balance at the newer close.
+            stmt_balance = max(
+                -_balance_at_close(cc_id, transactions, balance, next_close, today), 0.0
+            )
+            paid = _sum_payment_credits(cc_id, transactions, next_close, today)
+            amount = max(stmt_balance - paid, 0.0)
+            label = "stmt"
+        else:
+            amount = max(-balance, 0.0)
+            label = "partial"
     else:
         # Due date is still upcoming — bill the last closed statement,
         # net of any partial payments already made against it.
-        cycle_start = prev_close
-        cycle_end = last_close
+        amount = remaining
         label = "stmt"
+        if amount < 0.01:
+            # Nothing was owed at the close — forecast the open cycle's
+            # accrual (the current balance) at the following due date.
+            next_close = _next_month_day(last_close, close_day)
+            next_due = _next_month_day(next_close, due_day)
+            amount = max(-balance, 0.0)
+            label = "partial"
 
-    if next_due > end:
-        return None
-
-    amount = _sum_cc_charges(cc_id, transactions, cycle_start, cycle_end)
-    if label == "stmt" and cycle_end == last_close:
-        amount = max(amount - paid_since_close, 0.0)
-
-    # If the closed cycle has no charges, check the open (next) cycle
-    if amount == 0 and label == "stmt":
-        next_close = _next_month_day(last_close, close_day)
-        open_amount = _sum_cc_charges(cc_id, transactions, last_close, min(next_close, today))
-        if open_amount > 0:
-            next_due_open = _next_month_day(next_close, due_day)
-            if next_due_open <= end:
-                return next_due_open, open_amount, "partial"
-
-    if amount == 0:
+    if next_due > end or amount < 0.01:
         return None
 
     return next_due, amount, label
@@ -308,36 +322,30 @@ def _is_payment_credit(txn: dict) -> bool:
     return any(w in combined for w in _PAYMENT_CREDIT_WORDS)
 
 
-def _sum_cc_charges(cc_id: str, transactions: list[dict], start: date, end: date) -> float:
-    """Net charges on a CC account between start (exclusive) and end (inclusive).
+def _balance_at_close(
+    cc_id: str, transactions: list[dict], balance: float, close: date, today: date
+) -> float:
+    """Roll the current balance back to the statement close by removing
+    activity dated after it.
 
-    Charges add; merchant refunds and statement credits subtract (they
-    reduce the bill the issuer sends); payments and transfers are ignored.
-    Floors at 0 — a credit-heavy cycle can't produce a negative payment.
+    Pending rows are rolled back like posted ones: Monarch's balance
+    includes pending charges (verified against a real Chase statement),
+    and pending activity is never part of the closed statement.
     """
-    total = 0.0
+    rolled = balance
     for txn in transactions:
-        account_id = (txn.get("account") or {}).get("id", "")
-        if account_id != cc_id:
+        if (txn.get("account") or {}).get("id", "") != cc_id:
             continue
         amount = txn.get("amount")
         if not isinstance(amount, (int, float)):
             continue  # Explicit JSON null (or garbage) — not summable.
-
         try:
             txn_date = date.fromisoformat(txn["date"][:10])
         except (ValueError, TypeError, KeyError):
             continue
-
-        if not start < txn_date <= end:
-            continue
-
-        if amount < 0:
-            total += abs(amount)
-        elif amount > 0 and not _is_payment_credit(txn):
-            total -= amount  # Refund/credit shrinks the statement.
-
-    return max(total, 0.0)
+        if close < txn_date <= today:
+            rolled -= amount
+    return rolled
 
 
 def _is_cc_payment_txn(text: str, cc_name_lower: str) -> bool:
