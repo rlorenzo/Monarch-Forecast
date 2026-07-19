@@ -55,8 +55,8 @@ period.
   defined in the design system but not yet wired into the views
 - **Auto-update notifications**: Checks GitHub Releases for newer
   versions on startup
-- **Cross-platform**: Builds for macOS (.dmg), Windows (.msix), and Linux
-  (.AppImage)
+- **Cross-platform**: Builds for macOS (`.dmg`), Windows (`.zip`), and Linux
+  (`.tar.gz`)
 
 ### How it works
 
@@ -90,10 +90,12 @@ Download the latest installer for your platform from
 - **macOS**: The `.dmg` is signed with a Developer ID certificate and
   notarized by Apple, so it opens normally — just drag the app to
   Applications and launch it.
-- **Windows**: The `.msix` package may require enabling sideloading in
-  Settings > Apps > Advanced app settings > Choose where to get apps.
-- **Linux**: Make the `.AppImage` executable before running:
-  `chmod +x Monarch-Forecast-*.AppImage`
+- **Windows**: Download `monarch-forecast-windows.zip`, extract it, and run
+  `Monarch Forecast.exe` — a portable app folder, no installer. It isn't
+  code-signed yet, so Microsoft Defender SmartScreen shows an "unknown
+  publisher" warning on first launch; click **More info → Run anyway**.
+- **Linux**: Download `monarch-forecast-linux.tar.gz`, extract it, and run the
+  app executable inside (`chmod +x` it first if needed).
 
 ### From source
 
@@ -292,9 +294,9 @@ vs what happened. Even small reports help.
   altered — re-download the `.dmg` from GitHub Releases. As a fallback you can
   right-click the app and choose "Open", or allow it in System Settings >
   Privacy & Security.
-- **AppImage won't run (Linux)**: Make sure it's executable:
-  `chmod +x Monarch-Forecast-*.AppImage`. You may also need FUSE installed
-  (`sudo apt install libfuse2` on Ubuntu).
+- **App won't run (Linux)**: `chmod +x` the extracted executable. The app
+  needs GTK 3 runtime libraries — on Debian/Ubuntu install `libgtk-3-0` and
+  `libayatana-appindicator3-1`.
 - **Update banner doesn't appear**: The update check is best-effort and
   requires internet access. It queries the GitHub Releases API on startup;
   failures are silently ignored.
