@@ -93,7 +93,7 @@ uv run flet build macos \
   --product "Monarch Forecast" \
   --description "Financial forecasting powered by Monarch Money" \
   --build-version "$(uv run python -c 'import importlib.metadata as m; print(m.version("monarch-forecast"))')" \
-  --exclude .venv .git tests .github screenshots design web \
+  --exclude .venv .git tests .github screenshots design web packaging \
   --compile-app --compile-packages --cleanup-app --cleanup-packages
 
 # 2. (optional) Dry run: sign + build DMG, skip the Apple round-trip.

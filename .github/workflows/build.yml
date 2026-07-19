@@ -90,7 +90,7 @@ jobs:
           # the assets Flet references; dependencies ship separately in the
           # embedded python.bundle, NOT from this .venv. Excluding these also
           # trims the installer by tens of MB on every platform.
-          EXCLUDES="--exclude .venv .git tests .github screenshots design web"
+          EXCLUDES="--exclude .venv .git tests .github screenshots design web packaging"
           uv run flet build ${{ matrix.platform }} \
             --project "Monarch Forecast" \
             --org "com.monarchforecast" \
@@ -218,14 +218,16 @@ jobs:
 
           printf '%s' "$NOTARY_KEY_P8" > "$NOTARY_P8"
 
+          # Wipe secret material on ANY exit from this step, including a
+          # signing/notarization failure (`set -e` would otherwise abort
+          # before a trailing rm ever ran).
+          trap 'rm -f "$CERT_P12" "$NOTARY_P8"' EXIT
+
           SIGN_IDENTITY="$MACOS_SIGN_IDENTITY" \
           NOTARY_KEY="$NOTARY_P8" \
           NOTARY_KEY_ID="$NOTARY_KEY_ID" \
           NOTARY_ISSUER="$NOTARY_ISSUER" \
             ./packaging/macos/sign_notarize.sh
-
-          # Best-effort scrub of secret material from the runner disk.
-          rm -f "$CERT_P12" "$NOTARY_P8"
 
       # Launches the built binary in demo mode (MONARCH_FORECAST_AUTO_DEMO=1
       # short-circuits to the demo dashboard — see src/main.py) and verifies
