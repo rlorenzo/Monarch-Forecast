@@ -87,9 +87,9 @@ Download the latest installer for your platform from
 
 **Platform notes:**
 
-- **macOS**: The `.dmg` is not notarized. On first launch, right-click
-  the app and choose "Open", or go to System Settings > Privacy & Security
-  and click "Open Anyway".
+- **macOS**: The `.dmg` is signed with a Developer ID certificate and
+  notarized by Apple, so it opens normally — just drag the app to
+  Applications and launch it.
 - **Windows**: The `.msix` package may require enabling sideloading in
   Settings > Apps > Advanced app settings > Choose where to get apps.
 - **Linux**: Make the `.AppImage` executable before running:
@@ -287,9 +287,11 @@ vs what happened. Even small reports help.
 - **Keychain access denied**: On macOS, the app needs Keychain Access
   permission. On Linux, make sure a SecretService provider (like
   `gnome-keyring` or `kwallet`) is running.
-- **"App is damaged" / Gatekeeper warning (macOS)**: The app is not
-  notarized. Right-click and choose "Open", or allow it in System
-  Settings > Privacy & Security.
+- **"App is damaged" / Gatekeeper warning (macOS)**: Releases are notarized,
+  so this shouldn't occur. If it does, the download was likely corrupted or
+  altered — re-download the `.dmg` from GitHub Releases. As a fallback you can
+  right-click the app and choose "Open", or allow it in System Settings >
+  Privacy & Security.
 - **AppImage won't run (Linux)**: Make sure it's executable:
   `chmod +x Monarch-Forecast-*.AppImage`. You may also need FUSE installed
   (`sudo apt install libfuse2` on Ubuntu).
