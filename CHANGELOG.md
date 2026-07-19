@@ -7,6 +7,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.2.0] (2026-07-18)
+
+A correctness release: credit card statement estimates now track the
+statement the issuer actually billed, alongside a vetted dependency
+refresh.
+
+### Fixed
+
+- **Credit card estimates anchor on the balance at statement close.**
+  Estimates summed charges by transaction date, but issuers bill by
+  post date, so a charge posting just after a close was counted on the
+  wrong statement (one real card forecast ran ~40% low). The estimate
+  is now the account balance rolled back to the close date, keeping
+  every charge on the statement it was billed to. A card carrying a
+  negative balance now always forecasts a payment at its next due
+  date, since the balance itself is the evidence.
+
+### Internal
+
+- **Dependencies refreshed.** Runtime: monarchmoneycommunity 1.3.2 to
+  1.5.1 (clearer login failures on bad MFA codes), Flet 0.85.1 to
+  0.85.3. Dev tooling: ruff 0.15.21, ty 0.0.58, pytest 9.1.1,
+  pytest-asyncio 1.4.0. Every bump cleared a 7-day publish-age check
+  and carries no known security advisories.
+
 ## [1.1.0] (2026-07-02)
 
 A forecast-accuracy release: recurring detection is rebuilt around a
@@ -188,7 +213,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.2.0
 [1.1.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.1.0
 [1.0.3]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.3
 [1.0.2]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.2
