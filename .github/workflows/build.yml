@@ -417,8 +417,9 @@ jobs:
             local p
             p="$(command -v iscc 2>/dev/null || true)"
             if [ -z "$p" ]; then
+              # sort -V | tail -1 → prefer the NEWEST Inno Setup if several exist.
               p="$(ls "/c/Program Files (x86)/Inno Setup "*/ISCC.exe \
-                      "/c/Program Files/Inno Setup "*/ISCC.exe 2>/dev/null | head -1 || true)"
+                      "/c/Program Files/Inno Setup "*/ISCC.exe 2>/dev/null | sort -V | tail -1 || true)"
             fi
             printf '%s' "$p"
           }
@@ -453,7 +454,9 @@ jobs:
           cp packaging/linux/monarch-forecast.desktop "$APPDIR/monarch-forecast.desktop"
           cp assets/icon.png "$APPDIR/monarch-forecast.png"
           # Pinned appimagetool release + SHA-256 verification — never execute
-          # the mutable 'continuous' rolling build unverified.
+          # the mutable 'continuous' rolling build unverified. appimagetool ships
+          # no checksum file, so recompute this hash when bumping the version:
+          #   curl -fsSL ".../${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" | sha256sum
           APPIMAGETOOL_VERSION="1.9.1"
           APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
           curl -fsSL -o /tmp/appimagetool \
