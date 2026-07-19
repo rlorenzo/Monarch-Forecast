@@ -76,7 +76,9 @@ python-version = "3.12"
 # The vulture whitelist is synthetic — it references names from other modules
 # to suppress vulture false-positives, so it looks like unresolved-reference
 # noise to every other tool.
-exclude = ["vulture_whitelist.py"]
+# make_dmg_background.py is a macOS-only build tool that imports Pillow (a
+# `uv run --with pillow` dependency, not a project dep), so ty can't resolve it.
+exclude = ["vulture_whitelist.py", "packaging/macos/make_dmg_background.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
