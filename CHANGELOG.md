@@ -7,6 +7,36 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.3.0] (2026-07-19)
+
+macOS builds are now code-signed and notarized by Apple and ship in a styled
+installer window, so the app opens without any Gatekeeper warning.
+
+### Added
+
+- **Signed and notarized macOS builds.** The `.dmg` is signed with a
+  Developer ID certificate, notarized by Apple, and stapled, so it opens
+  with no "app is damaged" prompt or right-click-to-open workaround. The
+  signing pipeline lives in `packaging/macos/` and runs in CI on every
+  macOS build.
+- **Styled DMG installer.** The disk image opens to a designed window — a
+  paper background, the Fraunces wordmark, and a drag-to-Applications
+  prompt — instead of a bare file listing.
+
+### Changed
+
+- **Smaller downloads on every platform.** The build was bundling the whole
+  project directory into the app, including the multi-megabyte virtualenv,
+  git history, and test suite. Those are now excluded, shrinking the bundled
+  app payload from ~54 MB to under 1 MB (and, on macOS, removing the unsigned
+  binaries that had blocked notarization).
+
+### Internal
+
+- **CI actions updated to their Node 24 releases** (checkout, setup-python,
+  setup-node, upload/download-artifact, setup-uv, ruff-action,
+  action-gh-release), still SHA-pinned, ahead of GitHub's Node 20 removal.
+
 ## [1.2.0] (2026-07-18)
 
 A correctness release: credit card statement estimates now track the
@@ -213,7 +243,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.0
 [1.2.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.2.0
 [1.1.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.1.0
 [1.0.3]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.0.3
