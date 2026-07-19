@@ -22,3 +22,4 @@ env/
 .claude
 .review-pr-ignored-*
 .antigravitycli/
+packaging/macos/.fonts-cache/

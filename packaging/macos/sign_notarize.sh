@@ -180,15 +180,69 @@ case "$CS_INFO" in
 esac
 
 # --- 4. build + sign the DMG ----------------------------------------------
-log "Building DMG: $DMG_OUT"
+# Prefer a styled installer window (paper background, arrow, "drag to
+# Applications") via create-dmg; fall back to a plain hdiutil DMG so the
+# pipeline still works without the extra dependency. create-dmg drives Finder
+# via AppleScript to place the icons + background, so it needs a GUI session
+# (present on dev Macs and on GitHub's macOS runners).
+APP_NAME="$(basename "$APP_BUNDLE")"
+BG_1X="$SCRIPT_DIR/dmg-background.png"
+BG_2X="$SCRIPT_DIR/dmg-background@2x.png"
 STAGING="$(mktemp -d)"
-trap 'rm -rf "$STAGING"' EXIT
+BG_WORK="$(mktemp -d)"
+trap 'rm -rf "$STAGING" "$BG_WORK"' EXIT
 cp -R "$APP_BUNDLE" "$STAGING/"
-ln -s /Applications "$STAGING/Applications"     # drag-to-install shortcut
 rm -f "$DMG_OUT"
-hdiutil create -volname "$VOL_NAME" -srcfolder "$STAGING" \
-  -ov -format UDZO "$DMG_OUT" >/dev/null \
-  || die "hdiutil failed to create DMG"
+
+# Build a HiDPI (Retina) background: a two-representation TIFF (1x @72dpi +
+# 2x @144dpi) via `tiffutil -cathidpicheck`. create-dmg 1.3.0 does NOT combine
+# an @2x image itself, and a bare 1x PNG renders blurry on Retina displays
+# (Finder scales it up 2x). Fall back to the 1x PNG if the 2x art or tiffutil
+# is unavailable.
+BACKGROUND="$BG_1X"
+if [ -f "$BG_1X" ] && [ -f "$BG_2X" ] && command -v tiffutil >/dev/null 2>&1; then
+  if sips -s format tiff "$BG_1X" --out "$BG_WORK/1x.tiff" >/dev/null 2>&1 \
+     && sips -s format tiff "$BG_2X" --out "$BG_WORK/2x.tiff" >/dev/null 2>&1 \
+     && tiffutil -cathidpicheck "$BG_WORK/1x.tiff" "$BG_WORK/2x.tiff" \
+          -out "$BG_WORK/dmg-background.tiff" >/dev/null 2>&1; then
+    BACKGROUND="$BG_WORK/dmg-background.tiff"
+  fi
+fi
+
+# Plain, functional DMG (app + Applications shortcut, no styling). Used when
+# create-dmg is unavailable, and as a fallback if it fails — create-dmg drives
+# Finder via AppleScript, which can occasionally hiccup on CI, and a release
+# should never break over cosmetics.
+build_plain_dmg() {
+  hdiutil detach "/Volumes/$VOL_NAME" >/dev/null 2>&1 || true
+  rm -f "$DMG_OUT"
+  ln -sf /Applications "$STAGING/Applications"
+  hdiutil create -volname "$VOL_NAME" -srcfolder "$STAGING" \
+    -ov -format UDZO "$DMG_OUT" >/dev/null \
+    || die "hdiutil failed to create DMG"
+}
+
+if command -v create-dmg >/dev/null 2>&1 && [ -f "$BACKGROUND" ]; then
+  log "Building styled DMG with create-dmg: $DMG_OUT"
+  # Icon positions MUST match packaging/macos/make_dmg_background.py.
+  if ! create-dmg \
+      --volname "$VOL_NAME" \
+      --background "$BACKGROUND" \
+      --window-pos 200 120 \
+      --window-size 660 400 \
+      --icon-size 128 \
+      --icon "$APP_NAME" 170 200 \
+      --hide-extension "$APP_NAME" \
+      --app-drop-link 490 200 \
+      --no-internet-enable \
+      "$DMG_OUT" "$STAGING"; then
+    log "create-dmg failed — falling back to a plain hdiutil DMG"
+    build_plain_dmg
+  fi
+else
+  log "Building plain DMG with hdiutil (create-dmg / background unavailable): $DMG_OUT"
+  build_plain_dmg
+fi
 
 log "Signing DMG"
 codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_OUT" \

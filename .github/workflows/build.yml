@@ -179,6 +179,13 @@ jobs:
             echo "::warning::macOS signing secrets not set — shipping an UNSIGNED, un-notarized build."
           fi
 
+      # create-dmg builds the styled installer window (background art, arrow,
+      # "drag to Applications"). Only needed when we actually sign; without it
+      # sign_notarize.sh falls back to a plain hdiutil DMG.
+      - name: Install create-dmg (macOS)
+        if: matrix.platform == 'macos' && steps.macsign.outputs.enabled == 'true'
+        run: brew install create-dmg
+
       # Signs every nested binary with the Developer ID cert + hardened runtime,
       # builds a DMG, submits it to Apple's notary service, and staples the
       # ticket — all via packaging/macos/sign_notarize.sh (the exact script used
