@@ -409,14 +409,26 @@ jobs:
           if [ -z "$BUILD_VERSION" ] || [ "$BUILD_VERSION" = "${{ github.ref_name }}" ]; then
             BUILD_VERSION=$(uv run python -c "import importlib.metadata; print(importlib.metadata.version('monarch-forecast'))")
           fi
-          ISCC=""
-          for p in "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/c/Program Files/Inno Setup 6/ISCC.exe"; do
-            [ -f "$p" ] && ISCC="$p" && break
-          done
+          # Locate ISCC by globbing ANY installed Inno Setup version rather than
+          # hardcoding "Inno Setup 6" (which would silently break if the runner
+          # image ships v7). Install a pinned version via choco only if none is
+          # present — GitHub's windows image currently pre-installs it.
+          find_iscc() {
+            local p
+            p="$(command -v iscc 2>/dev/null || true)"
+            if [ -z "$p" ]; then
+              # sort -V | tail -1 → prefer the NEWEST Inno Setup if several exist.
+              p="$(ls "/c/Program Files (x86)/Inno Setup "*/ISCC.exe \
+                      "/c/Program Files/Inno Setup "*/ISCC.exe 2>/dev/null | sort -V | tail -1 || true)"
+            fi
+            printf '%s' "$p"
+          }
+          ISCC="$(find_iscc)"
           if [ -z "$ISCC" ]; then
-            choco install innosetup -y --no-progress
-            ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+            choco install innosetup --version=6.3.3 -y --no-progress
+            ISCC="$(find_iscc)"
           fi
+          [ -n "$ISCC" ] && [ -f "$ISCC" ] || { echo "::error::Inno Setup compiler (ISCC.exe) not found"; exit 1; }
           # Absolute Windows paths (cygpath) so Inno resolves them regardless of
           # CWD; // on the switches so Git Bash doesn't mangle them into paths.
           SRC_WIN="$(cygpath -w "$PWD/build/windows")"
@@ -441,26 +453,31 @@ jobs:
           cp packaging/linux/AppRun "$APPDIR/AppRun"; chmod +x "$APPDIR/AppRun"
           cp packaging/linux/monarch-forecast.desktop "$APPDIR/monarch-forecast.desktop"
           cp assets/icon.png "$APPDIR/monarch-forecast.png"
+          # Pinned appimagetool release + SHA-256 verification — never execute
+          # the mutable 'continuous' rolling build unverified. appimagetool ships
+          # no checksum file, so recompute this hash when bumping the version:
+          #   curl -fsSL ".../${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" | sha256sum
+          APPIMAGETOOL_VERSION="1.9.1"
+          APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
           curl -fsSL -o /tmp/appimagetool \
-            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+            "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+          echo "${APPIMAGETOOL_SHA256}  /tmp/appimagetool" | sha256sum -c -
           chmod +x /tmp/appimagetool
           ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 /tmp/appimagetool "$APPDIR" "build/monarch-forecast-linux.AppImage"
           ls -la build/monarch-forecast-linux.AppImage
 
-      - name: Package build
+      # Windows (installer) and Linux (AppImage) are produced by their own steps
+      # above; this only normalizes the macOS DMG name (with an unsigned-tar
+      # fallback for when the signing secrets are absent), so it's macOS-only.
+      - name: Package build (macOS)
+        if: matrix.platform == 'macos'
         shell: bash
         run: |
-          # Windows (installer) and Linux (AppImage) are already produced by the
-          # prior steps. Here we only normalize the macOS DMG name, with an
-          # unsigned-tar fallback for when the signing secrets are absent.
-          case "${{ matrix.platform }}" in
-            macos)
-              if [ -f "build/Monarch Forecast.dmg" ]; then
-                cp "build/Monarch Forecast.dmg" "build/monarch-forecast-macos.dmg"
-              else
-                (cd build/macos && tar -czf ../monarch-forecast-macos.tar.gz .)
-              fi ;;
-          esac
+          if [ -f "build/Monarch Forecast.dmg" ]; then
+            cp "build/Monarch Forecast.dmg" "build/monarch-forecast-macos.dmg"
+          else
+            (cd build/macos && tar -czf ../monarch-forecast-macos.tar.gz .)
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

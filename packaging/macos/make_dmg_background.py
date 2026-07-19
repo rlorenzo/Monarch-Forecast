@@ -68,6 +68,7 @@ def _cached_font(name: str) -> pathlib.Path | None:
         urllib.request.urlretrieve(FONT_URLS[name], dest)
         return dest
     except Exception as exc:  # offline / network error → fall back
+        dest.unlink(missing_ok=True)  # drop any partial/corrupt download
         print(f"  ! could not fetch {name} ({exc}); using system fallback")
         return None
 
