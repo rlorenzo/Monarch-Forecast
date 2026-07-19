@@ -26,7 +26,7 @@ jobs:
             artifact: dmg
           - os: windows-latest
             platform: windows
-            artifact: msix
+            artifact: installer
           - os: ubuntu-latest
             platform: linux
             artifact: AppImage
@@ -397,27 +397,80 @@ jobs:
           path: /tmp/smoke-artifacts/
           if-no-files-found: ignore
 
+      # Wrap the flet build output in a friendly per-user installer via Inno
+      # Setup → build/monarch-forecast-windows-setup.exe. (Unsigned, so it still
+      # trips SmartScreen until a cert is added — packaging, not signing.)
+      - name: Build Windows installer (Inno Setup)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_VERSION="${{ github.ref_name }}"; BUILD_VERSION="${BUILD_VERSION#v}"
+          if [ -z "$BUILD_VERSION" ] || [ "$BUILD_VERSION" = "${{ github.ref_name }}" ]; then
+            BUILD_VERSION=$(uv run python -c "import importlib.metadata; print(importlib.metadata.version('monarch-forecast'))")
+          fi
+          ISCC=""
+          for p in "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/c/Program Files/Inno Setup 6/ISCC.exe"; do
+            [ -f "$p" ] && ISCC="$p" && break
+          done
+          if [ -z "$ISCC" ]; then
+            choco install innosetup -y --no-progress
+            ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          fi
+          # Absolute Windows paths (cygpath) so Inno resolves them regardless of
+          # CWD; // on the switches so Git Bash doesn't mangle them into paths.
+          SRC_WIN="$(cygpath -w "$PWD/build/windows")"
+          OUT_WIN="$(cygpath -w "$PWD/build")"
+          ISS_WIN="$(cygpath -w "$PWD/packaging/windows/installer.iss")"
+          echo "ISCC=$ISCC version=$BUILD_VERSION src=$SRC_WIN"
+          "$ISCC" //DMyAppVersion="$BUILD_VERSION" //DSourceDir="$SRC_WIN" //O"$OUT_WIN" "$ISS_WIN"
+          ls -la build/monarch-forecast-windows-setup.exe
+
+      # Assemble a proper .AppImage from the flet build output →
+      # build/monarch-forecast-linux.AppImage. appimagetool runs via
+      # extract-and-run so it needs no FUSE on the runner (end users still need
+      # libfuse2 to run the AppImage — noted in the README).
+      - name: Build Linux AppImage
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPDIR="build/AppDir"
+          rm -rf "$APPDIR"; mkdir -p "$APPDIR"
+          cp -a build/linux/. "$APPDIR/"
+          cp packaging/linux/AppRun "$APPDIR/AppRun"; chmod +x "$APPDIR/AppRun"
+          cp packaging/linux/monarch-forecast.desktop "$APPDIR/monarch-forecast.desktop"
+          cp assets/icon.png "$APPDIR/monarch-forecast.png"
+          curl -fsSL -o /tmp/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x /tmp/appimagetool
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 /tmp/appimagetool "$APPDIR" "build/monarch-forecast-linux.AppImage"
+          ls -la build/monarch-forecast-linux.AppImage
+
       - name: Package build
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            (cd build/windows && 7z a -tzip "../monarch-forecast-windows.zip" .)
-          elif [ "${{ matrix.platform }}" = "macos" ] && [ -f "build/Monarch Forecast.dmg" ]; then
-            # Notarized DMG from the signing step — ship it directly (no tar).
-            cp "build/Monarch Forecast.dmg" "build/monarch-forecast-macos.dmg"
-          else
-            # Linux, or macOS with signing disabled (no secrets): unsigned tar.
-            (cd "build/${{ matrix.platform }}" && tar -czf "../monarch-forecast-${{ matrix.platform }}.tar.gz" .)
-          fi
+          # Windows (installer) and Linux (AppImage) are already produced by the
+          # prior steps. Here we only normalize the macOS DMG name, with an
+          # unsigned-tar fallback for when the signing secrets are absent.
+          case "${{ matrix.platform }}" in
+            macos)
+              if [ -f "build/Monarch Forecast.dmg" ]; then
+                cp "build/Monarch Forecast.dmg" "build/monarch-forecast-macos.dmg"
+              else
+                (cd build/macos && tar -czf ../monarch-forecast-macos.tar.gz .)
+              fi ;;
+          esac
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: monarch-forecast-${{ matrix.platform }}
           path: |
-            build/monarch-forecast-${{ matrix.platform }}.zip
-            build/monarch-forecast-${{ matrix.platform }}.tar.gz
+            build/monarch-forecast-windows-setup.exe
+            build/monarch-forecast-linux.AppImage
             build/monarch-forecast-macos.dmg
+            build/monarch-forecast-macos.tar.gz
           if-no-files-found: ignore
 
   release:
@@ -463,8 +516,9 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3.0.2
         with:
           files: |
-            artifacts/**/*.zip
-            artifacts/**/*.tar.gz
+            artifacts/**/*.exe
+            artifacts/**/*.AppImage
             artifacts/**/*.dmg
+            artifacts/**/*.tar.gz
           body_path: release-notes.md
           draft: true

@@ -1,0 +1,5 @@
+#!/bin/bash
+# AppImage entry point. The Flet/Flutter binary expects its `lib/` and `data/`
+# folders next to it, so we exec it in place from the AppDir root.
+HERE="$(dirname "$(readlink -f "${0}")")"
+exec "${HERE}/Monarch Forecast" "$@"
