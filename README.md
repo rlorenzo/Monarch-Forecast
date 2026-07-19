@@ -1,5 +1,13 @@
 # Monarch Forecast
 
+[![Latest release](https://img.shields.io/github/v/release/rlorenzo/Monarch-Forecast)](https://github.com/rlorenzo/Monarch-Forecast/releases)
+[![Downloads](https://img.shields.io/github/downloads/rlorenzo/Monarch-Forecast/total)](https://github.com/rlorenzo/Monarch-Forecast/releases)
+[![CI](https://github.com/rlorenzo/Monarch-Forecast/actions/workflows/ci.yml/badge.svg)](https://github.com/rlorenzo/Monarch-Forecast/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/rlorenzo/Monarch-Forecast)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+[![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that
 projects your checking account balance day-by-day using data from
 [Monarch Money](https://www.monarchmoney.com/). See where your money is
