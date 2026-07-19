@@ -51,8 +51,7 @@ FONT_URLS = {
         "Fraunces%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf"
     ),
     "Inter.ttf": (
-        "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/"
-        "Inter%5Bopsz%2Cwght%5D.ttf"
+        "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
     ),
 }
 # System-font fallbacks if the variable fonts can't be fetched.
@@ -66,15 +65,14 @@ def _cached_font(name: str) -> pathlib.Path | None:
         return dest
     CACHE.mkdir(exist_ok=True)
     try:
-        urllib.request.urlretrieve(FONT_URLS[name], dest)  # noqa: S310 (trusted host)
+        urllib.request.urlretrieve(FONT_URLS[name], dest)
         return dest
     except Exception as exc:  # offline / network error → fall back
         print(f"  ! could not fetch {name} ({exc}); using system fallback")
         return None
 
 
-def _font(name: str, fallback: str, size: int,
-          axes: dict[str, float]) -> ImageFont.FreeTypeFont:
+def _font(name: str, fallback: str, size: int, axes: dict[str, float]) -> ImageFont.FreeTypeFont:
     """Load a variable font at `size`, applying `axes` (matched by axis name).
 
     `axes` keys are matched case-insensitively against the font's axis names
@@ -100,10 +98,17 @@ def _font(name: str, fallback: str, size: int,
     return font
 
 
-def _center_text(d: ImageDraw.ImageDraw, cx: int, y: int, text: str,
-                 font: ImageFont.FreeTypeFont, fill: tuple[int, int, int]) -> None:
-    left, top, right, bottom = d.textbbox((0, 0), text, font=font)
-    d.text((cx - (right - left) / 2, y), text, font=font, fill=fill)
+def _center_text(
+    d: ImageDraw.ImageDraw,
+    cx: int,
+    y: int,
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    fill: tuple[int, int, int],
+) -> None:
+    bbox = d.textbbox((0, 0), text, font=font)
+    width = bbox[2] - bbox[0]
+    d.text((cx - width / 2, y), text, font=font, fill=fill)
 
 
 def render() -> Image.Image:
@@ -112,29 +117,39 @@ def render() -> Image.Image:
 
     # Fraunces SemiBold at a large optical size — a substantial editorial
     # wordmark (not the thin default), wonk off for a clean install screen.
-    title = _font("Fraunces.ttf", FALLBACK_SERIF, 30 * S,
-                  {"optical": 144, "weight": 600, "soft": 0, "wonky": 0})
+    title = _font(
+        "Fraunces.ttf",
+        FALLBACK_SERIF,
+        30 * S,
+        {"optical": 144, "weight": 600, "soft": 0, "wonky": 0},
+    )
     body = _font("Inter.ttf", FALLBACK_SANS, 13 * S, {"weight": 440, "optical": 18})
     small = _font("Inter.ttf", FALLBACK_SANS, 11 * S, {"weight": 480, "optical": 14})
 
     # Title + instruction, top-centered.
     _center_text(d, (W // 2) * S, 38 * S, "Monarch Forecast", title, INK)
-    _center_text(d, (W // 2) * S, 86 * S,
-                 "Drag the app onto the Applications folder to install.",
-                 body, MUTED)
+    _center_text(
+        d,
+        (W // 2) * S,
+        86 * S,
+        "Drag the app onto the Applications folder to install.",
+        body,
+        MUTED,
+    )
 
     # Arrow from the app toward the Applications folder, at icon-center height.
     y = APP_XY[1] * S
-    x1, x2 = 250 * S, 402 * S          # shaft
-    tip = 416 * S                      # arrowhead tip
-    half = 11 * S                      # arrowhead half-height
+    x1, x2 = 250 * S, 402 * S  # shaft
+    tip = 416 * S  # arrowhead tip
+    half = 11 * S  # arrowhead half-height
     d.line([(x1, y), (x2, y)], fill=GREEN, width=5 * S)
     d.ellipse([x1 - 2 * S, y - 2 * S, x1 + 2 * S, y + 2 * S], fill=GREEN)  # rounded tail
-    d.polygon([(x2, y - half), (x2, y + half), (tip, y)], fill=GREEN)      # head
+    d.polygon([(x2, y - half), (x2, y + half), (tip, y)], fill=GREEN)  # head
 
     # Footer tagline.
-    _center_text(d, (W // 2) * S, 360 * S,
-                 "Financial forecasting powered by Monarch Money", small, MUTED)
+    _center_text(
+        d, (W // 2) * S, 360 * S, "Financial forecasting powered by Monarch Money", small, MUTED
+    )
 
     return img
 
