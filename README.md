@@ -1,5 +1,14 @@
 # Monarch Forecast
 
+[![Latest release](https://img.shields.io/github/v/release/rlorenzo/Monarch-Forecast)](https://github.com/rlorenzo/Monarch-Forecast/releases)
+[![Downloads](https://img.shields.io/github/downloads/rlorenzo/Monarch-Forecast/total)](https://github.com/rlorenzo/Monarch-Forecast/releases)
+[![CI](https://github.com/rlorenzo/Monarch-Forecast/actions/workflows/ci.yml/badge.svg)](https://github.com/rlorenzo/Monarch-Forecast/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/rlorenzo/Monarch-Forecast)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+[![Built with Flet](https://img.shields.io/badge/built%20with-Flet-0098D4)](https://flet.dev)
+[![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that
 projects your checking account balance day-by-day using data from
 [Monarch Money](https://www.monarchmoney.com/). See where your money is
@@ -72,9 +81,12 @@ period.
   Penalty fees (NSF, overdraft, late fees) and bare bank descriptors
   ("Deposit", "ATM") are never projected
 - **Credit card payments** are estimated by inferring each card's statement
-  close and due days (from user settings or payment history) and summing
-  charges across the current billing cycle, falling back to the card's
-  recurring payment or current balance when history is insufficient
+  close and due days (from user settings or payment history), then anchoring
+  the statement amount on the account balance rolled back to that close date
+  (removing activity that posted after it) rather than summing the cycle's
+  charges — a charge dated just before the close but posting after it belongs
+  on the next statement, which a date-bucketed sum gets wrong. Falls back to
+  the card's recurring payment or current balance when history is insufficient
 - Only **checking accounts** are forecasted. Credit card, savings, and
   investment accounts are not included in projections
 
@@ -123,9 +135,11 @@ transactions.
 
 ### Authentication and data storage
 
-This app uses the [monarchmoney](https://github.com/hammem/monarchmoney)
-community Python client (an unofficial, reverse-engineered API client,
-since Monarch Money does not offer a public API). MFA is supported.
+This app uses [`monarchmoneycommunity`](https://pypi.org/project/monarchmoneycommunity/),
+a maintained community fork of
+[hammem/monarchmoney](https://github.com/hammem/monarchmoney) — an unofficial,
+reverse-engineered API client, since Monarch Money does not offer a public API
+(it imports as `monarchmoney`). MFA is supported.
 
 **What is stored locally:**
 
@@ -211,7 +225,14 @@ Building native installers requires Flutter and platform toolchains:
 ```bash
 brew install --cask flutter       # install Flutter SDK
 brew install cocoapods            # required for macOS builds (see note below)
-uv run flet build macos           # produces build/macos/Monarch Forecast.app
+# --exclude keeps .venv/.git/tests out of the bundle — without it the app
+# balloons by ~55 MB and macOS notarization fails. See packaging/macos/README.md
+# for the full signed + notarized release flow (and Windows/Linux packaging).
+uv run flet build macos \
+  --project "Monarch Forecast" --org com.monarchforecast \
+  --product "Monarch Forecast" \
+  --exclude .venv .git tests .github screenshots design web packaging \
+  --compile-app --compile-packages   # → build/macos/Monarch Forecast.app
 ```
 
 **macOS CocoaPods note:** Do not use `sudo gem install cocoapods`. The
