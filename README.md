@@ -6,6 +6,7 @@
 [![License: MIT](https://img.shields.io/github/license/rlorenzo/Monarch-Forecast)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+[![Built with Flet](https://img.shields.io/badge/built%20with-Flet-0098D4)](https://flet.dev)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 A desktop app built with [Flet](https://flet.dev/) (Flutter for Python) that
@@ -228,7 +229,8 @@ brew install cocoapods            # required for macOS builds (see note below)
 # balloons by ~55 MB and macOS notarization fails. See packaging/macos/README.md
 # for the full signed + notarized release flow (and Windows/Linux packaging).
 uv run flet build macos \
-  --org com.monarchforecast --product "Monarch Forecast" \
+  --project "Monarch Forecast" --org com.monarchforecast \
+  --product "Monarch Forecast" \
   --exclude .venv .git tests .github screenshots design web packaging \
   --compile-app --compile-packages   # → build/macos/Monarch Forecast.app
 ```
