@@ -55,8 +55,8 @@ period.
   defined in the design system but not yet wired into the views
 - **Auto-update notifications**: Checks GitHub Releases for newer
   versions on startup
-- **Cross-platform**: Builds for macOS (.dmg), Windows (.msix), and Linux
-  (.AppImage)
+- **Cross-platform**: Builds for macOS (`.dmg`), Windows (`.exe` installer),
+  and Linux (`.AppImage`)
 
 ### How it works
 
@@ -90,10 +90,13 @@ Download the latest installer for your platform from
 - **macOS**: The `.dmg` is signed with a Developer ID certificate and
   notarized by Apple, so it opens normally — just drag the app to
   Applications and launch it.
-- **Windows**: The `.msix` package may require enabling sideloading in
-  Settings > Apps > Advanced app settings > Choose where to get apps.
-- **Linux**: Make the `.AppImage` executable before running:
-  `chmod +x Monarch-Forecast-*.AppImage`
+- **Windows**: Download `monarch-forecast-windows-setup.exe` and run the
+  installer (installs per-user, no admin needed). It isn't code-signed yet, so
+  Microsoft Defender SmartScreen shows an "unknown publisher" warning on first
+  run — click **More info → Run anyway**.
+- **Linux**: Make the `.AppImage` executable and run it:
+  `chmod +x monarch-forecast-linux.AppImage && ./monarch-forecast-linux.AppImage`.
+  It needs FUSE (`sudo apt install libfuse2` on Debian/Ubuntu).
 
 ### From source
 
@@ -292,9 +295,9 @@ vs what happened. Even small reports help.
   altered — re-download the `.dmg` from GitHub Releases. As a fallback you can
   right-click the app and choose "Open", or allow it in System Settings >
   Privacy & Security.
-- **AppImage won't run (Linux)**: Make sure it's executable:
-  `chmod +x Monarch-Forecast-*.AppImage`. You may also need FUSE installed
-  (`sudo apt install libfuse2` on Ubuntu).
+- **AppImage won't run (Linux)**: Make sure it's executable
+  (`chmod +x monarch-forecast-linux.AppImage`). You may also need FUSE
+  installed (`sudo apt install libfuse2` on Ubuntu).
 - **Update banner doesn't appear**: The update check is best-effort and
   requires internet access. It queries the GitHub Releases API on startup;
   failures are silently ignored.

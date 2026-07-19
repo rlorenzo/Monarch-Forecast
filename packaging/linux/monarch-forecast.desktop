@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Monarch Forecast
+Comment=Financial forecasting powered by Monarch Money
+Exec=AppRun
+Icon=monarch-forecast
+Categories=Office;Finance;
+Terminal=false
