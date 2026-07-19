@@ -88,15 +88,26 @@ if [ "$SKIP_NOTARIZE" != "1" ]; then
 fi
 
 # --- 0. prune build cruft --------------------------------------------------
-# Remove dangling symlinks and .DS_Store files before signing. `flet build`
-# leaves at least one broken symlink in the bundle — serious_python's
-# `site-packages/.pod` points into the CI runner's ~/.pub-cache, a path that
-# exists on no end-user machine. A dangling symlink has no runtime purpose but
-# breaks `codesign --verify --deep --strict` with "No such file or directory"
-# and can trip notarization, so it must go. `test -e` follows the link, so it
-# is false for a broken target; `! ... test -e` matches exactly those.
-log "Pruning dangling symlinks / .DS_Store from bundle"
-find "$APP_BUNDLE" -type l ! -exec test -e {} \; -print -delete || true
+# Remove problematic symlinks and .DS_Store files before signing. `flet build`
+# leaves serious_python's `site-packages/.pod` symlink pointing at an ABSOLUTE
+# path in the builder's ~/.pub-cache (e.g. /Users/runner/.pub-cache/.../darwin).
+# codesign rejects any bundle symlink whose destination escapes the bundle, and
+# this one fails verification two different ways depending on where you build:
+#   - on a dev Mac that path is missing, so the link *dangles* and verify fails
+#     with "No such file or directory";
+#   - on the CI builder that path EXISTS, so the link resolves but verify fails
+#     with "invalid destination for symbolic link in bundle".
+# Either way it's build cruft with no runtime purpose, so prune a symlink if it
+# dangles OR its target is absolute. Legitimate bundle symlinks (framework
+# `Versions/Current`) are RELATIVE and internal, so they survive.
+log "Pruning bundle-escaping / dangling symlinks + .DS_Store"
+while IFS= read -r -d '' link; do
+  target="$(readlink "$link")"
+  if [ ! -e "$link" ] || [ "${target#/}" != "$target" ]; then
+    printf '  pruning symlink: %s -> %s\n' "$link" "$target"
+    rm -f "$link"
+  fi
+done < <(find "$APP_BUNDLE" -type l -print0)
 find "$APP_BUNDLE" -name '.DS_Store' -print -delete || true
 
 # --- 1 + 2. sign the bundle inside-out ------------------------------------
