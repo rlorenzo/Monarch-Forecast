@@ -7,6 +7,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.3.1] (2026-07-19)
+
+Packaging improvements for Windows and Linux — no application changes.
+
+### Changed
+
+- **Windows now ships an installer** (`monarch-forecast-windows-setup.exe`): a
+  per-user install (no admin) with a Start Menu shortcut and an uninstaller,
+  replacing the portable zip.
+- **Linux now ships a real `.AppImage`** instead of a tarball — make it
+  executable and run it (needs FUSE / `libfuse2`).
+
+### Fixed
+
+- Corrected the README and build docs, which mislabeled the Windows download as
+  a `.msix` and the Linux download as an `.AppImage`.
+
 ## [1.3.0] (2026-07-19)
 
 macOS builds are now code-signed and notarized by Apple and ship in a styled
@@ -243,7 +260,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.1
 [1.3.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.0
 [1.2.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.2.0
 [1.1.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.1.0
