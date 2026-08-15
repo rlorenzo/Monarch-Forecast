@@ -7,6 +7,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.0] (2026-08-14)
+
+The Transactions tab now reads oldest first by default — time runs downward,
+like a statement — and all three modes share one sort order, set from the DATE
+column header. Also carries this month's dependency and security updates.
+
 ### Added
 
 - **Transactions sort order is now a setting.** Click the DATE column header
@@ -22,6 +28,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   completed halves now swap sides with the order, keeping the coral TODAY
   line mid-timeline, and the column header is hoisted to the top of the
   combined ledger instead of riding along with the projected section.
+- `monarchmoneycommunity` 1.5.1 → 1.5.2, which adds an `is_pending` filter to
+  `get_transactions` and surfaces transaction/account owner fields. All
+  additive; the forecast engine's existing calls are unaffected.
+
+### Fixed
+
+- The "showing the N most recent transactions" note in the Recent ledger sat
+  at the bottom of the list, which under the new oldest-first order is the
+  *newest* day — beside recent activity, while the rows it described had been
+  cut from the top. It now follows the dropped rows to whichever end they came
+  from.
+- The DATE column header's hover cue never rendered: it set a bare `color` on
+  a `Text` whose color already lived in its `TextStyle`, which is ambiguous on
+  Flet's Dart side.
 
 ### Security
 
@@ -33,12 +53,6 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   transitive via `keyring` → `secretstorage`), and `gitpython`
   3.1.57 → 3.1.58 (six advisories covering git-option injection and
   submodule-name path traversal; a `tach` dev dependency, not shipped).
-
-### Changed
-
-- `monarchmoneycommunity` 1.5.1 → 1.5.2, which adds an `is_pending` filter to
-  `get_transactions` and surfaces transaction/account owner fields. All
-  additive; the forecast engine's existing calls are unaffected.
 
 ## [1.3.1] (2026-07-19)
 
@@ -293,7 +307,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.4.0
 [1.3.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.1
 [1.3.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.0
 [1.2.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.2.0
