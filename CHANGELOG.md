@@ -9,50 +9,35 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [1.4.0] (2026-08-14)
 
-The Transactions tab now reads oldest first by default — time runs downward,
-like a statement — and all three modes share one sort order, set from the DATE
-column header. Also carries this month's dependency and security updates.
+The Transactions tab now reads oldest first by default, and Upcoming, Recent,
+and Both share one sort order. Click the DATE column header to flip it.
 
 ### Added
 
-- **Transactions sort order is now a setting.** Click the DATE column header
-  to switch the whole tab between oldest first (the new default — time reads
-  downward, like a statement) and newest first; the header arrow shows the
-  current direction. The choice persists to `preferences.json`.
+- Sort order for the Transactions tab, set from the DATE column header and
+  remembered between launches.
 
 ### Changed
 
-- **All three Transactions modes now share one sort direction.** Upcoming,
-  Recent, and Both previously each owned their own ordering, so switching
-  modes could reverse the timeline under you. In Both mode the projected and
-  completed halves now swap sides with the order, keeping the coral TODAY
-  line mid-timeline, and the column header is hoisted to the top of the
-  combined ledger instead of riding along with the projected section.
-- `monarchmoneycommunity` 1.5.1 → 1.5.2, which adds an `is_pending` filter to
-  `get_transactions` and surfaces transaction/account owner fields. All
-  additive; the forecast engine's existing calls are unaffected.
+- Upcoming, Recent, and Both now share one sort direction instead of each
+  keeping its own, so switching modes no longer reverses the timeline. In Both
+  mode the two halves swap sides with the order, keeping the TODAY line
+  mid-timeline.
+- `monarchmoneycommunity` 1.5.1 → 1.5.2. Additive only; no behavior change.
 
 ### Fixed
 
-- The "showing the N most recent transactions" note in the Recent ledger sat
-  at the bottom of the list, which under the new oldest-first order is the
-  *newest* day — beside recent activity, while the rows it described had been
-  cut from the top. It now follows the dropped rows to whichever end they came
-  from.
-- The DATE column header's hover cue never rendered: it set a bare `color` on
-  a `Text` whose color already lived in its `TextStyle`, which is ambiguous on
-  Flet's Dart side.
+- The "showing the N most recent transactions" note in the Recent ledger now
+  sits at the end the dropped rows were cut from, rather than always the
+  bottom.
+- The DATE column header's hover highlight never rendered.
 
 ### Security
 
-- Updated dependencies to clear 10 Dependabot advisories. `aiohttp`
-  3.14.1 → 3.14.3 (CVE-2026-69244 out-of-bounds heap read in the C response
-  parser, CVE-2026-69243 request smuggling via WebSocket upgrade,
-  CVE-2026-59881 unnegotiated compressed WebSocket frames), `cryptography`
-  48.0.1 → 50.0.0 (CVE-2026-69247 PKCS#7 Bleichenbacher oracle; Linux-only
-  transitive via `keyring` → `secretstorage`), and `gitpython`
-  3.1.57 → 3.1.58 (six advisories covering git-option injection and
-  submodule-name path traversal; a `tach` dev dependency, not shipped).
+- Security fixes in bundled dependencies: `aiohttp` 3.14.1 → 3.14.3
+  (CVE-2026-69244, CVE-2026-69243, CVE-2026-59881) and `cryptography`
+  48.0.1 → 50.0.0 (CVE-2026-69247; affects Linux only). Development-only
+  dependencies were updated as well.
 
 ## [1.3.1] (2026-07-19)
 
