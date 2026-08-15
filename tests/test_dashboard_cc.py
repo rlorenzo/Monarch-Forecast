@@ -243,7 +243,11 @@ class TestNextCcDueDate:
         assert due is not None
         assert due.day == 15
         assert due >= date.today()
-        assert due == _next_month_day(date.today(), 15) or due > date.today()
+        # The soonest day-15 on or after today; a payment due today still
+        # counts as upcoming. `_next_month_day` is strictly-after, so it only
+        # agrees when today isn't already the 15th.
+        today = date.today()
+        assert due == (today if today.day == 15 else _next_month_day(today, 15))
 
     async def test_unknown_card_returns_none(self, patched_session_manager):
         dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
