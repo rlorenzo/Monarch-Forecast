@@ -271,6 +271,26 @@ class TestFilterChipsHaveLabeledSemantics:
         dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
         self._assert_chips_wrapped(dash._txn_mode_row, "dashboard mode toggle")
 
+    def test_sortable_date_header_is_a_labeled_button(self):
+        from src.views.transactions_table import build_date_column_label
+
+        # The DATE header is a click target with no Material chrome, so
+        # (like the filter chips) the Semantics wrapper is its only
+        # accessible name — and the name must state the order in words,
+        # never leaving it to the ↑/↓ glyph alone.
+        header = build_date_column_label(newest_first=False, on_toggle_order=lambda: None)
+        assert isinstance(header, ft.Semantics)
+        assert header.button is True
+        label = header.label or ""
+        assert "oldest first" in label
+        assert "newest first" in label
+
+    def test_plain_date_header_has_no_click_target(self):
+        from src.views.transactions_table import build_date_column_label
+
+        plain = build_date_column_label()
+        assert not any(getattr(c, "on_click", None) for c, _ in _walk_with_ancestors(plain))
+
 
 def _walk_with_ancestors(control, ancestors=()):
     yield control, ancestors

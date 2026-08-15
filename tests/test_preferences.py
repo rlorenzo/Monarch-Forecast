@@ -106,6 +106,23 @@ class TestPreferences:
         prefs2 = Preferences(path=path)
         assert prefs2.safety_threshold == 750.0
 
+    def test_transactions_order_defaults_to_oldest_first(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        assert prefs.transactions_newest_first is False
+
+    def test_transactions_order_persists(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs1 = Preferences(path=path)
+        prefs1.set_transactions_newest_first(True)
+        assert Preferences(path=path).transactions_newest_first is True
+
+    def test_transactions_order_coerces_garbage(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        prefs._data["transactions_newest_first"] = "yes"
+        assert prefs.transactions_newest_first is True
+        prefs._data["transactions_newest_first"] = None
+        assert prefs.transactions_newest_first is False
+
 
 class TestSaveSafety:
     def test_save_leaves_no_temp_file(self, tmp_path: Path):

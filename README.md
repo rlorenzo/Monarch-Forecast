@@ -30,14 +30,20 @@ day-by-day balance projection chart.
 ### Transactions
 
 Three modes, toggled by the pills at the top of the tab (default: Upcoming).
-**Upcoming** lists every projected transaction in the forecast window
-newest first, grouped by day with the running balance, filterable by
+**Upcoming** lists every projected transaction in the forecast window,
+grouped by day with the running balance, filterable by
 income, expense, one-off, and card payment. **Recent** lists the selected checking account's
-completed transactions (last 7 days by default; 30 and 90 available), newest
-first, so you can see where your money went. **Both** stacks them into one
-reverse-chronological ledger: projected transactions on top, reading down
-through a coral TODAY line into recently completed activity, which sits
-muted on a tinted band.
+completed transactions (last 7 days by default; 30 and 90 available), so you
+can see where your money went. **Both** stacks them into one continuous
+ledger separated by a coral TODAY line, with completed activity muted on a
+tinted band.
+
+Click the **DATE** column header to flip the sort order; the arrow shows
+which way time runs (↑ oldest first, the default — the ledger reads downward
+like a statement — or ↓ newest first). One click sets the order for all three
+modes, and your choice is remembered between launches. In Both mode the two
+halves swap sides to match, so the TODAY line always sits mid-timeline and
+the ledger never changes direction partway down.
 
 ![Transactions tab listing upcoming bills, paychecks, rent, and groceries day by day](screenshots/transactions.png)
 

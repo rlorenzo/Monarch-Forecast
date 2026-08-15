@@ -41,7 +41,11 @@ from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart, build_forecast_chart_summary
 from src.views.recent_transactions import RecentTransactionsView
 from src.views.side_nav import NavDestination, SideNav
-from src.views.transactions_table import TransactionsView, build_filter_chip
+from src.views.transactions_table import (
+    TransactionsView,
+    build_filter_chip,
+    build_ledger_header,
+)
 from src.views.update_banner import build_update_banner, check_update_async
 
 
@@ -231,10 +235,13 @@ class DashboardView(ft.Column):
         # forecast rebuilds that fire on account / threshold / window /
         # adjustment changes — set_forecast() swaps the data without
         # reconstructing the input controls.
+        self._newest_first = self._prefs.transactions_newest_first
         self.transactions_view = TransactionsView(
             on_edit_cc=self._on_edit_cc_amount_request,
             on_edit_oneoff=self._on_edit_oneoff_request,
             on_edit_recurring=self._on_edit_recurring_amount_request,
+            newest_first=self._newest_first,
+            on_toggle_order=self._toggle_txn_order,
         )
         self.adjustments_panel = AdjustmentsPanel(
             recurring_items=[],
@@ -277,12 +284,14 @@ class DashboardView(ft.Column):
         # The mode chips swap the tab's title, subtitle, and body without
         # touching either stateful view, so search/filter state survives
         # switching back and forth.
-        self.recent_transactions_view = RecentTransactionsView()
+        self.recent_transactions_view = RecentTransactionsView(
+            newest_first=self._newest_first,
+            on_toggle_order=self._toggle_txn_order,
+        )
         self._txn_mode = _TXN_MODE_UPCOMING
         self._txn_tab_title = ft.Text("Upcoming", style=tokens.headline_style(tokens.INK))
         self._txn_tab_subtitle = ft.Text(
-            "Every projected transaction in this window, newest first, "
-            "grouped by day with running balance.",
+            self._txn_subtitle_text(),
             style=tokens.body_style(tokens.INK_2),
         )
         self._txn_mode_row = ft.Row(spacing=8)
@@ -653,6 +662,42 @@ class DashboardView(ft.Column):
         ]
         _safe_update(self._txn_mode_row)
 
+    def _toggle_txn_order(self) -> None:
+        """Flip the sort order shared by Upcoming, Recent, and Both, so the
+        three modes can never disagree about which way time runs.
+
+        Driven by the DATE column header in whichever ledger is on screen;
+        each ledger re-renders its own header, so the arrow and the tooltip
+        follow automatically. The new order persists to preferences.json."""
+        self._newest_first = not self._newest_first
+        self._prefs.set_transactions_newest_first(self._newest_first)
+        self.transactions_view.set_newest_first(self._newest_first)
+        self.recent_transactions_view.set_newest_first(self._newest_first)
+        if self._txn_mode == _TXN_MODE_BOTH:
+            # The combined ledger stacks its two sections by order, so it
+            # has to be reassembled, not just re-sorted in place.
+            self._txn_tab_body.content = self._build_combined_txn_body()
+            _safe_update(self._txn_tab_body)
+        self._txn_tab_subtitle.value = self._txn_subtitle_text()
+        _safe_update(self._txn_tab_subtitle)
+
+    def _txn_subtitle_text(self) -> str:
+        """Subtitle for the active mode, naming the live sort order."""
+        order = "newest first" if self._newest_first else "oldest first"
+        if self._txn_mode == _TXN_MODE_RECENT:
+            return f"Completed transactions for the selected checking account, {order}."
+        if self._txn_mode == _TXN_MODE_BOTH:
+            lead, trail = (
+                ("projected transactions on top", "completed activity dulled below")
+                if self._newest_first
+                else ("completed activity dulled on top", "projected transactions below")
+            )
+            return f"One timeline, {order}: {lead}, {trail} the today line."
+        return (
+            f"Every projected transaction in this window, {order}, "
+            "grouped by day with running balance."
+        )
+
     def toggle_txn_mode(self) -> None:
         """Cycle the Transactions tab through Upcoming, Recent, and Both.
 
@@ -674,8 +719,9 @@ class DashboardView(ft.Column):
         self._focus_tab_entry(1)
 
     def _build_today_divider(self) -> ft.Control:
-        """The break between projected (above) and completed (below) in
-        the Both mode: a hairline interrupted by a coral TODAY marker."""
+        """The break between the past and projected sections in Both mode:
+        a hairline interrupted by a coral TODAY marker. Which side is which
+        follows the sort order, and so does the screen-reader label."""
 
         def _rule() -> ft.Control:
             return ft.Container(height=1, bgcolor=tokens.RULE, expand=True)
@@ -697,7 +743,11 @@ class DashboardView(ft.Column):
                         letter_spacing=0.66,
                         height=1.2,
                     ),
-                    semantics_label="today, projected transactions above, completed below",
+                    semantics_label=(
+                        "today, projected transactions above, completed below"
+                        if self._newest_first
+                        else "today, completed transactions above, projected below"
+                    ),
                 ),
                 _tick(),
                 _rule(),
@@ -707,16 +757,31 @@ class DashboardView(ft.Column):
         )
 
     def _build_combined_txn_body(self) -> ft.Control:
-        """Both mode: one continuous table. The projected ledger leads
-        (the forecast is the product), then the today break, then
-        recently completed activity newest-first in muted ink — same
-        columns, dulled color, no card chrome. Rebuilt on each mode
-        switch so the two stateful views reparent cleanly."""
+        """Both mode: one continuous table running in the chosen direction.
+        Newest-first puts the projected ledger on top and the completed
+        past below the today break; oldest-first swaps them so time still
+        flows downward. Completed rows are muted in either case — same
+        columns, dulled color, no card chrome.
+
+        One column header is hoisted to the top of the column rather than
+        living inside the projected view, which would drop it into the
+        middle of the timeline whenever the past section leads. Rebuilt on
+        each mode or order switch so the two stateful views reparent
+        cleanly."""
+        sections = (
+            [self.transactions_view, self.recent_transactions_view]
+            if self._newest_first
+            else [self.recent_transactions_view, self.transactions_view]
+        )
         return ft.Column(
             controls=[
-                self.transactions_view,
+                build_ledger_header(
+                    newest_first=self._newest_first,
+                    on_toggle_order=self._toggle_txn_order,
+                ),
+                sections[0],
                 self._build_today_divider(),
-                self.recent_transactions_view,
+                sections[1],
             ],
             spacing=16,
             tight=True,
@@ -728,26 +793,19 @@ class DashboardView(ft.Column):
         self._txn_mode = value
         if value == _TXN_MODE_RECENT:
             self._txn_tab_title.value = "Recent"
-            self._txn_tab_subtitle.value = (
-                "Completed transactions for the selected checking account, newest first."
-            )
             self.recent_transactions_view.set_compact(False)
+            self.transactions_view.set_show_header(True)
             self._txn_tab_body.content = self.recent_transactions_view
         elif value == _TXN_MODE_BOTH:
             self._txn_tab_title.value = "Ledger"
-            self._txn_tab_subtitle.value = (
-                "One timeline, newest first: projected transactions on top, "
-                "completed activity dulled below the today line."
-            )
             self.recent_transactions_view.set_compact(True)
+            self.transactions_view.set_show_header(False)
             self._txn_tab_body.content = self._build_combined_txn_body()
         else:
             self._txn_tab_title.value = "Upcoming"
-            self._txn_tab_subtitle.value = (
-                "Every projected transaction in this window, newest first, "
-                "grouped by day with running balance."
-            )
+            self.transactions_view.set_show_header(True)
             self._txn_tab_body.content = self.transactions_view
+        self._txn_tab_subtitle.value = self._txn_subtitle_text()
         # The Add-One-Off button belongs to the projected ledger; it stays
         # wherever that ledger is visible.
         self._add_one_off_button.visible = value in (_TXN_MODE_UPCOMING, _TXN_MODE_BOTH)

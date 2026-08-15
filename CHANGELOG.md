@@ -7,6 +7,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- **Transactions sort order is now a setting.** Click the DATE column header
+  to switch the whole tab between oldest first (the new default — time reads
+  downward, like a statement) and newest first; the header arrow shows the
+  current direction. The choice persists to `preferences.json`.
+
+### Changed
+
+- **All three Transactions modes now share one sort direction.** Upcoming,
+  Recent, and Both previously each owned their own ordering, so switching
+  modes could reverse the timeline under you. In Both mode the projected and
+  completed halves now swap sides with the order, keeping the coral TODAY
+  line mid-timeline, and the column header is hoisted to the top of the
+  combined ledger instead of riding along with the projected section.
+
 ### Security
 
 - Updated dependencies to clear 10 Dependabot advisories. `aiohttp`

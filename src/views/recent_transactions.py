@@ -44,6 +44,7 @@ from src.views.transactions_table import (
     _column_label,
     _day_gutter,
     _empty_state,
+    build_date_column_label,
     build_filter_chip,
 )
 
@@ -199,13 +200,19 @@ def _history_row(txn: HistoryTransaction, *, muted: bool = False) -> ft.Control:
     )
 
 
-def _history_header() -> ft.Control:
+def _history_header(
+    *,
+    newest_first: bool = False,
+    on_toggle_order: Callable[[], None] | None = None,
+) -> ft.Control:
     return ft.Container(
         content=ft.Row(
             controls=[
                 ft.Container(
                     width=_GUTTER_WIDTH + _GUTTER_GAP,
-                    content=_column_label("DATE", _GUTTER_WIDTH),
+                    content=build_date_column_label(
+                        newest_first=newest_first, on_toggle_order=on_toggle_order
+                    ),
                 ),
                 _column_label("DESCRIPTION", _COL_DESC),
                 _column_label("CATEGORY", _COL_TYPE),
@@ -245,20 +252,32 @@ def build_recent_transactions_table(
     empty_hint: str = "Transactions appear here after your accounts sync.",
     max_rows: int = _MAX_ROWS,
     muted: bool = False,
+    newest_first: bool = False,
+    on_toggle_order: Callable[[], None] | None = None,
 ) -> ft.Control:
     """Build the history day-block ledger from normalized transactions.
 
     ``txns`` is expected newest-first (``parse_history_transactions``
-    guarantees this). Days render in that order, each with the shared
-    day gutter, so the visual language matches the Upcoming ledger.
+    guarantees this). ``newest_first`` controls the *display* order only;
+    truncation always keeps the most recent ``max_rows`` regardless, so
+    flipping to oldest-first never silently swaps in a stale window.
+    Days render with the shared day gutter either way, so the visual
+    language matches the Upcoming ledger.
     """
     today_d = today or date.today()
     visible = [t for t in txns if should_show is None or should_show(t)]
     truncated = len(visible) > max_rows
     if truncated:
         visible = visible[:max_rows]
+    if not newest_first:
+        visible = list(reversed(visible))
 
-    blocks: list[ft.Control] = [] if muted else [_history_header()]
+    header: list[ft.Control] = (
+        []
+        if muted
+        else [_history_header(newest_first=newest_first, on_toggle_order=on_toggle_order)]
+    )
+    blocks: list[ft.Control] = list(header)
     day_txns: list[HistoryTransaction] = []
     rendered_blocks = 0
 
@@ -303,7 +322,13 @@ def build_recent_transactions_table(
     if rendered_blocks == 0:
         blocks.append(_empty_state(empty_headline, empty_hint))
     elif truncated:
-        blocks.append(_truncation_note(max_rows))
+        # The dropped rows are always the oldest ones, so the note goes
+        # wherever they would have been: below the ledger newest-first,
+        # above it (just under the header) oldest-first.
+        if newest_first:
+            blocks.append(_truncation_note(max_rows))
+        else:
+            blocks.insert(len(header), _truncation_note(max_rows))
 
     return ft.Column(controls=blocks, spacing=0, tight=True)
 
@@ -321,9 +346,16 @@ class RecentTransactionsView(ft.Column):
     ``set_transactions(raw_txns)`` whenever a load finishes.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        newest_first: bool = False,
+        on_toggle_order: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__()
         self._txns: list[HistoryTransaction] = []
+        self._newest_first = newest_first
+        self._on_toggle_order = on_toggle_order
         self._search: str = ""
         self._flow: str = _FLOW_ALL
         self._period: str = _DEFAULT_PERIOD
@@ -333,8 +365,9 @@ class RecentTransactionsView(ft.Column):
         # phantom income next to checking outflows.
         self._account_id: str = ""
         # Compact mode (used inside the combined Both ledger): filter strip
-        # hidden and rows muted; order stays newest-first so the ledger
-        # reads down from the projected section through the today line.
+        # hidden and rows muted. The sort order is not touched here — the
+        # dashboard stacks this view above or below the projected ledger to
+        # suit ``_newest_first``, so both sections read the same direction.
         self._compact = False
         self._rebuild_seq = 0  # Debounce token for search-driven rebuilds.
         self._cutoff_date: date = date.today() - timedelta(days=int(self._period))
@@ -389,11 +422,19 @@ class RecentTransactionsView(ft.Column):
         self._account_id = account_id
         self._rebuild()
 
+    def set_newest_first(self, newest_first: bool) -> None:
+        """Flip the display order. The dashboard drives this whenever the
+        DATE header is clicked — in any ledger — so all of them agree."""
+        if self._newest_first == newest_first:
+            return
+        self._newest_first = newest_first
+        self._rebuild()
+
     def set_compact(self, compact: bool) -> None:
         """Compact mode for the combined Both ledger: hides the filter
         strip (the combined view owns the framing) and renders rows
-        muted, so completed activity reads recessed under the projected
-        ledger while staying newest-first."""
+        muted, so completed activity reads recessed against the projected
+        ledger."""
         if self._compact == compact:
             return
         self._compact = compact
@@ -512,6 +553,8 @@ class RecentTransactionsView(ft.Column):
             empty_headline=empty_headline,
             empty_hint=empty_hint,
             muted=self._compact,
+            newest_first=self._newest_first,
+            on_toggle_order=self._on_toggle_order,
         )
         try:
             self._ledger_container.update()
