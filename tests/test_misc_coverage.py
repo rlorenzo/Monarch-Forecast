@@ -139,7 +139,8 @@ class TestChartAxisLabels:
         forecast = _make_windowed_forecast(45)
         chart = build_forecast_chart(forecast)
         assert chart.bottom_axis is not None
-        values = sorted(lbl.value for lbl in chart.bottom_axis.labels)
+        values = sorted(lbl.value for lbl in chart.bottom_axis.labels if lbl.value is not None)
+        assert len(values) == len(chart.bottom_axis.labels)
         total_days = values[-1]
         label_interval = max(total_days // 6, 1)
         second_last = values[-2]
