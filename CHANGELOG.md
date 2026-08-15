@@ -7,6 +7,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Security
+
+- Updated dependencies to clear 10 Dependabot advisories. `aiohttp`
+  3.14.1 → 3.14.3 (CVE-2026-69244 out-of-bounds heap read in the C response
+  parser, CVE-2026-69243 request smuggling via WebSocket upgrade,
+  CVE-2026-59881 unnegotiated compressed WebSocket frames), `cryptography`
+  48.0.1 → 50.0.0 (CVE-2026-69247 PKCS#7 Bleichenbacher oracle; Linux-only
+  transitive via `keyring` → `secretstorage`), and `gitpython`
+  3.1.57 → 3.1.58 (six advisories covering git-option injection and
+  submodule-name path traversal; a `tach` dev dependency, not shipped).
+
+### Changed
+
+- `monarchmoneycommunity` 1.5.1 → 1.5.2, which adds an `is_pending` filter to
+  `get_transactions` and surfaces transaction/account owner fields. All
+  additive; the forecast engine's existing calls are unaffected.
+
 ## [1.3.1] (2026-07-19)
 
 Packaging improvements for Windows and Linux — no application changes.
