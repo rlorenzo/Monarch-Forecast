@@ -11,6 +11,9 @@ indirectly by the views_smoke + accessibility suites. This file targets:
 - The empty-state copy adapts to the active filter + search query.
 - The day-gutter NET block appears only when a day has ≥ 2 visible
   transactions.
+- Display order (``newest_first``) and header suppression
+  (``show_header``), including that running balances stay chronological
+  whichever way the day blocks are stacked.
 """
 
 from __future__ import annotations
@@ -295,6 +298,99 @@ class TestBuilderEmptyState:
         )
         head = any(isinstance(c, ft.Text) and c.value == "Nothing matches" for c in _walk(ledger))
         assert head
+
+
+class TestDisplayOrder:
+    """Order is a display concern only — running balances must stay
+    chronological whichever way the days are stacked."""
+
+    def _day_labels(self, ledger: Any) -> list[str]:
+        return [
+            c.value for c in _walk(ledger) if isinstance(c, ft.Text) and c.value.startswith("JUN ")
+        ]
+
+    def _balances(self, ledger: Any) -> list[str]:
+        return [
+            c.value
+            for c in _walk(ledger)
+            if isinstance(c, ft.Text) and (c.semantics_label or "").startswith("running balance")
+        ]
+
+    def test_defaults_to_oldest_first(self):
+        assert self._day_labels(build_transactions_table(_two_day_forecast())) == [
+            "JUN 01",
+            "JUN 02",
+        ]
+
+    def test_newest_first_reverses_days(self):
+        ledger = build_transactions_table(_two_day_forecast(), newest_first=True)
+        assert self._day_labels(ledger) == ["JUN 02", "JUN 01"]
+
+    def test_running_balances_are_unaffected_by_order(self):
+        oldest = self._balances(build_transactions_table(_two_day_forecast()))
+        newest = self._balances(build_transactions_table(_two_day_forecast(), newest_first=True))
+        # Same figures against the same rows; only the stacking flips, so
+        # newest-first is the oldest-first list read day-block by day-block
+        # in reverse — never a re-accumulation from the far end.
+        assert oldest == ["$3,500.00", "$6,500.00", "$6,200.00", "$6,000.00"]
+        assert newest == ["$6,200.00", "$6,000.00", "$3,500.00", "$6,500.00"]
+
+    def test_view_set_newest_first_rebuilds(self):
+        view = TransactionsView()
+        view.set_forecast(_two_day_forecast())
+        assert self._day_labels(view._ledger_container.content) == ["JUN 01", "JUN 02"]
+        view.set_newest_first(True)
+        assert self._day_labels(view._ledger_container.content) == ["JUN 02", "JUN 01"]
+
+    def test_show_header_can_be_suppressed(self):
+        headed = build_transactions_table(_two_day_forecast())
+        bare = build_transactions_table(_two_day_forecast(), show_header=False)
+        assert any(isinstance(c, ft.Text) and c.value == "BALANCE" for c in _walk(headed))
+        assert not any(isinstance(c, ft.Text) and c.value == "BALANCE" for c in _walk(bare))
+
+    def test_setters_are_no_ops_when_the_value_is_unchanged(self):
+        view = TransactionsView()
+        view.set_forecast(_two_day_forecast())
+        before = view._ledger_container.content
+        view.set_newest_first(False)
+        view.set_show_header(True)
+        assert view._ledger_container.content is before
+
+
+class TestSortableDateHeader:
+    """The DATE header doubles as the sort control (there is no chip row),
+    so its own affordances have to hold up on their own."""
+
+    def _label(self, **kwargs: Any) -> Any:
+        from src.views.transactions_table import build_date_column_label
+
+        wrapper = build_date_column_label(on_toggle_order=lambda: None, **kwargs)
+        assert isinstance(wrapper, ft.Semantics)
+        return wrapper.content
+
+    def test_arrow_and_tooltip_track_the_order(self):
+        oldest, newest = self._label(newest_first=False), self._label(newest_first=True)
+        assert oldest.content.value == "DATE ↑"
+        assert newest.content.value == "DATE ↓"
+        # The tooltip names the destination, not the current state, so it
+        # tells you what the click will do.
+        assert "click for newest first" in (oldest.tooltip or "")
+        assert "click for oldest first" in (newest.tooltip or "")
+
+    def test_hover_recolors_the_label_and_restores_it(self):
+        label = self._label()
+        rest = label.content.style.color
+        label._handle_hover(SimpleNamespace(data="true"))
+        hovered = label.content.style.color
+        assert hovered != rest
+        # The rest of the header's type must survive the recolor — only
+        # the ink changes, never the size/weight/tracking.
+        assert (label.content.style.size, label.content.style.letter_spacing) == (
+            11,
+            0.66,
+        )
+        label._handle_hover(SimpleNamespace(data="false"))
+        assert label.content.style.color == rest
 
 
 class TestSearchFieldExposed:

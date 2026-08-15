@@ -23,6 +23,12 @@ Public API:
 - ``TransactionsView(on_edit_cc=, on_edit_oneoff=, on_edit_recurring=)``
   — the stateful Column with filter strip + ledger. Dashboard holds an
   instance and drives it via ``set_forecast``.
+- ``build_ledger_header()`` — the column header on its own, for the
+  dashboard's combined Both ledger.
+
+Display order is a dashboard-level setting (oldest-first by default,
+persisted in preferences.json) passed down as ``newest_first`` so this
+ledger and the Recent one always run the same direction.
 """
 
 from __future__ import annotations
@@ -470,18 +476,22 @@ def _day_block(
 # ---------------------------------------------------------------------------
 
 
-def _column_label(text: str, width: int, *, align_right: bool = False) -> ft.Control:
-    label = ft.Text(
-        text,
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_600,
-            color=tokens.INK_3,
-            letter_spacing=0.66,
-            height=1.2,
-        ),
+def _column_label_style(color: str) -> ft.TextStyle:
+    """Shared type for every ledger column header. Only the ink varies:
+    ``INK_3`` for a plain label, ``INK_2`` for the sortable DATE header so
+    the one clickable column reads a shade heavier than its neighbours."""
+    return ft.TextStyle(
+        font_family=tokens.FONT_BODY,
+        size=11,
+        weight=ft.FontWeight.W_600,
+        color=color,
+        letter_spacing=0.66,
+        height=1.2,
     )
+
+
+def _column_label(text: str, width: int, *, align_right: bool = False) -> ft.Control:
+    label = ft.Text(text, style=_column_label_style(tokens.INK_3))
     return ft.Container(
         content=label,
         width=width,
@@ -531,12 +541,96 @@ def _build_search_field(
     )
 
 
-def _ledger_header() -> ft.Control:
+class _SortableDateLabel(ft.Container):
+    """The DATE column label, doubling as the ledger's sort control.
+
+    A Container rather than a Button for the same reason ``_FilterChip``
+    is one: ``on_click`` lands directly and nothing of Material's chrome
+    comes with it, so the control reads as a column header rather than as
+    a widget parked in the header.
+    """
+
+    def __init__(self, *, newest_first: bool, on_toggle: Callable[[], None]) -> None:
+        self._on_toggle = on_toggle
+        self._label = ft.Text(
+            # ↑ ascending (oldest at the top), ↓ descending. The glyph is
+            # never the only signal — the Semantics label below spells the
+            # order out, per the color/glyph rule in AGENTS.md.
+            f"DATE {'↓' if newest_first else '↑'}",
+            style=_column_label_style(tokens.INK_2),
+        )
+        super().__init__(
+            content=self._label,
+            width=_GUTTER_WIDTH,
+            alignment=ft.Alignment(-1, 0),
+            on_click=self._handle_click,
+            on_hover=self._handle_hover,
+            tooltip=(
+                "Sorted newest first — click for oldest first"
+                if newest_first
+                else "Sorted oldest first — click for newest first"
+            ),
+        )
+
+    def _handle_click(self, _e: ft.Event[ft.Container]) -> None:
+        self._on_toggle()
+
+    def _handle_hover(self, e: ft.Event[ft.Container]) -> None:
+        # Swap the whole style rather than setting ``Text.color``: the
+        # color lives inside ``style``, and a bare ``color=`` alongside a
+        # style that also carries one is ambiguous on Flet's Dart side.
+        ink = tokens.CORAL_DEEP if e.data == "true" else tokens.INK_2
+        self._label.style = _column_label_style(ink)
+        try:
+            self.update()
+        except (RuntimeError, AssertionError):
+            pass
+
+
+def build_date_column_label(
+    *,
+    newest_first: bool = False,
+    on_toggle_order: Callable[[], None] | None = None,
+) -> ft.Control:
+    """DATE header cell — a sort toggle when ``on_toggle_order`` is given,
+    a plain label otherwise.
+
+    Sorting lives on the column it reorders instead of in its own chip
+    row, which keeps a full row of vertical space for the ledger. The
+    plain-label fallback keeps the no-state builders free of click
+    targets for the accessibility walk.
+    """
+    if on_toggle_order is None:
+        return _column_label("DATE", _GUTTER_WIDTH)
+    order = "newest first" if newest_first else "oldest first"
+    other = "oldest first" if newest_first else "newest first"
+    return ft.Semantics(
+        button=True,
+        label=f"Sort by date, currently {order}. Activate to sort {other}.",
+        content=_SortableDateLabel(newest_first=newest_first, on_toggle=on_toggle_order),
+    )
+
+
+def build_ledger_header(
+    *,
+    newest_first: bool = False,
+    on_toggle_order: Callable[[], None] | None = None,
+) -> ft.Control:
+    """The projected ledger's column header.
+
+    Public because the dashboard's combined Both ledger hoists a single
+    header to the very top of the column — whichever section (past or
+    projected) leads under the active sort order — instead of letting the
+    projected view carry one into the middle of the timeline.
+    """
     return ft.Container(
         content=ft.Row(
             controls=[
                 ft.Container(
-                    width=_GUTTER_WIDTH + _GUTTER_GAP, content=_column_label("DATE", _GUTTER_WIDTH)
+                    width=_GUTTER_WIDTH + _GUTTER_GAP,
+                    content=build_date_column_label(
+                        newest_first=newest_first, on_toggle_order=on_toggle_order
+                    ),
                 ),
                 _column_label("DESCRIPTION", _COL_DESC),
                 _column_label("CATEGORY", _COL_TYPE),
@@ -590,6 +684,9 @@ def build_transactions_table(
     should_show: Callable[[ForecastTransaction], bool] | None = None,
     empty_headline: str = "No transactions in this window.",
     empty_hint: str = "Add a one-off from the Adjustments tab, or extend the forecast window.",
+    newest_first: bool = False,
+    show_header: bool = True,
+    on_toggle_order: Callable[[], None] | None = None,
 ) -> ft.Control:
     """Build the editorial day-block ledger.
 
@@ -610,14 +707,30 @@ def build_transactions_table(
         empty_headline / empty_hint: Copy used when no rows are visible —
             either the forecast contains no transactions, or the filter
             hides them all.
+        newest_first: Display order. False (the default) reads oldest
+            day first, like a statement; True is checkbook-register
+            order with the furthest projected day on top. Running
+            balances always accumulate chronologically either way.
+        show_header: Render the column header above the first day block.
+            The combined Both ledger sets this False and hoists a single
+            ``build_ledger_header()`` to the top of its own column, so the
+            header can't land mid-timeline when the past section leads.
+        on_toggle_order: Makes the DATE header a sort toggle. Omitted, the
+            header is a plain label.
     """
     today_d = today or date.today()
-    blocks: list[ft.Control] = [_ledger_header()]
+    blocks: list[ft.Control] = (
+        [build_ledger_header(newest_first=newest_first, on_toggle_order=on_toggle_order)]
+        if show_header
+        else []
+    )
 
-    # Balances accumulate chronologically, but the ledger DISPLAYS newest
-    # first (checkbook-register order): the furthest projected day leads
-    # and the list reads down toward today — and, in the combined Both
-    # view, straight on into the completed past below the TODAY line.
+    # Balances always accumulate chronologically; only the DISPLAY order
+    # flips. Oldest-first (the default) reads like a statement — today at
+    # the top, the forecast unfolding downward. Newest-first is
+    # checkbook-register order, the furthest projected day leading. In the
+    # combined Both view the dashboard stacks the past and projected
+    # sections to match, so the TODAY line always sits mid-timeline.
     running = result.starting_balance
     day_blocks: list[ft.Container] = []
     for day in result.days:
@@ -638,7 +751,8 @@ def build_transactions_table(
             continue
         day_blocks.append(block)
 
-    day_blocks.reverse()
+    if newest_first:
+        day_blocks.reverse()
     if day_blocks:
         # The header already rules the top edge; the first rendered block
         # doesn't need its own hairline.
@@ -754,11 +868,18 @@ class TransactionsView(ft.Column):
         on_edit_cc: Callable[[ForecastTransaction], None] | None = None,
         on_edit_oneoff: Callable[[ForecastTransaction], None] | None = None,
         on_edit_recurring: Callable[[ForecastTransaction], None] | None = None,
+        newest_first: bool = False,
+        on_toggle_order: Callable[[], None] | None = None,
     ) -> None:
         super().__init__()
+        self._on_toggle_order = on_toggle_order
         self._on_edit_cc = on_edit_cc
         self._on_edit_oneoff = on_edit_oneoff
         self._on_edit_recurring = on_edit_recurring
+        self._newest_first = newest_first
+        # False only inside the combined Both ledger, which hoists one
+        # shared header to the top of its column.
+        self._show_header = True
 
         self._forecast: ForecastResult | None = None
         self._search: str = ""
@@ -801,6 +922,22 @@ class TransactionsView(ft.Column):
 
     def set_forecast(self, result: ForecastResult) -> None:
         self._forecast = result
+        self._rebuild_ledger()
+
+    def set_newest_first(self, newest_first: bool) -> None:
+        """Flip the display order. The dashboard drives this whenever the
+        DATE header is clicked — in any ledger — so all of them agree."""
+        if self._newest_first == newest_first:
+            return
+        self._newest_first = newest_first
+        self._rebuild_ledger()
+
+    def set_show_header(self, show_header: bool) -> None:
+        """Hide this view's own column header. The combined Both ledger
+        renders one at the top of its column instead."""
+        if self._show_header == show_header:
+            return
+        self._show_header = show_header
         self._rebuild_ledger()
 
     def clear(self) -> None:
@@ -889,6 +1026,9 @@ class TransactionsView(ft.Column):
                 should_show=self._should_show,
                 empty_headline=empty_headline,
                 empty_hint=empty_hint,
+                newest_first=self._newest_first,
+                show_header=self._show_header,
+                on_toggle_order=self._on_toggle_order,
             )
         try:
             self._ledger_container.update()

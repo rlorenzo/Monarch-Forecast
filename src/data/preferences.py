@@ -201,6 +201,21 @@ class Preferences:
         self._save()
 
     @property
+    def transactions_newest_first(self) -> bool:
+        """Sort direction shared by every Transactions-tab ledger.
+
+        Default False (oldest first) so the ledger reads the way a
+        statement does — earliest day at the top, time flowing downward —
+        and so Upcoming, Recent, and Both can never disagree about
+        direction the way they did when each owned its own order.
+        """
+        return bool(self._data.get("transactions_newest_first", False))
+
+    def set_transactions_newest_first(self, newest_first: bool) -> None:
+        self._data["transactions_newest_first"] = bool(newest_first)
+        self._save()
+
+    @property
     def onboarding_seen(self) -> bool:
         return self._data.get("onboarding_seen", False)
 

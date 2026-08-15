@@ -5,7 +5,7 @@ Covers:
 - ``parse_history_transactions``: pending/bad-row filtering, merchant
   fallback, newest-first ordering.
 - ``build_recent_transactions_table``: day grouping, empty state,
-  truncation note.
+  truncation note, display order.
 - ``RecentTransactionsView`` state: summary totals, flow/period/search
   filters, ``clear``, empty-state copy.
 - Dashboard integration: the Upcoming/Recent mode toggle swaps the tab
@@ -49,6 +49,34 @@ def _walk(control: Any):
 
 def _texts(control: Any) -> list[str]:
     return [c.value for c in _walk(control) if isinstance(c, ft.Text) and c.value]
+
+
+def _sort_toggles(control: Any) -> list[Any]:
+    """Every DATE-header sort control in a rendered tree."""
+    return [
+        c
+        for c in _walk(control)
+        if isinstance(c, ft.Semantics) and (c.label or "").startswith("Sort by date")
+    ]
+
+
+def _forecast_with_one_day() -> Any:
+    """Minimal forecast — enough for the ledger to render its header."""
+    from src.data.models import ForecastTransaction
+    from src.forecast.models import ForecastDay, ForecastResult
+
+    day = date.today()
+    return ForecastResult(
+        days=[
+            ForecastDay(
+                date=day,
+                starting_balance=1000.0,
+                transactions=[ForecastTransaction(date=day, name="Rent", amount=-500.0)],
+            )
+        ],
+        starting_balance=1000.0,
+        safety_threshold=100.0,
+    )
 
 
 def _raw(
@@ -137,6 +165,61 @@ class TestBuildRecentTransactionsTable:
         # Two day gutters: Jun 15 and Jun 14.
         assert "JUN 15" in texts
         assert "JUN 14" in texts
+
+    def _day_labels(self, table: Any) -> list[str]:
+        """Day-gutter labels in render order (e.g. ``["JUN 14", "JUN 15"]``)."""
+        return [t for t in _texts(table) if t.startswith("JUN ")]
+
+    def test_defaults_to_oldest_first(self):
+        d = date(2026, 6, 15)
+        txns = [self._txn(d, -5.0), self._txn(d - timedelta(days=1), -9.0)]
+        assert self._day_labels(build_recent_transactions_table(txns, today=d)) == [
+            "JUN 14",
+            "JUN 15",
+        ]
+
+    def test_newest_first_reverses_days(self):
+        d = date(2026, 6, 15)
+        txns = [self._txn(d, -5.0), self._txn(d - timedelta(days=1), -9.0)]
+        table = build_recent_transactions_table(txns, today=d, newest_first=True)
+        assert self._day_labels(table) == ["JUN 15", "JUN 14"]
+
+    def test_oldest_first_still_truncates_to_most_recent(self):
+        # Truncation runs before the display flip, so oldest-first shows
+        # the most recent max_rows re-ordered — not the oldest rows.
+        d = date(2026, 6, 15)
+        txns = [self._txn(d - timedelta(days=i), -1.0) for i in range(6)]
+        table = build_recent_transactions_table(txns, today=d, max_rows=2, newest_first=False)
+        assert self._day_labels(table) == ["JUN 14", "JUN 15"]
+
+    def _note_position(self, table: Any) -> int:
+        texts = _texts(table)
+        note = next(i for i, t in enumerate(texts) if t.startswith("Showing the "))
+        first_day = next(i for i, t in enumerate(texts) if t.startswith("JUN "))
+        return note - first_day
+
+    def test_truncation_note_follows_the_dropped_rows(self):
+        # The dropped rows are always the oldest, so the note has to sit on
+        # whichever end of the ledger they were cut from — below the days
+        # newest-first, above them oldest-first. A note pinned to the bottom
+        # would point at the newest day and claim rows are missing there.
+        d = date(2026, 6, 15)
+        txns = [self._txn(d - timedelta(days=i), -1.0) for i in range(6)]
+        newest = build_recent_transactions_table(txns, today=d, max_rows=2, newest_first=True)
+        oldest = build_recent_transactions_table(txns, today=d, max_rows=2, newest_first=False)
+        assert self._note_position(newest) > 0
+        assert self._note_position(oldest) < 0
+
+    def test_truncation_note_stays_below_the_header_oldest_first(self):
+        d = date(2026, 6, 15)
+        txns = [self._txn(d - timedelta(days=i), -1.0) for i in range(6)]
+        table = build_recent_transactions_table(
+            txns, today=d, max_rows=2, newest_first=False, on_toggle_order=lambda: None
+        )
+        texts = _texts(table)
+        assert texts.index("DATE ↑") < next(
+            i for i, t in enumerate(texts) if t.startswith("Showing the ")
+        )
 
     def test_empty_state(self):
         table = build_recent_transactions_table([], today=date(2026, 6, 15))
@@ -256,6 +339,20 @@ class TestRecentTransactionsView:
         assert view._ledger_container.bgcolor is None
         assert "DESCRIPTION" in _texts(view)
 
+    def test_set_newest_first_reverses_days_and_no_ops_when_unchanged(self):
+        view = self._view_with_data()
+        before = view._ledger_container.content
+        view.set_newest_first(False)
+        assert view._ledger_container.content is before
+        # Default (oldest first) reads up to today; flipping reverses it.
+        names = [t for t in _texts(view) if t in ("Grocery Store", "Paycheck")]
+        assert names == ["Paycheck", "Grocery Store"]
+        view.set_newest_first(True)
+        assert [t for t in _texts(view) if t in ("Grocery Store", "Paycheck")] == [
+            "Grocery Store",
+            "Paycheck",
+        ]
+
 
 class TestDashboardTxnModeToggle:
     def _dashboard(self, patched_session_manager):
@@ -361,10 +458,31 @@ class TestBothMode:
         assert dash._add_one_off_button.visible is True
         assert dash.recent_transactions_view._compact is True
         body = dash._txn_tab_body.content
-        # Upcoming leads, the TODAY break follows, completed activity last.
-        assert body.controls[0] is dash.transactions_view
+        # Default order is oldest-first, so the completed past leads, the
+        # TODAY break follows, and the projection lands last. One hoisted
+        # column header sits above both sections.
+        assert body.controls[1] is dash.recent_transactions_view
+        assert body.controls[-1] is dash.transactions_view
+        assert "TODAY" in _texts(body.controls[2])
+        assert "BALANCE" in _texts(body.controls[0])
+        # The projected view drops its own header so only the hoisted one
+        # renders — otherwise a second header lands mid-timeline.
+        assert dash.transactions_view._show_header is False
+
+    def test_both_mode_newest_first_puts_projection_on_top(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash._on_txn_mode_select("both")
+        dash._toggle_txn_order()
+        body = dash._txn_tab_body.content
+        assert body.controls[1] is dash.transactions_view
         assert body.controls[-1] is dash.recent_transactions_view
-        assert "TODAY" in _texts(body.controls[1])
+        assert "TODAY" in _texts(body.controls[2])
+
+    def test_leaving_both_restores_projected_header(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash._on_txn_mode_select("both")
+        dash._on_txn_mode_select("upcoming")
+        assert dash.transactions_view._show_header is True
 
     def test_leaving_both_restores_full_recent(self, patched_session_manager):
         dash = self._dashboard(patched_session_manager)
@@ -384,6 +502,78 @@ class TestBothMode:
             dash.toggle_txn_mode()
             seen.append(dash._txn_mode)
         assert seen == ["upcoming", "recent", "both", "upcoming"]
+
+
+class TestSortOrder:
+    def _dashboard(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        return DashboardView(patched_session_manager, on_logout=lambda: None)
+
+    def test_defaults_to_oldest_first_everywhere(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        assert dash._newest_first is False
+        assert dash.transactions_view._newest_first is False
+        assert dash.recent_transactions_view._newest_first is False
+        assert "oldest first" in dash._txn_tab_subtitle.value
+
+    def test_flip_propagates_to_both_views_and_persists(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash._toggle_txn_order()
+        assert dash.transactions_view._newest_first is True
+        assert dash.recent_transactions_view._newest_first is True
+        assert dash._prefs.transactions_newest_first is True
+        assert "newest first" in dash._txn_tab_subtitle.value
+
+    def test_saved_order_is_restored_on_construction(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash._toggle_txn_order()
+        # Same tmp-scoped Preferences file (see conftest), so a fresh
+        # dashboard must come up newest-first with no further interaction.
+        restored = self._dashboard(patched_session_manager)
+        assert restored._newest_first is True
+        assert restored.transactions_view._newest_first is True
+        assert restored.recent_transactions_view._newest_first is True
+
+    def test_subtitle_tracks_mode_and_order(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash._on_txn_mode_select("recent")
+        assert dash._txn_tab_subtitle.value.endswith("oldest first.")
+        dash._toggle_txn_order()
+        assert dash._txn_tab_subtitle.value.endswith("newest first.")
+
+    def test_toggling_twice_returns_to_oldest_first(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash._toggle_txn_order()
+        dash._toggle_txn_order()
+        assert dash._newest_first is False
+        assert dash._prefs.transactions_newest_first is False
+        assert dash.transactions_view._newest_first is False
+        assert dash.recent_transactions_view._newest_first is False
+
+    def test_header_carries_the_control_in_every_mode(self, patched_session_manager):
+        # The sort control has no row of its own — it must be reachable
+        # from the header of whichever ledger the mode puts on screen.
+        dash = self._dashboard(patched_session_manager)
+        dash.transactions_view.set_forecast(_forecast_with_one_day())
+        dash.recent_transactions_view.set_transactions([])
+
+        for mode in ("upcoming", "recent", "both"):
+            dash._on_txn_mode_select(mode)
+            toggles = _sort_toggles(dash._txn_tab_body.content)
+            assert len(toggles) == 1, f"{mode} should expose exactly one sort control"
+            assert "Sort by date" in toggles[0].label
+
+    def test_clicking_the_header_flips_the_order(self, patched_session_manager):
+        dash = self._dashboard(patched_session_manager)
+        dash.transactions_view.set_forecast(_forecast_with_one_day())
+        toggle = _sort_toggles(dash._txn_tab_body.content)[0]
+        _m(toggle.content.on_click)(SimpleNamespace(control=toggle.content))
+        assert dash._newest_first is True
+        # The header re-renders with the flipped state, so the next click
+        # advertises the way back rather than repeating itself.
+        after = _sort_toggles(dash._txn_tab_body.content)[0]
+        assert "currently newest first" in after.label
 
 
 class TestToggleGuard:
