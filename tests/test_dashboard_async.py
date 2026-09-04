@@ -153,14 +153,15 @@ class TestLoadDataErrors:
         # Chart and table cleared on error.
         assert dashboard.chart_container.content is None
 
-    async def test_exception_message_in_summary(self, dashboard):
-        dashboard.monarch.get_checking_accounts = AsyncMock(side_effect=ValueError("oops"))
+    async def test_exception_detail_stays_out_of_summary(self, dashboard):
+        # Exception text can carry request URLs / server bodies, so the UI
+        # gets a generic message and the detail goes to the log only.
+        dashboard.monarch.get_checking_accounts = AsyncMock(side_effect=ValueError("secret-detail"))
         await dashboard.load_data()
-        # The first summary control is the error Text — value should
-        # contain the exception message.
         first = dashboard.summary_row.controls[0]
         value = getattr(first, "value", "") or ""
-        assert "oops" in value
+        assert "Error loading data" in value
+        assert "secret-detail" not in value
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 """Tests for user preferences persistence."""
 
+import json
+import os
 from pathlib import Path
 
 from src.data.preferences import Preferences
@@ -51,6 +53,16 @@ class TestPreferences:
 
         prefs.clear_cc_billing("cc1")
         assert "cc1" not in prefs.cc_billing_settings
+
+    def test_load_does_not_follow_symlink(self, tmp_path: Path):
+        if not hasattr(os, "O_NOFOLLOW"):
+            return  # POSIX symlink semantics only.
+        victim = tmp_path / "victim.json"
+        victim.write_text(json.dumps({"excluded_recurring": ["leaked"]}))
+        prefs_path = tmp_path / "prefs.json"
+        prefs_path.symlink_to(victim)
+        prefs = Preferences(path=prefs_path)
+        assert prefs.excluded_recurring_names == set()
 
     def test_handles_corrupt_file(self, tmp_path: Path):
         path = tmp_path / "prefs.json"

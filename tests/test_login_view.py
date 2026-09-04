@@ -95,9 +95,9 @@ class TestConstruction:
         assert not view.email_field.value
         assert not view.password_field.value
 
-    def test_remember_me_default_checked(self):
+    def test_remember_me_default_unchecked(self):
         view = _make_view()
-        assert view.remember_me.value is True
+        assert view.remember_me.value is False
 
     def test_demo_button_invokes_callback(self):
         view = _make_view()

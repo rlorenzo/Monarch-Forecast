@@ -27,6 +27,11 @@ dev = [
     "tach>=0.34",
     "bandit>=1.9",
 ]
+# CI-only: semgrep is heavy, so it is not in `dev`. Run with
+# `uv run --only-group security semgrep ...`.
+security = [
+    "semgrep>=1.176.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

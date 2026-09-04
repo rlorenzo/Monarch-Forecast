@@ -65,9 +65,11 @@ class LoginView(ft.Column):
             ),
             dispose_action=ft.AutofillGroupDisposeAction.CANCEL,
         )
+        # Off by default: persisting the raw password is opt-in. The saved
+        # session token already gives automatic sign-in on the next launch.
         self.remember_me = ft.Checkbox(
             label="Remember credentials",
-            value=True,
+            value=False,
         )
         self.login_text = ft.Text("Sign In")
         self.progress = ft.ProgressRing(visible=False, width=18, height=18, stroke_width=2)

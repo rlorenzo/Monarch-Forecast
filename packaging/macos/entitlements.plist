@@ -6,9 +6,12 @@
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
+    <!-- Needed while sign_notarize.sh signs nested .so/.dylib files with our
+         own identity but Flutter/Python wheels may still ship Mach-Os signed by
+         other Team IDs. Do NOT re-add allow-dyld-environment-variables: with
+         library validation off it lets DYLD_INSERT_LIBRARIES inject unsigned
+         code into the process the Keychain trusts for the stored password. -->
     <key>com.apple.security.cs.disable-library-validation</key>
-    <true/>
-    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
 </dict>
 </plist>

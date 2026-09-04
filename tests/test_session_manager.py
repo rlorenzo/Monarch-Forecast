@@ -226,7 +226,9 @@ class TestLogin:
 
         await sm.login("user@test.com", "pass")
         assert sm.is_authenticated is True
-        mm.login.assert_awaited_once_with(email="user@test.com", password="pass")
+        mm.login.assert_awaited_once_with(
+            email="user@test.com", password="pass", use_saved_session=False
+        )
 
     @patch("src.auth.session_manager.keyring")
     async def test_login_with_mfa(self, mock_keyring, tmp_session, tmp_path):

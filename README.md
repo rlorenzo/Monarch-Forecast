@@ -159,7 +159,8 @@ reverse-engineered API client, since Monarch Money does not offer a public API
   overrides, and one-off transactions.
 - **Transaction cache**: SQLite database at
   `~/.monarch-forecast/cache.db` caching recent Monarch data to avoid
-  hammering the API on every launch.
+  hammering the API on every launch. Cleared on logout. Preferences are
+  kept across logins; delete `preferences.json` to reset them.
 
 Your financial data is only sent to Monarch Money's servers. The only
 other outbound request is an update check to the GitHub Releases API on
