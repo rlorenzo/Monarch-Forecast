@@ -1,6 +1,7 @@
 """Auto-update checker using GitHub releases."""
 
 import json
+import sys
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 from urllib.error import URLError
@@ -82,8 +83,6 @@ def _is_newer(latest: str, current: str) -> bool:
 
 def _find_platform_asset(assets: list[dict]) -> str:
     """Find the download URL for the current platform from release assets."""
-    import sys
-
     platform = sys.platform
     platform_keywords: list[str] = []
 

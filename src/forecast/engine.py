@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from src.data.models import ForecastTransaction, RecurringItem
 from src.forecast.models import ForecastDay, ForecastResult
-from src.utils.date_helpers import occurrences_in_range
+from src.utils.date_helpers import date_range, occurrences_in_range
 
 
 def build_forecast(
@@ -56,17 +56,14 @@ def build_forecast(
     forecast_days: list[ForecastDay] = []
     balance = starting_balance
 
-    current = start_date
-    while current <= end_date:
-        day_txns = txn_by_date.get(current, [])
+    for current in date_range(start_date, end_date):
         day = ForecastDay(
             date=current,
             starting_balance=balance,
-            transactions=day_txns,
+            transactions=txn_by_date.get(current, []),
         )
         balance = day.ending_balance
         forecast_days.append(day)
-        current += timedelta(days=1)
 
     return ForecastResult(
         days=forecast_days,

@@ -12,10 +12,19 @@ def date_range(start: date, end: date) -> Generator[date, None, None]:
         current += timedelta(days=1)
 
 
-def _add_months(year: int, month: int, k: int) -> tuple[int, int]:
+def add_months(year: int, month: int, k: int) -> tuple[int, int]:
     """Shift a (year, month) pair by k months."""
     total = (year * 12 + month - 1) + k
     return total // 12, total % 12 + 1
+
+
+def _next_on_day(after: date, day: int) -> date:
+    """First date on or after `after` whose day-of-month is `day` (<= 28)."""
+    candidate = after.replace(day=day)
+    if candidate < after:
+        year, month = add_months(candidate.year, candidate.month, 1)
+        candidate = candidate.replace(year=year, month=month)
+    return candidate
 
 
 def next_occurrence(base_date: date, frequency: str, after: date) -> date | None:
@@ -47,15 +56,8 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
         return candidate
 
     if frequency == "monthly":
-        # Same day of month
-        day = min(base_date.day, 28)  # safe day for all months
-        candidate = after.replace(day=day)
-        if candidate < after:
-            month = candidate.month + 1
-            year = candidate.year + (month - 1) // 12
-            month = (month - 1) % 12 + 1
-            candidate = candidate.replace(year=year, month=month, day=day)
-        return candidate
+        # Same day of month, capped at 28 so it exists in every month.
+        return _next_on_day(after, min(base_date.day, 28))
 
     if frequency in ("bimonthly", "quarterly", "semiannual"):
         # Month-stepped cycles anchored to the base date's month phase.
@@ -65,7 +67,7 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
         months_ahead = (after.year - base_date.year) * 12 + (after.month - base_date.month)
         k = max(0, -(-months_ahead // step))  # ceil, floored at the anchor
         while True:
-            year, month = _add_months(base_date.year, base_date.month, k * step)
+            year, month = add_months(base_date.year, base_date.month, k * step)
             candidate = date(year, month, day)
             if candidate >= after:
                 return candidate
@@ -77,16 +79,7 @@ def next_occurrence(base_date: date, frequency: str, after: date) -> date | None
         # on the 15th pairs with the 1st, not a nonsense 28th/30th.
         day1 = min(base_date.day, 28)
         day2 = day1 + 15 if day1 + 15 <= 28 else max(1, day1 - 15)
-        candidates = []
-        for d in (day1, day2):
-            c = after.replace(day=d)
-            if c < after:
-                month = c.month + 1
-                year = c.year + (month - 1) // 12
-                month = (month - 1) % 12 + 1
-                c = c.replace(year=year, month=month, day=d)
-            candidates.append(c)
-        return min(candidates)
+        return min(_next_on_day(after, d) for d in (day1, day2))
 
     if frequency == "yearly":
         try:

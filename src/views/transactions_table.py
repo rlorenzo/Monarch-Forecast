@@ -94,6 +94,31 @@ def _signed_glyph(amount: float) -> str:
     return "−" if amount < 0 else "+"
 
 
+def _schedule_debounced(
+    control: ft.Control, still_current: Callable[[], bool], rebuild: Callable[[], None]
+) -> None:
+    """Run ``rebuild`` after a short idle, or immediately when the control
+    is unmounted (tests, teardown). ``still_current`` lets a later call
+    supersede this one so only the last keystroke's rebuild runs."""
+    try:
+        page = control.page
+    except RuntimeError:
+        page = None
+    if not isinstance(page, ft.Page):
+        rebuild()
+        return
+
+    async def _later() -> None:
+        await asyncio.sleep(0.18)
+        if still_current():
+            rebuild()
+
+    try:
+        page.run_task(_later)
+    except (AssertionError, RuntimeError):
+        rebuild()
+
+
 # ---------------------------------------------------------------------------
 # Cell builders
 # ---------------------------------------------------------------------------
@@ -958,23 +983,7 @@ class TransactionsView(ft.Column):
         immediate synchronous rebuild when unmounted (tests, teardown)."""
         self._rebuild_seq += 1
         seq = self._rebuild_seq
-        try:
-            page = self.page
-        except RuntimeError:
-            page = None
-        if not isinstance(page, ft.Page):
-            self._rebuild_ledger()
-            return
-
-        async def _later() -> None:
-            await asyncio.sleep(0.18)
-            if seq == self._rebuild_seq:
-                self._rebuild_ledger()
-
-        try:
-            page.run_task(_later)
-        except (AssertionError, RuntimeError):
-            self._rebuild_ledger()
+        _schedule_debounced(self, lambda: seq == self._rebuild_seq, self._rebuild_ledger)
 
     def _on_chip_select(self, value: str) -> None:
         if self._filter == value:

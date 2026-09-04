@@ -19,10 +19,13 @@ rolling back.
 from __future__ import annotations
 
 import calendar
+from collections import Counter
+from collections.abc import Iterator
 from datetime import date, timedelta
 from typing import Any
 
 from src.data.models import ForecastTransaction, RecurringItem
+from src.utils.date_helpers import add_months, next_occurrence
 
 # Default grace period assumption when inferring statement close from due date
 DEFAULT_GRACE_PERIOD = 25
@@ -221,19 +224,12 @@ def infer_due_day(cc_name: str, transactions: list[dict], cc_id: str = "") -> in
     account has no identifiable payments in the window.
     """
     if cc_id:
-        on_card_days: list[int] = []
-        for txn in transactions:
-            if (txn.get("account") or {}).get("id", "") != cc_id:
-                continue
-            amount = txn.get("amount")
-            if not isinstance(amount, (int, float)) or amount <= 0:
-                continue  # Payments post as credits on the card account.
-            if not _is_payment_credit(txn):
-                continue
-            try:
-                on_card_days.append(date.fromisoformat(txn["date"][:10]).day)
-            except (ValueError, TypeError, KeyError):
-                continue
+        # Payments post as credits on the card account.
+        on_card_days = [
+            txn_date.day
+            for txn, amount, txn_date in _card_txns(cc_id, transactions)
+            if amount > 0 and _is_payment_credit(txn)
+        ]
         if on_card_days:
             return _most_common_day(on_card_days)
 
@@ -245,12 +241,8 @@ def infer_due_day(cc_name: str, transactions: list[dict], cc_id: str = "") -> in
         if not isinstance(amount, (int, float)) or amount >= 0:
             continue  # Not a payment (outflow)
 
-        merchant = (txn.get("merchant") or {}).get("name", "").lower()
-        category = (txn.get("category") or {}).get("name", "").lower()
-        combined = f"{merchant} {category}"
-
         # Check if this looks like a CC payment from checking
-        if not _is_cc_payment_txn(combined, cc_name_lower):
+        if not _is_cc_payment_txn(_txn_text(txn), cc_name_lower):
             continue
 
         try:
@@ -266,9 +258,31 @@ def infer_due_day(cc_name: str, transactions: list[dict], cc_id: str = "") -> in
 
 
 def _most_common_day(days: list[int]) -> int:
-    from collections import Counter
-
     return Counter(days).most_common(1)[0][0]
+
+
+def _txn_text(txn: dict) -> str:
+    """Lower-cased "merchant category" text for keyword heuristics."""
+    merchant = (txn.get("merchant") or {}).get("name", "").lower()
+    category = (txn.get("category") or {}).get("name", "").lower()
+    return f"{merchant} {category}"
+
+
+def _card_txns(cc_id: str, transactions: list[dict]) -> Iterator[tuple[dict, float, date]]:
+    """Yield (txn, amount, date) for rows on the card with a numeric amount
+    and a parseable date. Explicit JSON null amounts and garbage dates are
+    skipped — they can't be summed or placed in a cycle."""
+    for txn in transactions:
+        if (txn.get("account") or {}).get("id", "") != cc_id:
+            continue
+        amount = txn.get("amount")
+        if not isinstance(amount, (int, float)):
+            continue
+        try:
+            txn_date = date.fromisoformat(txn["date"][:10])
+        except (ValueError, TypeError, KeyError):
+            continue
+        yield txn, amount, txn_date
 
 
 # Text markers of a payment/transfer credit on a card account, as opposed
@@ -295,31 +309,18 @@ def _sum_payment_credits(cc_id: str, transactions: list[dict], start: date, end:
     the statement that just closed — amount-aware, so a partial payment
     reduces (rather than suppresses) the forecast for that statement.
     """
-    total = 0.0
-    for txn in transactions:
-        if (txn.get("account") or {}).get("id", "") != cc_id:
-            continue
-        amount = txn.get("amount")
-        if not isinstance(amount, (int, float)) or amount <= 0:
-            continue
-        if not _is_payment_credit(txn):
-            continue
-        try:
-            txn_date = date.fromisoformat(txn["date"][:10])
-        except (ValueError, TypeError, KeyError):
-            continue
-        if start < txn_date <= end:
-            total += amount
-    return total
+    return sum(
+        amount
+        for txn, amount, txn_date in _card_txns(cc_id, transactions)
+        if amount > 0 and start < txn_date <= end and _is_payment_credit(txn)
+    )
 
 
 def _is_payment_credit(txn: dict) -> bool:
     """True when a positive card-account transaction is a payment or
     transfer rather than a merchant refund/statement credit."""
-    merchant = (txn.get("merchant") or {}).get("name", "").lower()
-    category = (txn.get("category") or {}).get("name", "").lower()
-    combined = f"{merchant} {category}"
-    return any(w in combined for w in _PAYMENT_CREDIT_WORDS)
+    text = _txn_text(txn)
+    return any(w in text for w in _PAYMENT_CREDIT_WORDS)
 
 
 def _balance_at_close(
@@ -332,20 +333,11 @@ def _balance_at_close(
     includes pending charges (verified against a real Chase statement),
     and pending activity is never part of the closed statement.
     """
-    rolled = balance
-    for txn in transactions:
-        if (txn.get("account") or {}).get("id", "") != cc_id:
-            continue
-        amount = txn.get("amount")
-        if not isinstance(amount, (int, float)):
-            continue  # Explicit JSON null (or garbage) — not summable.
-        try:
-            txn_date = date.fromisoformat(txn["date"][:10])
-        except (ValueError, TypeError, KeyError):
-            continue
-        if close < txn_date <= today:
-            rolled -= amount
-    return rolled
+    return balance - sum(
+        amount
+        for _txn, amount, txn_date in _card_txns(cc_id, transactions)
+        if close < txn_date <= today
+    )
 
 
 def _is_cc_payment_txn(text: str, cc_name_lower: str) -> bool:
@@ -385,10 +377,7 @@ def _most_recent_day_of_month(day: int, ref: date) -> date:
 
 def _prev_month_day(ref: date, day: int) -> date:
     """Get `day` of the month before `ref`."""
-    if ref.month == 1:
-        y, m = ref.year - 1, 12
-    else:
-        y, m = ref.year, ref.month - 1
+    y, m = add_months(ref.year, ref.month, -1)
     return date(y, m, _clamp_day(day, y, m))
 
 
@@ -398,11 +387,7 @@ def _next_month_day(ref: date, day: int) -> date:
     candidate = ref.replace(day=clamped)
     if candidate > ref:
         return candidate
-    # Next month
-    if ref.month == 12:
-        y, m = ref.year + 1, 1
-    else:
-        y, m = ref.year, ref.month + 1
+    y, m = add_months(ref.year, ref.month, 1)
     return date(y, m, _clamp_day(day, y, m))
 
 
@@ -418,8 +403,6 @@ def _find_recurring_cc(
         item_lower = f"{item.name} {item.category}".lower()
         keywords = [w for w in cc_lower.split() if len(w) > 2]
         if keywords and sum(1 for kw in keywords if kw in item_lower) >= len(keywords) / 2:
-            from src.utils.date_helpers import next_occurrence
-
             occ = next_occurrence(item.base_date, item.frequency, start)
             if occ is not None and occ <= end:
                 return occ, item.amount
