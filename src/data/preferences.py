@@ -28,11 +28,21 @@ class Preferences:
         self._load()
 
     def _load(self) -> None:
-        if self._path.exists():
-            try:
-                self._data = json.loads(self._path.read_text())
-            except (json.JSONDecodeError, OSError):
-                self._data = {}
+        # O_NOFOLLOW for parity with _save: a planted symlink at the prefs
+        # path is refused (ELOOP -> OSError -> empty prefs) instead of read.
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(str(self._path), flags)
+        except FileNotFoundError:
+            return
+        except OSError:
+            self._data = {}
+            return
+        try:
+            with os.fdopen(fd) as fh:
+                self._data = json.load(fh)
+        except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError
+            self._data = {}
 
     def _save(self) -> None:
         # Write-to-temp + atomic rename so a crash mid-write can't leave a

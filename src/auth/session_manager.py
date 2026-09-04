@@ -161,7 +161,11 @@ class SessionManager:
 
     async def login(self, email: str, password: str) -> None:
         """Login with email/password. Raises RequireMFAException if MFA needed."""
-        await self._mm.login(email=email, password=password)
+        # use_saved_session=False: the library default would pickle.load()
+        # whatever sits at SESSION_FILE with none of the checks in
+        # _session_file_is_safe_to_load(), and would silently ignore the
+        # typed password in favour of a stale token.
+        await self._mm.login(email=email, password=password, use_saved_session=False)
         _prepare_session_file_for_write()
         self._mm.save_session(str(SESSION_FILE))
         _chmod_session_file()

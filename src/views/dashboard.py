@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import logging
 import math
 from collections.abc import Callable
 from datetime import date, datetime
@@ -47,6 +48,8 @@ from src.views.transactions_table import (
     build_ledger_header,
 )
 from src.views.update_banner import build_update_banner, check_update_async
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_icon_path() -> str:
@@ -627,14 +630,17 @@ class DashboardView(ft.Column):
             self._start_refresh_display_tick()
             self._maybe_show_onboarding()
 
-        except Exception as ex:
-            import traceback
-
-            traceback.print_exc()
+        except Exception:
+            # Full detail goes to the log only: GQL/aiohttp errors can carry
+            # request URLs and server response bodies, and str(ex) would put
+            # them on screen (and stderr lands in system logs when packaged).
+            logger.exception("Error loading dashboard data")
             self._forecast = None
-            error_msg = str(ex) or type(ex).__name__
             self.summary_row.controls = [
-                ft.Text(f"Error loading data: {error_msg}", color=ft.Colors.RED_400)
+                ft.Text(
+                    "Error loading data. Check your connection and try Refresh.",
+                    color=ft.Colors.RED_400,
+                )
             ]
             _safe_update(self.summary_row)
             self.chart_container.content = None
@@ -2231,4 +2237,10 @@ class DashboardView(ft.Column):
         await self._run_forecast()
 
     def _handle_logout(self) -> None:
+        # Signing out should not leave weeks of transaction history and
+        # balances readable in cache.db for the next user of this OS account.
+        try:
+            self.monarch.clear_cache()
+        except Exception:
+            logger.exception("Could not clear cache on logout")
         self.on_logout()

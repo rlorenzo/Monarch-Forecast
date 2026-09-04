@@ -43,6 +43,25 @@ def fake_page() -> MagicMock:
     return page
 
 
+class TestLogout:
+    def test_logout_clears_cache_then_calls_callback(self, patched_session_manager, tmp_path):
+        from src.data.cache import DataCache
+
+        cache = DataCache(db_path=tmp_path / "c.db")
+        cache.set("txn_history:abc:750", [{"amount": 1.0}])
+        on_logout = MagicMock()
+        dash = DashboardView(
+            session_manager=patched_session_manager,
+            on_logout=on_logout,
+            cache=cache,
+            preferences=Preferences(path=tmp_path / "prefs.json"),
+        )
+        dash._handle_logout()
+        assert cache.get("txn_history:abc:750") is None
+        on_logout.assert_called_once()
+        cache.close()
+
+
 @pytest.fixture
 def dashboard(patched_session_manager, tmp_path: Path):
     prefs = Preferences(path=tmp_path / "prefs.json")

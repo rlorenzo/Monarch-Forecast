@@ -7,6 +7,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Security
+
+- Sign In no longer lets the Monarch library load a stale `session.pickle`
+  behind the app's own ownership and permission checks.
+- Logging out now clears the transaction cache (`cache.db`), not just the
+  keychain credentials and session file.
+- The macOS build drops the `allow-dyld-environment-variables` entitlement,
+  which let a local process inject code into the signed app and read the
+  stored password from the Keychain without a prompt.
+- "Remember credentials" is now off by default.
+- Data-loading errors show a generic message instead of the raw exception
+  text, which could include request URLs and server responses.
+- `requirements.txt` now requires the same `monarchmoneycommunity` floor as
+  `pyproject.toml`, the version that stops persisting short-lived tokens.
+- CI and release builds pin `semgrep` (via `uv.lock`) and `create-dmg`
+  (release tarball with SHA-256 check) instead of installing whatever is
+  current.
+- Preferences are opened with `O_NOFOLLOW` on read, matching the write path.
+
 ## [1.4.0] (2026-08-14)
 
 The Transactions tab now reads oldest first by default, and Upcoming, Recent,
