@@ -122,8 +122,12 @@ class DataCache:
         self._conn.commit()
         # DELETE only marks pages free; the row bytes stay in the file until
         # reused. VACUUM rewrites the file from live content so logout really
-        # removes the cached transactions from disk.
-        self._conn.execute("VACUUM")
+        # removes the cached transactions from disk. Best-effort: the rows
+        # are already gone, and a busy/locked DB must not fail the caller.
+        try:
+            self._conn.execute("VACUUM")
+        except sqlite3.OperationalError:
+            pass
 
     def close(self) -> None:
         self._conn.close()
