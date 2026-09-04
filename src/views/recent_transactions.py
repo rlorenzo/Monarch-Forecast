@@ -22,7 +22,6 @@ Public API mirrors ``transactions_table``:
 
 from __future__ import annotations
 
-import asyncio
 import datetime as _dt
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -44,6 +43,7 @@ from src.views.transactions_table import (
     _column_label,
     _day_gutter,
     _empty_state,
+    _schedule_debounced,
     build_date_column_label,
     build_filter_chip,
 )
@@ -468,23 +468,7 @@ class RecentTransactionsView(ft.Column):
         synchronous rebuild when unmounted (tests, teardown)."""
         self._rebuild_seq += 1
         seq = self._rebuild_seq
-        try:
-            page = self.page
-        except RuntimeError:
-            page = None
-        if not isinstance(page, ft.Page):
-            self._rebuild()
-            return
-
-        async def _later() -> None:
-            await asyncio.sleep(0.18)
-            if seq == self._rebuild_seq:
-                self._rebuild()
-
-        try:
-            page.run_task(_later)
-        except (AssertionError, RuntimeError):
-            self._rebuild()
+        _schedule_debounced(self, lambda: seq == self._rebuild_seq, self._rebuild)
 
     def _on_flow_select(self, value: str) -> None:
         if self._flow == value:

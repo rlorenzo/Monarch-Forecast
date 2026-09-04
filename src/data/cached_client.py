@@ -1,7 +1,7 @@
 """Cached wrapper around MonarchClient for offline support."""
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -151,25 +151,27 @@ class CachedMonarchClient:
             ttl_minutes=_TXN_ROW_TTL_MINUTES,
         )
 
-    async def get_checking_accounts(self, force_refresh: bool = False) -> list[dict[str, Any]]:
+    async def _cached_accounts(
+        self, key: str, fetch: Callable[[], Awaitable[list[dict[str, Any]]]], force_refresh: bool
+    ) -> list[dict[str, Any]]:
         if not force_refresh:
-            cached = self._cache.get("checking_accounts")
+            cached = self._cache.get(key)
             if cached is not None:
                 return cached
 
-        data = await self._client.get_checking_accounts()
-        self._cache.set("checking_accounts", data, ttl_minutes=30)
+        data = await fetch()
+        self._cache.set(key, data, ttl_minutes=30)
         return data
+
+    async def get_checking_accounts(self, force_refresh: bool = False) -> list[dict[str, Any]]:
+        return await self._cached_accounts(
+            "checking_accounts", self._client.get_checking_accounts, force_refresh
+        )
 
     async def get_credit_card_accounts(self, force_refresh: bool = False) -> list[dict[str, Any]]:
-        if not force_refresh:
-            cached = self._cache.get("credit_card_accounts")
-            if cached is not None:
-                return cached
-
-        data = await self._client.get_credit_card_accounts()
-        self._cache.set("credit_card_accounts", data, ttl_minutes=30)
-        return data
+        return await self._cached_accounts(
+            "credit_card_accounts", self._client.get_credit_card_accounts, force_refresh
+        )
 
     async def get_recurring_items(self, force_refresh: bool = False) -> list[RecurringItem]:
         if not force_refresh:

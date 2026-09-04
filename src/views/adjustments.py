@@ -37,7 +37,7 @@ from src.data.models import ForecastTransaction, RecurringItem
 from src.data.preferences import Preferences
 from src.views import tokens
 from src.views.calendar_popover import show_calendar_popover
-from src.views.transactions_table import _column_label
+from src.views.transactions_table import _column_label, _signed_glyph
 
 # Formats accepted when a user types a date into the one-off date TextField.
 # Keep the canonical ISO form first so round-trips are stable.
@@ -903,15 +903,6 @@ _RC_FREQ_W = 84
 _RC_NEXT_W = 88
 _RC_AMOUNT_W = 96
 _RC_OVERRIDE_W = 92
-
-
-def _signed_glyph(amount: float) -> str:
-    """True minus (U+2212) for negatives, plus for positives.
-
-    Avoids the hyphen-minus which renders narrower than the plus and
-    unbalances the column. Matches the Transactions ledger.
-    """
-    return "−" if amount < 0 else "+"
 
 
 class AdjustmentsPanel(ft.Column):

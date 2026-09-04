@@ -50,7 +50,7 @@ class ForecastResult:
 
     @property
     def has_shortfall(self) -> bool:
-        return len(self.shortfall_dates) > 0
+        return any(day.ending_balance < self.safety_threshold for day in self.days)
 
     @property
     def total_income(self) -> float:
