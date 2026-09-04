@@ -47,7 +47,14 @@ keeps the bundle working once the runtime is hardened:
 | `com.apple.security.cs.allow-jit` | some CPython C-extensions / Skia paths allocate JIT memory |
 | `com.apple.security.cs.allow-unsigned-executable-memory` | same — writable-executable memory, else the process is killed on first use |
 | `com.apple.security.cs.disable-library-validation` | the interpreter `dlopen()`s `.so` files from PyPI wheels not sealed under our Team ID |
-| `com.apple.security.cs.allow-dyld-environment-variables` | Flet's launcher sets `DYLD_*` to locate the embedded frameworks at startup |
+
+`com.apple.security.cs.allow-dyld-environment-variables` was removed in the
+2026-09 security review and must **not** come back: together with
+`disable-library-validation` it let any local process launch the app with
+`DYLD_INSERT_LIBRARIES` and run unsigned code inside the process whose
+signature the Keychain trusts for the stored Monarch password. If a signed
+build ever fails to locate its embedded frameworks at startup, fix the
+launcher's rpaths rather than re-adding the entitlement.
 
 These are Developer-ID-only exceptions (App Sandbox / App Store would reject
 some). They do **not** grant network or keychain access — outbound HTTPS to
