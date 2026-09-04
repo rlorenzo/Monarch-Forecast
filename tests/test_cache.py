@@ -45,6 +45,17 @@ class TestDataCache:
         assert cache.get("key1") is None
         assert cache.get("key2") is None
 
+    def test_clear_removes_bytes_from_file(self, tmp_path: Path):
+        db = tmp_path / "c.db"
+        cache = DataCache(db_path=db)
+        cache.set("k", "MARKER-secret-merchant-name")
+        cache.close()
+        assert b"MARKER-secret-merchant-name" in db.read_bytes()
+        cache = DataCache(db_path=db)
+        cache.clear()
+        cache.close()
+        assert b"MARKER-secret-merchant-name" not in db.read_bytes()
+
     def test_stores_complex_types(self, cache: DataCache):
         data = [{"id": 1, "name": "test"}, {"id": 2, "values": [1, 2, 3]}]
         cache.set("list", data)

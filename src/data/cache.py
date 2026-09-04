@@ -120,6 +120,10 @@ class DataCache:
     def clear(self) -> None:
         self._conn.execute("DELETE FROM cache")
         self._conn.commit()
+        # DELETE only marks pages free; the row bytes stay in the file until
+        # reused. VACUUM rewrites the file from live content so logout really
+        # removes the cached transactions from disk.
+        self._conn.execute("VACUUM")
 
     def close(self) -> None:
         self._conn.close()

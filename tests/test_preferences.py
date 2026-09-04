@@ -64,6 +64,12 @@ class TestPreferences:
         prefs = Preferences(path=prefs_path)
         assert prefs.excluded_recurring_names == set()
 
+    def test_handles_undecodable_bytes(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        path.write_bytes(b"\xff\xfe\x00garbage")
+        prefs = Preferences(path=path)
+        assert prefs.excluded_recurring_names == set()
+
     def test_handles_corrupt_file(self, tmp_path: Path):
         path = tmp_path / "prefs.json"
         path.write_text("not json{{{")

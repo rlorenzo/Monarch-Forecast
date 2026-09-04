@@ -41,7 +41,7 @@ class Preferences:
         try:
             with os.fdopen(fd) as fh:
                 self._data = json.load(fh)
-        except (json.JSONDecodeError, OSError):
+        except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError
             self._data = {}
 
     def _save(self) -> None:
