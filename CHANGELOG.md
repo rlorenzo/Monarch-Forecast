@@ -7,6 +7,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.4.1] (2026-09-03)
+
+Security patch release addressing the findings of the September 2026 security
+review. No feature changes.
+
 ### Security
 
 - Sign In no longer lets the Monarch library load a stale `session.pickle`
