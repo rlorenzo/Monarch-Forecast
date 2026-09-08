@@ -30,6 +30,15 @@ dev = [
     # it was previously only a pytest transitive.
     "packaging>=24.0",
 ]
+# Integration tests only (`flet test`). `flet.testing` imports numpy, PIL and
+# skimage for its screenshot comparison but flet itself declares none of them,
+# so they have to be pinned here. scikit-image is heavy, hence its own group
+# rather than `dev`: `uv sync --group integration` when you need it.
+integration = [
+    "numpy>=2.0",
+    "pillow>=11.0",
+    "scikit-image>=0.25",
+]
 # CI-only: semgrep is heavy, so it is not in `dev`. Run with
 # `uv run --only-group security semgrep ...`.
 security = [
@@ -91,6 +100,10 @@ exclude = ["vulture_whitelist.py", "packaging/macos/make_dmg_background.py"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# tests/integration needs a provisioned Flutter test host and only runs under
+# `flet test` (see tests/integration/README.md), so keep it out of the default
+# sweep -- collecting it here fails on the missing `flet_app` fixture.
+addopts = "--ignore=tests/integration"
 
 [tool.coverage.run]
 source = ["src"]
