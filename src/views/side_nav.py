@@ -58,7 +58,9 @@ _MONTH_ABBREV = (
     "Dec",
 )
 
-_RAIL_WIDTH = 184
+# Public: main.py adds this into the window-width budget that keeps the
+# transaction ledger's fixed columns from being clipped.
+RAIL_WIDTH = 184
 _ROW_HEIGHT = 40
 # Leading offset inside a row before the icon: gutter + selection rail + gap.
 # Destination rows lay this out as three Containers; action rows reproduce it
@@ -330,7 +332,7 @@ class SideNav(ft.Container):
         # right edge replaces the previous Material VerticalDivider.
         super().__init__(
             content=content,
-            width=_RAIL_WIDTH,
+            width=RAIL_WIDTH,
             bgcolor=tokens.PAPER,
             border=ft.Border.only(right=ft.BorderSide(1, tokens.RULE)),
         )

@@ -197,6 +197,10 @@ class TestMainEntry:
         assert page.fonts is not None
         assert page.theme is not None
         assert page.on_keyboard_event is not None
+        # The window opens wide enough to draw the transaction ledger's fixed
+        # columns uncut. A hardcoded 1100 here used to clip the BALANCE column
+        # at the app's own starting size; see tests/test_ledger_width.py.
+        assert page.window.width == main_module.LEDGER_UNCLIPPED_WINDOW_WIDTH
 
     async def test_keyboard_handler_delegates(self):
         page = _make_page()

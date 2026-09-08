@@ -9,6 +9,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- The transaction ledger no longer cuts off its BALANCE column. The window
+  needs 1118px for the ledger's fixed columns to draw beside the nav rail and
+  inside the padding, but the app opened at 1100 — so the last column was
+  clipped at the app's own default size, and the only scrolling ancestor was
+  a Column, which scrolls vertically. The ledger now pans horizontally when
+  the window is too narrow, and the default window size is computed from the
+  column, nav-rail, and padding constants themselves rather than a
+  hand-written number that had already drifted (its comment claimed the
+  columns were "~890px"; they are 858).
+
 - A dropped connection, a timeout, or a Monarch server error no longer signs
   you out. Restoring a saved session caught every exception alike and deleted
   the session file, so any hiccup while validating it forced a full re-login

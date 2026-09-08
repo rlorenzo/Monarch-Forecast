@@ -13,7 +13,20 @@ from src.data.demo_client import DemoClient
 from src.data.preferences import Preferences
 from src.utils.updater import get_current_version
 from src.views import tokens
-from src.views.dashboard import DashboardView
+from src.views.dashboard import CONTENT_HORIZONTAL_PADDING, DashboardView
+from src.views.side_nav import RAIL_WIDTH
+from src.views.transactions_table import LEDGER_COLUMNS_WIDTH
+
+# The page's own right inset, applied to `page.padding` below and counted
+# into the width budget from the same constant so the two cannot diverge.
+_PAGE_RIGHT_PADDING = 16
+
+# Everything the ledger's fixed columns have to share the window with: the
+# nav rail, the padding framing the content, and the page inset. Imported
+# from the modules that own each value so a change there moves this with it.
+LEDGER_UNCLIPPED_WINDOW_WIDTH = (
+    RAIL_WIDTH + CONTENT_HORIZONTAL_PADDING + _PAGE_RIGHT_PADDING + LEDGER_COLUMNS_WIDTH
+)
 
 
 def dispatch_keyboard_shortcut(
@@ -77,15 +90,16 @@ DEMO_PREFS_FILE = _DATA_DIR / "demo-preferences.json"
 
 async def main(page: ft.Page) -> None:
     page.title = f"Monarch Forecast v{get_current_version()}"
-    page.window.width = 1100
+    # Open wide enough that the ledger's fixed columns fit without panning.
+    page.window.width = LEDGER_UNCLIPPED_WINDOW_WIDTH
     page.window.height = 900
-    # 900, not 800: the transaction ledgers' fixed column set is ~890px
-    # wide and the scroll region only scrolls vertically, so a narrower
-    # window clips the AMOUNT column.
+    # The minimum is below the ledger's requirement on purpose: narrower than
+    # that the ledger pans horizontally (see DashboardView's ledger Row)
+    # rather than clipping, so 900 only has to keep the rest of the UI usable.
     page.window.min_width = 900
     page.window.min_height = 600
     page.window.icon = "assets/icon.png"
-    page.padding = ft.Padding.only(left=0, top=0, right=16, bottom=8)
+    page.padding = ft.Padding.only(left=0, top=0, right=_PAGE_RIGHT_PADDING, bottom=8)
     # LIGHT, not SYSTEM: only the light paper-and-ink theme is defined
     # below, and every view paints with the light token constants. Under
     # SYSTEM, a dark-OS machine gets Material's default dark surfaces with

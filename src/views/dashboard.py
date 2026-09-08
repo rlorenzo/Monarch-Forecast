@@ -43,6 +43,7 @@ from src.views.chart import build_forecast_chart, build_forecast_chart_summary
 from src.views.recent_transactions import RecentTransactionsView
 from src.views.side_nav import NavDestination, SideNav
 from src.views.transactions_table import (
+    LEDGER_COLUMNS_WIDTH,
     TransactionsView,
     build_filter_chip,
     build_ledger_header,
@@ -81,6 +82,13 @@ def _resolve_icon_path() -> str:
 
 _ICON_PATH = _resolve_icon_path()
 
+
+# Horizontal padding framing the content beside the nav rail. The sum is
+# public because main.py folds it into the window-width budget that keeps the
+# transaction ledger's fixed columns from being clipped.
+_CONTENT_PAD_LEFT = 32
+_CONTENT_PAD_RIGHT = 28
+CONTENT_HORIZONTAL_PADDING = _CONTENT_PAD_LEFT + _CONTENT_PAD_RIGHT
 
 # Transactions tab modes.
 _TXN_MODE_UPCOMING = "upcoming"
@@ -299,7 +307,17 @@ class DashboardView(ft.Column):
         )
         self._txn_mode_row = ft.Row(spacing=8)
         self._rebuild_txn_mode_chips()
-        self._txn_tab_body = ft.Container(content=self.transactions_view)
+        # Pinned to the ledger's intrinsic width so the scroller below can
+        # hand its child a bounded constraint. Inside a horizontally
+        # scrolling Row the incoming width is unbounded, and the ledger's
+        # day blocks put `expand=True` bodies (and, in Both mode, expanded
+        # divider rules) in Rows — flex children under an unbounded main
+        # axis are a layout error, not just a cosmetic one. A finite width
+        # also gives the filter strip's `wrap=True` something to wrap at.
+        self._txn_tab_body = ft.Container(
+            content=self.transactions_view,
+            width=LEDGER_COLUMNS_WIDTH,
+        )
         self._transactions_content = ft.Column(
             controls=[
                 ft.Row(
@@ -321,7 +339,19 @@ class DashboardView(ft.Column):
                 ),
                 self._txn_mode_row,
                 ft.Container(height=4),
-                self._txn_tab_body,
+                # The ledger lays its columns out at fixed widths and its
+                # only other scrolling ancestor is a Column, which scrolls
+                # vertically — so without this Row a window narrower than
+                # LEDGER_UNCLIPPED_WINDOW_WIDTH clips the rightmost column
+                # with no way to reach it. Wrapping the body as a whole,
+                # rather than the header and rows separately, keeps the
+                # sticky header locked to its columns while panning.
+                ft.Row(
+                    controls=[self._txn_tab_body],
+                    scroll=ft.ScrollMode.AUTO,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    tight=True,
+                ),
             ],
             spacing=12,
         )
@@ -429,7 +459,12 @@ class DashboardView(ft.Column):
                             expand=True,
                         ),
                     ),
-                    padding=ft.Padding.only(left=32, right=28, top=24, bottom=12),
+                    padding=ft.Padding.only(
+                        left=_CONTENT_PAD_LEFT,
+                        right=_CONTENT_PAD_RIGHT,
+                        top=24,
+                        bottom=12,
+                    ),
                     expand=True,
                 ),
                 self._loading_overlay,
