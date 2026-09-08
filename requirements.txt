@@ -1,4 +1,4 @@
-flet>=0.85.3,<0.86
+flet>=0.86.5,<0.87
 monarchmoneycommunity>=1.5.2
 keyring>=25.0.0
-flet-charts>=0.85.3,<0.86
+flet-charts>=0.86.5,<0.87
