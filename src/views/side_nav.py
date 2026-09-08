@@ -173,6 +173,7 @@ class SideNav(ft.Container):
         on_select: Callable[[int], None],
         on_refresh: Callable[[], None],
         on_logout: Callable[[], None],
+        on_about: Callable[[], None],
         user_email: str = "",
         icon_path: str | None = None,
     ) -> None:
@@ -268,6 +269,12 @@ class SideNav(ft.Container):
             sr_label="Refresh forecast",
             on_click=on_refresh,
         )
+        about_row = self._build_action_row(
+            icon=ft.Icons.INFO_OUTLINED,
+            label="About",
+            sr_label="About Monarch Forecast",
+            on_click=on_about,
+        )
         logout_row = self._build_action_row(
             icon=ft.Icons.LOGOUT_OUTLINED,
             label="Sign out",
@@ -295,7 +302,7 @@ class SideNav(ft.Container):
 
         # --- Layout -----------------------------------------------------
         # Vertical stack: wordmark → PAGES → destinations → spacer →
-        # ACTIONS → refresh (with timestamp) → sign-out → email.
+        # ACTIONS → refresh (with timestamp) → about → sign-out → email.
         content = ft.Column(
             controls=[
                 ft.Container(
@@ -318,6 +325,7 @@ class SideNav(ft.Container):
                     content=self._last_refresh_text,
                     padding=ft.Padding.only(left=46, right=16, bottom=4),
                 ),
+                about_row,
                 logout_row,
                 ft.Container(
                     content=footer_email,

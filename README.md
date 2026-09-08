@@ -14,6 +14,10 @@ projects your checking account balance day-by-day using data from
 [Monarch Money](https://www.monarchmoney.com/). See where your money is
 headed and spot shortfalls before they happen.
 
+> **Not affiliated with Monarch Money.** This is an independent, unofficial
+> companion app that connects to your Monarch account through a community
+> API client. See [Disclaimer](#disclaimer) before you use it.
+
 ## Screenshots
 
 Captured from the built-in demo mode (no Monarch account required: pick
@@ -330,6 +334,27 @@ vs what happened. Even small reports help.
   requires internet access. It queries the GitHub Releases API on startup;
   failures are silently ignored.
 
+## Disclaimer
+
+**Monarch Forecast is not affiliated with Monarch Money.** It is an
+independent, unofficial companion app — not made, endorsed, sponsored, or
+supported by [Monarch Money](https://www.monarchmoney.com/). *Monarch* and
+*Monarch Money* are their marks, used here only to say what this app
+connects to.
+
+Monarch offers no public API, so this app signs in with the credentials you
+supply and reads your data through a reverse-engineered client the community
+maintains. Monarch's terms of service restrict both programmatic access and
+password sharing. Using this app is your decision, and Monarch may change or
+block that access at any time.
+
+Your data stays on this computer: credentials in your OS keychain, the cache
+in a local SQLite file. The app reaches the network for two things only: your
+requests to Monarch's own servers, and a version check against GitHub.
+
+The same text is shown in the app under **About** in the left nav; the
+`tests/test_about.py` suite fails if the two drift apart.
+
 ## License
 
-MIT
+MIT. Provided as-is, without warranty of any kind — see [LICENSE](LICENSE).

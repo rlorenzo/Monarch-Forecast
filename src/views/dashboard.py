@@ -27,6 +27,7 @@ from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult
 from src.utils.assets import ASSETS_DIR
 from src.views import tokens
+from src.views.about import show_about_dialog
 from src.views.adjustments import (
     AdjustmentsPanel,
     _ledger_field,
@@ -503,6 +504,7 @@ class DashboardView(ft.Column):
             on_select=self._on_nav_select,
             on_refresh=self._on_refresh_click,
             on_logout=self._handle_logout,
+            on_about=self._handle_about,
             user_email=self._user_email,
             icon_path=_ICON_PATH,
         )
@@ -2270,6 +2272,9 @@ class DashboardView(ft.Column):
 
     async def _on_adjustment_change(self) -> None:
         await self._run_forecast()
+
+    def _handle_about(self) -> None:
+        show_about_dialog(self.page)
 
     def _handle_logout(self) -> None:
         # Signing out should not leave weeks of transaction history and

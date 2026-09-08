@@ -40,6 +40,7 @@ def _make(
     on_select=lambda _idx: None,
     on_refresh=lambda: None,
     on_logout=lambda: None,
+    on_about=lambda: None,
     user_email: str = "",
 ) -> SideNav:
     return SideNav(
@@ -47,6 +48,7 @@ def _make(
         on_select=on_select,
         on_refresh=on_refresh,
         on_logout=on_logout,
+        on_about=on_about,
         user_email=user_email,
     )
 
