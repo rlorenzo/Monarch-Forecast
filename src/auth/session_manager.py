@@ -7,7 +7,7 @@ from pathlib import Path
 
 import keyring
 import keyring.errors
-from monarchmoney import MonarchMoney
+from monarchmoney import LoginFailedException, MonarchMoney
 
 SERVICE_NAME = "monarch-forecast"
 SESSION_DIR = Path.home() / ".monarch-forecast"
@@ -47,6 +47,38 @@ def _session_file_is_safe_to_load(path: Path) -> bool:
     if st.st_uid != os.getuid():
         return False
     return not st.st_mode & 0o022
+
+
+# HTTP statuses that mean the saved credential itself was refused. Every other
+# failure — timeout, DNS, connection reset, 5xx — is about reaching Monarch,
+# not about the token.
+_AUTH_REJECTED_STATUSES = frozenset({401, 403})
+
+
+def _is_credential_rejection(exc: BaseException) -> bool:
+    """True only when Monarch definitively refused the saved credential.
+
+    ``gql`` raises ``TransportServerError`` carrying a ``code`` for a non-200
+    response. That attribute is read with ``getattr`` rather than by importing
+    ``gql.transport.exceptions``: gql reaches us as a transitive of
+    ``monarchmoneycommunity``, not as a dependency this project declares, so
+    importing it here would be depending on someone else's dependency tree.
+
+    ``LoginFailedException`` counts too: monarchmoney raises it when a call is
+    attempted with no usable auth on the client. That says something about the
+    credential rather than about the network, so no retry will fix it.
+    """
+    if isinstance(exc, LoginFailedException):
+        return True
+    return getattr(exc, "code", None) in _AUTH_REJECTED_STATUSES
+
+
+def _discard_session_file() -> None:
+    """Remove the session file, tolerating anything that isn't a file."""
+    try:
+        SESSION_FILE.unlink()
+    except OSError:
+        pass
 
 
 def _chmod_session_file() -> None:
@@ -132,32 +164,49 @@ class SessionManager:
                 pass
 
     async def try_restore_session(self) -> bool:
-        """Attempt to restore a saved session. Returns True if successful."""
+        """Attempt to restore a saved session. Returns True if successful.
+
+        Returning False only means "could not restore now" — it does not mean
+        the saved session is bad. The file is deleted solely when we can tell
+        it will never work again; see `_is_credential_rejection`.
+        """
+        # Cleared up front so every failure path below can just `return False`
+        # without each one having to remember to reset it.
+        self._authenticated = False
+
         # No early `SESSION_FILE.exists()` check — it returns False for
         # dangling symlinks, which would skip the safety gate and leave a
         # planted symlink in place for a later `save_session()` to follow.
         # The safety gate handles missing files correctly (lstat → OSError
         # → False); unlink() below handles "not there" via OSError.
         if not _session_file_is_safe_to_load(SESSION_FILE):
-            try:
-                SESSION_FILE.unlink()
-            except OSError:
-                pass
+            _discard_session_file()
             return False
+
         try:
             self._mm.load_session(str(SESSION_FILE))
+        except Exception:
+            # Unreadable, truncated, or not a session at all. This one cannot
+            # improve on a retry, so drop it.
+            _discard_session_file()
+            return False
+
+        try:
             # Validate the session is still good by making a lightweight call
             await self._mm.get_subscription_details()
-            self._authenticated = True
-            return True
-        except Exception:
-            self._authenticated = False
-            if SESSION_FILE.exists():
-                try:
-                    SESSION_FILE.unlink()
-                except OSError:
-                    pass
+        except Exception as exc:
+            # Keep the session unless Monarch actually rejected it. A dropped
+            # connection, a timeout, or a Monarch 5xx says nothing about
+            # whether the token is still valid, and deleting on those costs
+            # the user a full re-login *with MFA* the next time they launch —
+            # a far worse outcome than retrying a token that turns out to be
+            # dead, which costs one wasted request.
+            if _is_credential_rejection(exc):
+                _discard_session_file()
             return False
+
+        self._authenticated = True
+        return True
 
     async def login(self, email: str, password: str) -> None:
         """Login with email/password. Raises RequireMFAException if MFA needed."""
@@ -182,13 +231,11 @@ class SessionManager:
     def logout(self) -> None:
         self._authenticated = False
         self.clear_credentials()
-        # Best-effort cleanup. Catching OSError (not just FileNotFoundError)
-        # so a planted directory at SESSION_FILE doesn't crash logout —
-        # unlink() can't remove dirs and raises IsADirectoryError.
-        try:
-            SESSION_FILE.unlink()
-        except OSError:
-            pass
+        # Best-effort cleanup: _discard_session_file() swallows OSError (not
+        # just FileNotFoundError) so a planted directory at SESSION_FILE
+        # doesn't crash logout — unlink() can't remove dirs and raises
+        # IsADirectoryError.
+        _discard_session_file()
 
 
 class DemoSessionManager(SessionManager):
