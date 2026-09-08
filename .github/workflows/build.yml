@@ -105,6 +105,12 @@ jobs:
       - name: Patch Linux bundle stdlib C extensions
         if: matrix.platform == 'linux'
         shell: bash
+        # Observed on Flet 0.85.1 and carried through the 0.86 bump
+        # without re-verification: the copies below are all `cp -n`, so
+        # this is a no-op if upstream now ships a complete bundle, and
+        # the `_socket` guard fails the build loudly if 0.86 relocated
+        # the extensions instead of shipping a broken artifact.
+        #
         # Flet 0.85.1's Linux bundle ships only a handful of stdlib
         # C extensions (_dbm, _tkinter, _crypt) in python3.12/
         # lib-dynload — _socket, _ssl, _hashlib, _decimal, zlib, and

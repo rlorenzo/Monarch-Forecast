@@ -7,6 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded Flet 0.85.3 to 0.86.5 (and `flet-charts` to 0.86.5). Importing
+  `flet` drops from **0.352s to 0.047s** (medians of 9 warmed runs each, in
+  matched isolated venvs on an arm64 Mac) — about 305 ms off every launch
+  before the window is even created. Flutter engine boot and first paint are
+  on top of that and were not measured here, so treat 305 ms as the floor of
+  the launch improvement, not the whole of it. No application code changed: every
+  API this project pins — `ft.Border.all`, `page.show_dialog`/`pop_dialog`,
+  `page.services`, `ft.Event[T]` generics, async `Control.focus`, and
+  `flet_charts.LineChart` — is unchanged in 0.86.5.
+- `requirements.txt` tracks the same Flet pins as `pyproject.toml`. A test now
+  fails if the two manifests disagree.
+
 ## [1.4.1] (2026-09-03)
 
 Security patch release addressing the findings of the September 2026 security
