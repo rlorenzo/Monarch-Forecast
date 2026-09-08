@@ -29,7 +29,7 @@ from monarchmoney import (
     RequireMFAException,
 )
 
-from src.auth.login_view import LoginView
+from src.auth.login_view import CAPTCHA_STATUS_MESSAGE, LoginView
 
 
 def _m(obj: Any) -> Any:
@@ -245,13 +245,16 @@ class TestErrors:
         _m(view.session_manager.login).side_effect = CaptchaRequiredException()
         await view._handle_login(_event())
 
+        # Compared against the constant rather than substring-matching the
+        # domain: CodeQL reads a domain literal inside `in` as incomplete URL
+        # sanitization, and asserting the exact message is stricter anyway.
+        assert view.status_text.value == CAPTCHA_STATUS_MESSAGE
         message = (view.status_text.value or "").lower()
         assert "captcha" in message
         assert "credentials" not in message, (
             "the credentials are almost certainly fine; saying otherwise sends "
             "the user to change a working password"
         )
-        assert "monarchmoney.com" in message, "the user needs somewhere to go"
         # Orange like the MFA prompt: recoverable, not a rejection.
         assert view.status_text.color == ft.Colors.ORANGE_400
         # No point yanking focus to a field with nothing wrong in it.

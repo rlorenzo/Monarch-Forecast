@@ -15,6 +15,14 @@ from src.auth.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
+# Named so the test can assert against it rather than substring-matching a
+# domain literal, which CodeQL reads as incomplete URL sanitization
+# (py/incomplete-url-substring-sanitization). One source of truth for the
+# wording is the better arrangement regardless.
+CAPTCHA_STATUS_MESSAGE = (
+    "Monarch asked for a captcha. Sign in at monarchmoney.com in your browser, then try again here."
+)
+
 
 class LoginView(ft.Column):
     """Login form with email, password, and optional MFA fields."""
@@ -272,10 +280,7 @@ class LoginView(ft.Column):
         # subclasses it, so the broader handler would otherwise catch it and
         # tell the user to check credentials that are almost certainly fine.
         except CaptchaRequiredException:
-            self.status_text.value = (
-                "Monarch asked for a captcha. Sign in at monarchmoney.com in "
-                "your browser, then try again here."
-            )
+            self.status_text.value = CAPTCHA_STATUS_MESSAGE
             self.status_text.color = ft.Colors.ORANGE_400
             # Nothing to retype, so focus stays put rather than being yanked
             # into the password field as it is for a real credential failure.
