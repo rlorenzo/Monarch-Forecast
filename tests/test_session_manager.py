@@ -6,8 +6,24 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from monarchmoney import LoginFailedException
 
 from src.auth.session_manager import SessionManager
+
+
+class _TransportServerError(Exception):
+    """Stand-in for gql's ``TransportServerError``.
+
+    Built locally rather than imported: ``gql`` is a transitive of
+    ``monarchmoneycommunity``, and the production code classifies on the
+    ``code`` attribute precisely so it need not import gql either. Anything
+    carrying ``code`` is therefore the honest fixture — if the classifier ever
+    starts demanding the real type, these tests should fail and say so.
+    """
+
+    def __init__(self, message: str, *, code: int) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @pytest.fixture()
@@ -114,6 +130,91 @@ class TestSessionRestore:
         assert sm.is_authenticated is False
         assert not session_file.exists()
 
+
+class TestSessionSurvivesTransientFailures:
+    """A failure to *reach* Monarch must not destroy a valid session.
+
+    `try_restore_session` previously caught bare `Exception` and unlinked the
+    session file on anything at all, so a dropped connection or a Monarch 5xx
+    forced a full re-login with MFA on the next launch. The file is now removed
+    only when Monarch actually refused the credential.
+    """
+
+    @staticmethod
+    def _prepared(tmp_path: Path) -> tuple[SessionManager, Path]:
+        session_file = tmp_path / "session.pickle"
+        session_file.write_bytes(b"fake")
+        sm = SessionManager()
+        cast(Any, sm._mm).load_session = MagicMock()
+        return sm, session_file
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            pytest.param(OSError("connection reset"), id="connection-reset"),
+            pytest.param(TimeoutError("timed out"), id="timeout"),
+            pytest.param(_TransportServerError("server error", code=500), id="http-500"),
+            pytest.param(_TransportServerError("bad gateway", code=502), id="http-502"),
+            pytest.param(RuntimeError("something unexpected"), id="unexpected"),
+        ],
+    )
+    @patch("src.auth.session_manager.keyring")
+    async def test_transient_failure_keeps_the_session(
+        self, mock_keyring, tmp_session, tmp_path, exc
+    ):
+        sm, session_file = self._prepared(tmp_path)
+        cast(Any, sm._mm).get_subscription_details = AsyncMock(side_effect=exc)
+
+        assert await sm.try_restore_session() is False
+        assert sm.is_authenticated is False
+        assert session_file.exists(), (
+            f"{type(exc).__name__} says nothing about the token's validity, "
+            "so the session must survive for the next launch"
+        )
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            pytest.param(_TransportServerError("unauthorized", code=401), id="http-401"),
+            pytest.param(_TransportServerError("forbidden", code=403), id="http-403"),
+            pytest.param(LoginFailedException("no usable auth"), id="login-failed"),
+        ],
+    )
+    @patch("src.auth.session_manager.keyring")
+    async def test_credential_rejection_discards_the_session(
+        self, mock_keyring, tmp_session, tmp_path, exc
+    ):
+        sm, session_file = self._prepared(tmp_path)
+        cast(Any, sm._mm).get_subscription_details = AsyncMock(side_effect=exc)
+
+        assert await sm.try_restore_session() is False
+        assert sm.is_authenticated is False
+        assert not session_file.exists(), (
+            "Monarch refused the credential, so keeping it would retry a token that can never work"
+        )
+
+    @patch("src.auth.session_manager.keyring")
+    async def test_retained_session_restores_on_the_next_attempt(
+        self, mock_keyring, tmp_session, tmp_path
+    ):
+        """The whole point of retaining the file: once the network comes back,
+        the very next restore succeeds with no re-login and no MFA prompt."""
+        sm, _ = self._prepared(tmp_path)
+        mm = cast(Any, sm._mm)
+        mm.get_subscription_details = AsyncMock(side_effect=OSError("connection reset"))
+
+        assert await sm.try_restore_session() is False
+
+        mm.get_subscription_details = AsyncMock(return_value={})
+
+        assert await sm.try_restore_session() is True
+        assert sm.is_authenticated is True
+
+
+class TestSessionRestoreSafetyGate:
+    """The pre-unpickle checks on SESSION_FILE, split out from restore
+    behaviour because these fail before load_session is ever reached."""
+
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits only")
     @patch("src.auth.session_manager.keyring")
     async def test_restore_refuses_world_writable_pickle(self, mock_keyring, tmp_session, tmp_path):
@@ -213,6 +314,22 @@ class TestSessionRestore:
         load_session.assert_not_called()
         assert not session_file.is_symlink()
         assert not session_file.exists()
+
+    @patch("src.auth.session_manager.keyring")
+    async def test_failed_gate_clears_stale_authenticated_state(
+        self, mock_keyring, tmp_session, tmp_path
+    ):
+        """A restore that fails the gate must leave the manager unauthenticated
+        even if an earlier restore had already set the flag."""
+        session_file = tmp_path / "session.pickle"
+        session_file.mkdir(mode=0o700)
+
+        sm = SessionManager()
+        sm._authenticated = True
+        cast(Any, sm._mm).load_session = MagicMock()
+
+        assert await sm.try_restore_session() is False
+        assert sm.is_authenticated is False
 
 
 class TestLogin:

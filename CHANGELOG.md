@@ -7,6 +7,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- A dropped connection, a timeout, or a Monarch server error no longer signs
+  you out. Restoring a saved session caught every exception alike and deleted
+  the session file, so any hiccup while validating it forced a full re-login
+  **with MFA** on the next launch. The file is now discarded only when Monarch
+  actually refuses the credential (HTTP 401/403, or a session carrying no
+  usable auth); everything else leaves it in place to retry.
+
 ### Changed
 
 - Upgraded Flet 0.85.3 to 0.86.5 (and `flet-charts` to 0.86.5). Importing
