@@ -11,6 +11,7 @@ from src.data import demo_data
 from src.data.cache import DataCache
 from src.data.demo_client import DemoClient
 from src.data.preferences import Preferences
+from src.utils.assets import ASSETS_DIR
 from src.utils.updater import get_current_version
 from src.views import tokens
 from src.views.dashboard import CONTENT_HORIZONTAL_PADDING, DashboardView
@@ -27,6 +28,19 @@ _PAGE_RIGHT_PADDING = 16
 LEDGER_UNCLIPPED_WINDOW_WIDTH = (
     RAIL_WIDTH + CONTENT_HORIZONTAL_PADDING + _PAGE_RIGHT_PADDING + LEDGER_COLUMNS_WIDTH
 )
+
+
+def _resolve_assets_dir() -> str:
+    """Directory Flet serves as the asset root, for the bundled fonts.
+
+    Falls back to the relative ``assets`` that Flet's bundled asset server
+    resolves in packaged desktop mode -- the same two cases
+    ``_resolve_icon_path`` in views/dashboard.py handles.
+    """
+    return str(ASSETS_DIR) if ASSETS_DIR.is_dir() else "assets"
+
+
+_ASSETS_DIR = _resolve_assets_dir()
 
 
 def dispatch_keyboard_shortcut(
@@ -106,7 +120,7 @@ async def main(page: ft.Page) -> None:
     # near-black ink text on them — unreadable. Flip back to SYSTEM only
     # when the dark ramp in tokens.py is actually consumed by the views.
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.fonts = tokens.FONT_URLS
+    page.fonts = tokens.FONT_ASSETS
 
     _icon_theme = ft.IconTheme(apply_text_scaling=True)
 
@@ -255,7 +269,10 @@ def run() -> None:
         category=DeprecationWarning,
         message=".*variable_values.*operation_name.*deprecated.*",
     )
-    ft.run(main)
+    # assets_dir is what makes the "/fonts/..." paths in tokens.FONT_ASSETS
+    # resolvable: Flet serves this directory at the asset root. Without it the
+    # bundled faces silently fail to load and the platform fallbacks take over.
+    ft.run(main, assets_dir=_ASSETS_DIR)
 
 
 if __name__ == "__main__":

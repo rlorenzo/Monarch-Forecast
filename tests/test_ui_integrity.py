@@ -115,19 +115,12 @@ class TestIconPathResolution:
         assert result.startswith("data:image/png;base64,"), result[:40]
 
     def test_falls_back_to_relative_path_when_asset_missing(self, monkeypatch, tmp_path):
-        """Simulate the packaged-build case where ``__file__`` lands in a
+        """Simulate the packaged-build case where the source lands in a
         bundle layout that puts assets out of reach. The function must
         still return a non-empty path so the nav rail renders the logo."""
         import src.views.dashboard as dashboard_module
 
-        # Point Path(__file__) at a tmp location with no sibling assets/.
-        # ``Path.resolve()`` is called on the literal __file__ string, so
-        # we patch the module's __file__ attribute and force resolution
-        # to a directory tree that doesn't contain icon_nav.png.
-        fake_file = tmp_path / "src" / "views" / "dashboard.py"
-        fake_file.parent.mkdir(parents=True)
-        fake_file.write_text("")
-        monkeypatch.setattr(dashboard_module, "__file__", str(fake_file))
+        monkeypatch.setattr(dashboard_module, "ASSETS_DIR", tmp_path / "nowhere")
 
         result = dashboard_module._resolve_icon_path()
         assert result == "assets/icon_nav.png"

@@ -52,25 +52,26 @@ PAPER_DARK_3 = "#907f73"  # tertiary text in dark
 FONT_DISPLAY = "Fraunces"
 FONT_BODY = "Inter"
 
-# Variable-font sources from the google/fonts GitHub repo. They are fetched
-# on first launch and cached by Flutter's HTTP cache for subsequent runs;
-# offline support after first run is the result. A follow-up task can drop
-# .ttf files into assets/fonts/ and switch these to local paths.
-FONT_URLS: dict[str, str] = {
-    FONT_DISPLAY: (
-        "https://raw.githubusercontent.com/google/fonts/main/ofl/fraunces/"
-        "Fraunces%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf"
-    ),
-    FONT_BODY: (
-        "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
-    ),
+# Variable fonts, bundled under assets/fonts/ and served from the app's own
+# asset directory. They used to be fetched from raw.githubusercontent.com on
+# first launch, which meant a first run offline (or a GitHub outage, or a
+# moved upstream path) silently fell through to the platform fallbacks below,
+# and every launch made an outbound request before painting.
+#
+# Paths are asset-relative, which is what `assets_dir` in main.py's `ft.run`
+# makes resolvable. Licences sit beside the files as required by the OFL.
+FONT_ASSETS: dict[str, str] = {
+    FONT_DISPLAY: "/fonts/Fraunces.ttf",
+    FONT_BODY: "/fonts/Inter.ttf",
 }
 
 
-# When the variable fonts above fail to fetch (offline first launch,
-# upstream URL move), Flutter falls through to the next family that the
-# platform can find. Keep these in sync with DESIGN.md's frontmatter
-# typography fallbacks.
+# If a bundled face above ever fails to register — a build that dropped
+# assets/, a corrupt .ttf — Flutter falls through to the next family the
+# platform can find. Much less likely now that the files ship with the app
+# than when they were fetched over HTTP, but the app should still render
+# readable text rather than tofu. Keep these in sync with DESIGN.md's
+# frontmatter typography fallbacks.
 _DISPLAY_FALLBACK = ["Source Serif Pro", "Georgia", "serif"]
 _BODY_FALLBACK = ["Helvetica Neue", "system-ui", "sans-serif"]
 
