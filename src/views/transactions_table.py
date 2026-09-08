@@ -53,6 +53,14 @@ _COL_AMOUNT = 140
 _COL_BALANCE = 130
 _ROW_VERT_PAD = 9
 
+# The ledger's intrinsic width: rows and the sticky header both lay the
+# columns out at these fixed widths, so this is the narrowest the table can
+# be drawn without cutting one off. main.py folds it into the window-width
+# budget; keep it derived so the two cannot drift apart.
+LEDGER_COLUMNS_WIDTH = (
+    _GUTTER_WIDTH + _GUTTER_GAP + _COL_DESC + _COL_TYPE + _COL_AMOUNT + _COL_BALANCE
+)
+
 # Filter chip identifiers — internal state values.
 _FILTER_ALL = "all"
 _FILTER_INCOME = "income"
