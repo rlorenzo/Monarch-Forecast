@@ -18,6 +18,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   API this project pins — `ft.Border.all`, `page.show_dialog`/`pop_dialog`,
   `page.services`, `ft.Event[T]` generics, async `Control.focus`, and
   `flet_charts.LineChart` — is unchanged in 0.86.5.
+- `requirements.txt` tracks the same Flet pins as `pyproject.toml`. A test now
+  fails if the two manifests disagree.
 
 ## [1.4.1] (2026-09-03)
 

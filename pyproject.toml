@@ -26,6 +26,9 @@ dev = [
     "vulture>=2.14",
     "tach>=0.34",
     "bandit>=1.9",
+    # tests/test_dependency_manifests.py parses version specifiers with it;
+    # it was previously only a pytest transitive.
+    "packaging>=24.0",
 ]
 # CI-only: semgrep is heavy, so it is not in `dev`. Run with
 # `uv run --only-group security semgrep ...`.
