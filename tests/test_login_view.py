@@ -1,13 +1,15 @@
 """Tests for the LoginView async submit flow.
 
-The view's ``_handle_login`` covers four user-facing paths:
+The view's ``_handle_login`` covers five user-facing paths:
 
 1. Empty fields → inline error + focus moves to the empty field.
 2. Successful login → ``on_login_success`` fires, credentials persisted
    when "Remember credentials" is checked.
 3. ``RequireMFAException`` → MFA field becomes visible, status banner
    prompts for the code, second submit completes the login.
-4. ``LoginFailedException`` / unexpected ``Exception`` → status text
+4. ``CaptchaRequiredException`` → its own recoverable message; caught
+   before ``LoginFailedException``, which it subclasses.
+5. ``LoginFailedException`` / unexpected ``Exception`` → status text
    carries an error, button re-enables.
 
 Each test mocks the session manager and stubs the controls' ``focus()``
@@ -21,7 +23,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import flet as ft
 import pytest
-from monarchmoney import LoginFailedException, RequireMFAException
+from monarchmoney import (
+    CaptchaRequiredException,
+    LoginFailedException,
+    RequireMFAException,
+)
 
 from src.auth.login_view import LoginView
 
@@ -226,6 +232,30 @@ class TestErrors:
         assert "credentials" in (view.status_text.value or "").lower()
         _m(view.password_field.focus).assert_awaited()
         # on_login_success should NOT fire on failed login.
+        _m(view.on_login_success).assert_not_called()
+
+    async def test_captcha_gets_its_own_message_not_a_credentials_one(self):
+        """A captcha means Monarch is challenging the client, not that the
+        password is wrong. CaptchaRequiredException subclasses
+        LoginFailedException, so without its own handler the broader one
+        catches it and tells the user to check credentials that are fine."""
+        view = _make_view()
+        view.email_field.value = "user@example.com"
+        view.password_field.value = "correct-password"
+        _m(view.session_manager.login).side_effect = CaptchaRequiredException()
+        await view._handle_login(_event())
+
+        message = (view.status_text.value or "").lower()
+        assert "captcha" in message
+        assert "credentials" not in message, (
+            "the credentials are almost certainly fine; saying otherwise sends "
+            "the user to change a working password"
+        )
+        assert "monarchmoney.com" in message, "the user needs somewhere to go"
+        # Orange like the MFA prompt: recoverable, not a rejection.
+        assert view.status_text.color == ft.Colors.ORANGE_400
+        # No point yanking focus to a field with nothing wrong in it.
+        _m(view.password_field.focus).assert_not_awaited()
         _m(view.on_login_success).assert_not_called()
 
     async def test_unexpected_exception_caught(self):

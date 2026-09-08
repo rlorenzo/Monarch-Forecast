@@ -7,7 +7,7 @@ from pathlib import Path
 
 import keyring
 import keyring.errors
-from monarchmoney import LoginFailedException, MonarchMoney
+from monarchmoney import CaptchaRequiredException, LoginFailedException, MonarchMoney
 
 SERVICE_NAME = "monarch-forecast"
 SESSION_DIR = Path.home() / ".monarch-forecast"
@@ -67,7 +67,19 @@ def _is_credential_rejection(exc: BaseException) -> bool:
     ``LoginFailedException`` counts too: monarchmoney raises it when a call is
     attempted with no usable auth on the client. That says something about the
     credential rather than about the network, so no retry will fix it.
+
+    ``CaptchaRequiredException`` is the trap in that rule. It *subclasses*
+    ``LoginFailedException`` but means close to the opposite: Monarch is
+    challenging the client, not refusing the token. monarchmoney raises it
+    only from its login path today, so no restore currently reaches here
+    carrying one — this branch guards the classifier's contract rather than
+    fixing an observed failure. It earns its two lines because the failure it
+    prevents is silent: the base-class branch would delete a live session and
+    charge the user a full MFA re-login over a challenge a retry can clear.
+    Order matters — the subclass has to be tested first.
     """
+    if isinstance(exc, CaptchaRequiredException):
+        return False
     if isinstance(exc, LoginFailedException):
         return True
     return getattr(exc, "code", None) in _AUTH_REJECTED_STATUSES

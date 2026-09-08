@@ -5,7 +5,11 @@ from collections.abc import Callable
 from typing import Any
 
 import flet as ft
-from monarchmoney import LoginFailedException, RequireMFAException
+from monarchmoney import (
+    CaptchaRequiredException,
+    LoginFailedException,
+    RequireMFAException,
+)
 
 from src.auth.session_manager import SessionManager
 
@@ -263,6 +267,18 @@ class LoginView(ft.Column):
             self.status_text.color = ft.Colors.ORANGE_400
             self.mfa_field.update()
             await self.mfa_field.focus()
+
+        # Must precede LoginFailedException: CaptchaRequiredException
+        # subclasses it, so the broader handler would otherwise catch it and
+        # tell the user to check credentials that are almost certainly fine.
+        except CaptchaRequiredException:
+            self.status_text.value = (
+                "Monarch asked for a captcha. Sign in at monarchmoney.com in "
+                "your browser, then try again here."
+            )
+            self.status_text.color = ft.Colors.ORANGE_400
+            # Nothing to retype, so focus stays put rather than being yanked
+            # into the password field as it is for a real credential failure.
 
         except LoginFailedException:
             self.status_text.value = "Login failed. Check your credentials."

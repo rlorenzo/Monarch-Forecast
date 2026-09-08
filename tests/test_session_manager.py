@@ -6,9 +6,9 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from monarchmoney import LoginFailedException
+from monarchmoney import CaptchaRequiredException, LoginFailedException
 
-from src.auth.session_manager import SessionManager
+from src.auth.session_manager import SessionManager, _is_credential_rejection
 
 
 class _TransportServerError(Exception):
@@ -209,6 +209,28 @@ class TestSessionSurvivesTransientFailures:
 
         assert await sm.try_restore_session() is True
         assert sm.is_authenticated is True
+
+
+class TestCredentialRejectionClassifier:
+    """Direct tests for the classifier rule the restore flow cannot exercise.
+
+    Every other rule in ``_is_credential_rejection`` is covered end-to-end
+    above. The captcha rule can't be: monarchmoney raises
+    ``CaptchaRequiredException`` only from its login path, never from the
+    session-validating call ``try_restore_session`` makes, so routing it
+    through the restore flow would mean mocking a failure the library cannot
+    produce there. Asserted at the classifier instead, where it is real.
+    """
+
+    def test_captcha_is_not_a_credential_rejection(self):
+        """``CaptchaRequiredException`` subclasses ``LoginFailedException``,
+        which the classifier does treat as a rejection, but it means the
+        opposite: Monarch challenging the client, not refusing the token.
+        Reversing the two checks would silently discard a live session and
+        cost the user a full MFA re-login.
+        """
+        assert _is_credential_rejection(CaptchaRequiredException("captcha required")) is False
+        assert _is_credential_rejection(LoginFailedException("no usable auth")) is True
 
 
 class TestSessionRestoreSafetyGate:

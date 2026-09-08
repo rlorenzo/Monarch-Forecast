@@ -9,6 +9,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- A Monarch captcha challenge no longer reports itself as a credentials
+  problem. `CaptchaRequiredException` subclasses `LoginFailedException`, so the
+  sign-in screen caught it with the general handler and said "Login failed.
+  Check your credentials" — sending users to change a password that was fine.
+  It now gets its own message pointing at monarchmoney.com, where signing in
+  through a browser clears the challenge. The same subclassing would have made
+  a captcha during session restore delete a valid session; it is now
+  classified as the transient challenge it is.
+
 - The transaction ledger no longer cuts off its BALANCE column. The window
   needs 1118px for the ledger's fixed columns to draw beside the nav rail and
   inside the padding, but the app opened at 1100 — so the last column was
