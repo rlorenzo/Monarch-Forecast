@@ -6,7 +6,6 @@ import logging
 import math
 from collections.abc import Callable
 from datetime import date, datetime
-from pathlib import Path
 from typing import Any
 
 import flet as ft
@@ -26,6 +25,7 @@ from src.forecast.credit_cards import (
 )
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult
+from src.utils.assets import ASSETS_DIR
 from src.views import tokens
 from src.views.adjustments import (
     AdjustmentsPanel,
@@ -67,14 +67,14 @@ def _resolve_icon_path() -> str:
     for HiDPI sharpness; the full 1024 master would balloon the module
     text by ~125 KB of base64 for no visible gain.
 
-    If ``__file__`` can't reach the dev-tree asset (some Flet ``flet build``
+    If ``ASSETS_DIR`` can't reach the dev-tree asset (some Flet ``flet build``
     layouts put the source under a bundled location with a different
     relative position to ``assets/``), fall back to the relative
     ``assets/icon_nav.png`` path that Flet's bundled asset server resolves
     in packaged desktop mode. Without that fallback the nav rail would
     silently lose its logo in distributed builds.
     """
-    icon_path = Path(__file__).resolve().parent.parent.parent / "assets" / "icon_nav.png"
+    icon_path = ASSETS_DIR / "icon_nav.png"
     if icon_path.exists():
         return "data:image/png;base64," + base64.b64encode(icon_path.read_bytes()).decode("ascii")
     return "assets/icon_nav.png"

@@ -12,6 +12,7 @@ with a mocked page and a patched ``SessionManager``.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +20,7 @@ import flet as ft
 import pytest
 
 from src import main as main_module
+from src.views import tokens
 
 
 def _m(obj: Any) -> Any:
@@ -194,7 +196,7 @@ class TestMainEntry:
         # LIGHT until the dark token ramp is wired into the views; SYSTEM
         # would hand dark-OS users ink text on Material's default dark.
         assert page.theme_mode == ft.ThemeMode.LIGHT
-        assert page.fonts is not None
+        assert page.fonts == tokens.FONT_ASSETS
         assert page.theme is not None
         assert page.on_keyboard_event is not None
         # The window opens wide enough to draw the transaction ledger's fixed
@@ -230,7 +232,59 @@ class TestRun:
     def test_run_filters_deprecation_warnings_and_calls_ft_run(self):
         with patch("src.main.ft.run") as mock_run:
             main_module.run()
-        mock_run.assert_called_once_with(main_module.main)
+        # assets_dir is not incidental: it is what makes the "/fonts/..." paths
+        # in tokens.FONT_ASSETS resolvable. Drop it and the bundled faces fail
+        # to load silently, falling through to the platform fallbacks — a
+        # regression with no error message, so it is asserted here.
+        mock_run.assert_called_once_with(main_module.main, assets_dir=main_module._ASSETS_DIR)
+
+
+def _bundled_fonts() -> list[tuple[str, Path]]:
+    """Each ``FONT_ASSETS`` entry as (family, on-disk path).
+
+    The values are asset-root-relative because that is what Flet resolves at
+    runtime; the leading slash has to come off to read them from the filesystem.
+    """
+    assets = Path(main_module._ASSETS_DIR)
+    return [
+        (family, assets / asset_path.removeprefix("/"))
+        for family, asset_path in tokens.FONT_ASSETS.items()
+    ]
+
+
+class TestBundledFontAssets:
+    """The fonts named in ``FONT_ASSETS`` must exist under the resolved
+    assets directory, and ship the licence that lets us redistribute them.
+
+    Both halves are silent when broken: a renamed font file or a moved assets
+    directory shows up only as the wrong typeface in a running app, and a
+    missing OFL notice shows up only as a licence violation.
+    """
+
+    def test_every_font_is_present_and_non_empty(self):
+        for family, font in _bundled_fonts():
+            assert font.is_file(), f"{family} font missing at {font}"
+            assert font.stat().st_size > 0, f"{family} font is empty at {font}"
+
+    def test_every_font_ships_its_ofl_licence(self):
+        """The OFL requires the licence to travel with the font, and the
+        build sweeps ``assets/`` in wholesale — so the guard belongs here,
+        beside the files, not in the packaging workflow."""
+        for family, font in _bundled_fonts():
+            licence = font.with_name(f"{font.stem}-OFL.txt")
+            assert licence.is_file(), f"{family} ships without a licence at {licence}"
+            assert "SIL Open Font License" in licence.read_text()
+
+    def test_falls_back_to_the_relative_path_when_assets_are_out_of_reach(
+        self, monkeypatch, tmp_path
+    ):
+        """Packaged builds land the source somewhere the dev-tree ``assets/``
+        isn't reachable from. ``ft.run`` must still get a usable path — the
+        relative one Flet's own bundled asset server resolves — or the fonts
+        fall through to the platform fallbacks with no error."""
+        monkeypatch.setattr(main_module, "ASSETS_DIR", tmp_path / "nowhere")
+
+        assert main_module._resolve_assets_dir() == "assets"
 
 
 class TestRootEntryPoint:

@@ -7,6 +7,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- The Fraunces and Inter fonts now ship with the app instead of being fetched
+  from `raw.githubusercontent.com` at launch. A first run offline, a GitHub
+  outage, or a moved upstream path used to fall through silently to the
+  platform fallbacks, and every launch made an outbound request before
+  painting. Adds ~1.2 MB to the bundle; the OFL licences ship beside the
+  files as the licence requires.
+
 ### Fixed
 
 - A Monarch captcha challenge no longer reports itself as a credentials

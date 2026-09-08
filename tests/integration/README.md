@@ -1,13 +1,35 @@
-# Flet integration tests — why this directory has no tests
+# Flet integration tests — what works here, and what does not
 
 Flet 0.86 ships `flet.testing`: a Flutter-driver-style harness with finders,
 real tap/type/drag, `resize_page`, and screenshot comparison. It looked like
 the answer to the gap that let the ledger clipping bug survive 800+ tests —
 none of which render.
 
-**It does not currently work for this app.** The harness targets mobile. What
+**Most of it does not work for this app.** The harness targets mobile.
+
+What *does* work is booting the packaged app: `test_app_boots.py` builds the
+real bundle, launches it, and pumps frames, in well under a minute. That covers
+the whole packaging path the unit suite never touches — the Flutter build, the
+embedded Python runtime, and the assets shipped inside the `.app`. It is how
+the bundled fonts were verified to load from file rather than over HTTP.
+
+Everything richer — finders, screenshots, driving the UI — does not. What
 follows is what was tried, so the next person spends minutes rather than an
 afternoon.
+
+## Running it
+
+Not part of `uv run pytest` (`addopts` in pyproject.toml ignores this
+directory: it needs a provisioned Flutter test host, and collecting it without
+one fails on the missing `flet_app` fixture). Every flag below is load-bearing
+— the reasons are in the sections that follow.
+
+    uv sync --group integration
+    uv run flet test macos . --tests-dir tests/integration -v \
+      --project "Monarch Forecast" \
+      --org "com.monarchforecast" \
+      --product "Monarch Forecast" \
+      --exclude .venv .git .github .boost screenshots design web packaging
 
 ## The two modes, and why both are dead ends here
 
@@ -62,13 +84,31 @@ honoured. It needs three more things — and then still fails:
   `FileSystemException ... errno = 45` (`ENOTSUP`).
 - **`flet.testing` has undeclared dependencies** — `numpy`, `PIL`,
   `skimage.metrics`. Hence the `integration` dependency group.
+- **A stale `build/flutter` fails packaging before a single test runs.** The
+  symptom is `version solving failed` from the `serious_python ... package`
+  step, naming a Flutter extension it cannot find:
+
+      Because monarch_forecast depends on flet_charts from path which doesn't
+      exist (could not find package flet_charts at
+      .../build/flutter-packages/flet_charts)
+
+  `build/flutter/pubspec.yaml` points at `build/flutter-packages/`, which a
+  previous run pruned; `build/.hash` then convinces the next run that packages
+  are unchanged, so it never repopulates. It is self-perpetuating —
+  `--clear-cache` does not break it. Delete both and let them regenerate:
+
+      rm -rf build/flutter build/.hash
+
+  That costs a full re-provision (a few minutes, and ~1.8 GB rewritten), which
+  is why it is worth recognising the message rather than rebuilding blind.
+
 - **`pump_and_settle` never returns.** The login screen carries an
   indeterminate `ProgressBar`, which animates forever, so there is never a
   quiet frame; it times out after ~10 minutes. `skip_pump_and_settle: True`
   plus explicit `pump()` calls avoids it. This one alone turned a 33-second
   run into a 10m37s one.
 
-**Pass `-v`.** Four of the failures above surface a message pointing nowhere
+**Pass `-v`.** Most of the failures above surface a message pointing nowhere
 near the cause unless verbose is on, because the packaging and Flutter
 subprocess output is captured when `verbose < 1`.
 
@@ -82,3 +122,13 @@ missing, and it tests the mobile build — which is parked (see
 
 Until then, `tests/test_ledger_width.py` covers the ledger's width contract
 structurally, and says plainly in its own docstring what that cannot prove.
+
+## Verifying something rendered correctly, without finders
+
+Run with `-v` and read the Flutter log. It is verbose but truthful — this is
+how the bundled fonts were confirmed:
+
+    Font loaded from file: .../app/assets/fonts/Fraunces.ttf
+
+where it previously read `Font loaded from URL: https://raw.githubusercontent...`.
+Crude, but it answers questions the widget tree cannot.
