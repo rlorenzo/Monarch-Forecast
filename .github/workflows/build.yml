@@ -40,9 +40,18 @@ jobs:
 
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
 
+      # Must match the Flutter SDK the pinned flet-cli expects. When it does
+      # not, `flet build` does not fail with a version error — it offers to
+      # download the right SDK itself and blocks on a [y/n] prompt, which on a
+      # runner with no stdin dies as `EOFError: EOF when reading a line`. The
+      # Flet 0.86 upgrade moved this requirement from 3.41.7 to 3.44.8 and
+      # this pin was missed, which nothing caught until a tag was pushed:
+      # build.yml only runs on `v*` tags, so seven PRs of CI-green work sat on
+      # top of a release that could not build. Bump this in the same PR as any
+      # future flet/flet-cli bump.
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          flutter-version: "3.41.7"
+          flutter-version: "3.44.8"
           channel: stable
 
       - name: Install Linux build deps
