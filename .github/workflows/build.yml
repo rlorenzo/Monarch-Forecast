@@ -147,16 +147,22 @@ jobs:
           # hardcoded path gave a one-line failure with nothing to act on;
           # a tree in the log makes the next relocation a five-minute fix
           # instead of another round-trip through a 15-minute build.
-          echo "--- build/linux layout ---"
-          find build/linux -maxdepth 3 -type d | head -40
-          echo "--------------------------"
-          # Discover rather than hardcode: 0.85 put this at
-          # build/linux/python3.12, and the exact path is Flet's to change.
-          BUNDLE_PY="$(find build/linux -maxdepth 3 -type d -name 'python3.*' | head -1)"
-          BUNDLE_SP="$(find build/linux -maxdepth 3 -type d -name 'site-packages' | head -1)"
+          # Depth-limited only for readability — this is the shape of the
+          # tree, not the search.
+          echo "--- build/linux layout (to depth 4) ---"
+          find build/linux -maxdepth 4 -type d | head -60
+          echo "---------------------------------------"
+          # The search itself is unbounded on purpose. Capping the depth
+          # would assume the nesting we are here to discover, and a cap set
+          # too shallow fails exactly like a missing bundle, which is the
+          # ambiguity this step exists to remove. -print -quit stops at the
+          # first hit, so unbounded costs nothing.
+          BUNDLE_PY="$(find build/linux -type d -name 'python3.*' -print -quit)"
+          BUNDLE_SP="$(find build/linux -type d -name 'site-packages' -print -quit)"
           if [ -z "$BUNDLE_PY" ] || [ ! -d "$BUNDLE_PY" ]; then
-            echo "::error::No python3.* directory under build/linux after flet build linux."
-            echo "::error::Flet relocated the Python bundle again; see the layout above."
+            echo "::error::No python3.* directory anywhere under build/linux after flet build linux."
+            echo "::error::Flet relocated or restructured the Python bundle; full tree below."
+            find build/linux -type d | head -200
             exit 1
           fi
           echo "Using bundle python dir: $BUNDLE_PY"
