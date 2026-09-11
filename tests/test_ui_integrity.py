@@ -57,7 +57,7 @@ class TestNoDeprecationWarnings:
                 on_login_success=lambda: None,
                 on_demo=lambda: None,
             )
-            DashboardView(session_manager=sm, on_logout=lambda: None)
+            DashboardView(session_manager=sm, on_logout=lambda _notice: None)
             AdjustmentsPanel(recurring_items=[], on_change=lambda: None)
 
 
@@ -82,7 +82,9 @@ class TestDashboardViewInit:
     def test_creates_without_error(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dashboard = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         assert isinstance(dashboard, ft.Column)
         assert len(dashboard.controls) > 0
 
@@ -90,7 +92,9 @@ class TestDashboardViewInit:
         from src.views.dashboard import DashboardView
         from src.views.side_nav import SideNav
 
-        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dashboard = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         assert dashboard._nav_rail is not None
         assert isinstance(dashboard._nav_rail, SideNav)
         # 3 page destinations — Refresh moved out of the destinations list
@@ -142,7 +146,9 @@ class TestScrollableColumnLayout:
     def test_no_expand_in_scrollable_content(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dashboard = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
 
         # Check the scrollable tab content area's children. The content area
         # itself is a Stack (sticky controls + scroll area + loading overlay);

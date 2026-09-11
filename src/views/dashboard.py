@@ -10,9 +10,11 @@ from typing import Any
 
 import flet as ft
 
+from src.auth.login_view import LoginNotice
 from src.auth.session_manager import SessionManager
 from src.data.cache import DataCache
 from src.data.cached_client import CachedMonarchClient
+from src.data.demo_data import erase_demo_data
 from src.data.models import ForecastTransaction, RecurringItem
 from src.data.monarch_client import MonarchClient
 from src.data.preferences import Preferences
@@ -41,6 +43,7 @@ from src.views.adjustments import (
 )
 from src.views.alerts import build_alerts_banner, generate_alerts
 from src.views.chart import build_forecast_chart, build_forecast_chart_summary
+from src.views.erase_data import show_erase_data_dialog
 from src.views.recent_transactions import RecentTransactionsView
 from src.views.side_nav import NavDestination, SideNav
 from src.views.transactions_table import (
@@ -90,6 +93,26 @@ _ICON_PATH = _resolve_icon_path()
 _CONTENT_PAD_LEFT = 32
 _CONTENT_PAD_RIGHT = 28
 CONTENT_HORIZONTAL_PADDING = _CONTENT_PAD_LEFT + _CONTENT_PAD_RIGHT
+
+# Messages handed to ``on_logout`` and shown on the login screen once the
+# dashboard is gone. The login view's status line is the only surface that
+# survives the trip back — a SnackBar raised here dies with the page it was
+# raised from — and it is already a live region, so screen readers announce
+# these the same way they announce a sign-in failure. The colour is chosen
+# here rather than in the login view because ``src.auth`` sits below
+# ``src.views`` and cannot reach the design tokens.
+CACHE_CLEAR_FAILED_NOTICE = LoginNotice(
+    "Signed out, but the local cache could not be cleared from this computer.",
+    tokens.SIGNAL_NEGATIVE,
+)
+ERASE_DONE_NOTICE = LoginNotice(
+    "Local data erased from this computer.",
+    tokens.SIGNAL_POSITIVE,
+)
+ERASE_FAILED_NOTICE = LoginNotice(
+    "Signed out, but some local data could not be erased from this computer.",
+    tokens.SIGNAL_NEGATIVE,
+)
 
 # Transactions tab modes.
 _TXN_MODE_UPCOMING = "upcoming"
@@ -142,7 +165,9 @@ class DashboardView(ft.Column):
     def __init__(
         self,
         session_manager: SessionManager,
-        on_logout: Callable[[], Any],
+        # Takes an optional notice to show on the login screen — a cache
+        # that would not clear, or confirmation that an erase succeeded.
+        on_logout: Callable[[LoginNotice | None], Any],
         *,
         raw_client: MonarchClient | None = None,
         cache: DataCache | None = None,
@@ -505,6 +530,11 @@ class DashboardView(ft.Column):
             on_refresh=self._on_refresh_click,
             on_logout=self._handle_logout,
             on_about=self._handle_about,
+            # A session that owns no local data (demo mode) has nothing to
+            # erase and must not claim otherwise. None omits the row.
+            on_erase_data=(
+                self._handle_erase_data if self.session_manager.owns_local_data else None
+            ),
             user_email=self._user_email,
             icon_path=_ICON_PATH,
         )
@@ -2279,8 +2309,53 @@ class DashboardView(ft.Column):
     def _handle_logout(self) -> None:
         # Signing out should not leave weeks of transaction history and
         # balances readable in cache.db for the next user of this OS account.
+        notice: LoginNotice | None = None
         try:
             self.monarch.clear_cache()
         except Exception:
+            # Sign-out proceeds regardless — refusing to sign the user out
+            # because a VACUUM failed would be the worse outcome. But it
+            # must not proceed silently: cached balances are still readable
+            # on disk and only the user can decide what to do about that.
             logger.exception("Could not clear cache on logout")
-        self.on_logout()
+            notice = CACHE_CLEAR_FAILED_NOTICE
+        self.on_logout(notice)
+
+    def _handle_erase_data(self) -> None:
+        show_erase_data_dialog(self.page, self._erase_local_data)
+
+    def _erase_local_data(self) -> None:
+        """Erase everything written to this computer, then sign out.
+
+        Credentials and the session file are not erased here: they belong
+        to the session manager, and ``on_logout`` already routes through
+        its ``logout()``. This method owns the two stores the session
+        manager knows nothing about — preferences and the cache — and
+        each is attempted even if the other fails, so one wedged file
+        cannot strand the rest of the user's data on disk.
+
+        The notice is chosen from what each helper *reports*, not from
+        whether it raised. These helpers deliberately swallow their own
+        OSErrors so one wedged store cannot abort the others, so a handler
+        that only watched for exceptions would confirm a complete erase
+        while a permissions failure left readable financial data behind.
+        ``on_logout`` gets the last word: credential and session cleanup
+        happen downstream of it and can still downgrade this notice.
+        """
+        failed: list[str] = []
+        for what, erase in (
+            ("preferences", self._prefs.erase),
+            ("cache", self.monarch.erase_cache),
+            # Demo mode writes its own cache and preferences under the same
+            # directory, and they can hold adjustments the user typed while
+            # exploring. "Everything on this computer" has to include them.
+            ("demo data", erase_demo_data),
+        ):
+            try:
+                if not erase():
+                    logger.error("Could not erase local %s", what)
+                    failed.append(what)
+            except Exception:
+                logger.exception("Could not erase local %s", what)
+                failed.append(what)
+        self.on_logout(ERASE_FAILED_NOTICE if failed else ERASE_DONE_NOTICE)

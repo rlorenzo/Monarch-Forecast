@@ -20,6 +20,7 @@ import flet as ft
 import pytest
 
 from src import main as main_module
+from src.auth.login_view import LoginNotice
 from src.views import tokens
 
 
@@ -112,9 +113,10 @@ class TestAutoDemoEnv:
         # The demo dashboard's on_logout callback must be a callable that
         # resolves at call time — earlier we had a closure over an
         # unbound ``show_login`` that crashed when invoked in auto-demo
-        # mode. Calling it should not raise.
+        # mode. Calling it should not raise. It takes the optional login
+        # notice the dashboard hands back (None on a plain sign-out).
         on_logout = mock_dash_cls.call_args.kwargs["on_logout"]
-        on_logout()
+        on_logout(None)
 
     async def test_env_unset_uses_normal_flow(self):
         # _clear_auto_demo_env (autouse) ensures the env var is unset.
@@ -177,6 +179,142 @@ class TestMainEntry:
 
         mock_login_cls.assert_called_once()
         mock_dash_cls.assert_not_called()
+
+    async def test_sign_out_carries_its_notice_through_to_the_login_screen(self):
+        """The dashboard's notice has to survive the trip back to login.
+
+        This is the one leg of the feature that cannot be exercised in the
+        running app: demo mode's sign-out does not navigate under
+        ``FLET_FORCE_WEB_SERVER``, so the wiring is pinned here instead —
+        the dashboard hands ``on_logout`` a notice, and the LoginView that
+        replaces it must be constructed with that same notice.
+        """
+        import asyncio
+
+        page = _make_page()
+        pending: list[asyncio.Task] = []
+        page.run_task = lambda handler, *a, **k: pending.append(
+            asyncio.ensure_future(handler(*a, **k))
+        )
+
+        with (
+            patch("src.main.SessionManager") as mock_sm_cls,
+            patch("src.main.DashboardView") as mock_dash_cls,
+            patch("src.main.LoginView") as mock_login_cls,
+        ):
+            mock_sm = MagicMock()
+            mock_sm.try_restore_session = AsyncMock(return_value=True)
+            mock_sm_cls.return_value = mock_sm
+            mock_dash_cls.return_value = MagicMock(load_data=AsyncMock())
+            mock_login_cls.return_value = MagicMock()
+
+            await main_module.main(page)
+
+            notice = LoginNotice("Local data erased from this computer.", "#217547")
+            mock_dash_cls.call_args.kwargs["on_logout"](notice)
+            await asyncio.gather(*pending)
+
+        assert mock_login_cls.call_args.kwargs["notice"] is notice
+        mock_sm.logout.assert_called_once()
+
+    async def test_a_failed_credential_wipe_downgrades_the_erase_notice(self):
+        """The dashboard cannot see the keychain, so this is the last check.
+
+        ``_erase_local_data`` picks its notice before credentials and the
+        session file are touched — those belong to the session manager and
+        are dropped here, downstream of it. A locked keychain or an
+        unlinkable session.pickle leaves the account reachable from this
+        computer, so the "erased" the dashboard chose has to be downgraded
+        before the login screen prints it.
+        """
+        import asyncio
+
+        page = _make_page()
+        pending: list[asyncio.Task] = []
+        page.run_task = lambda handler, *a, **k: pending.append(
+            asyncio.ensure_future(handler(*a, **k))
+        )
+
+        with (
+            patch("src.main.SessionManager") as mock_sm_cls,
+            patch("src.main.DashboardView") as mock_dash_cls,
+            patch("src.main.LoginView") as mock_login_cls,
+        ):
+            mock_sm = MagicMock()
+            mock_sm.try_restore_session = AsyncMock(return_value=True)
+            mock_sm.logout = MagicMock(return_value=False)
+            mock_sm_cls.return_value = mock_sm
+            mock_dash_cls.return_value = MagicMock(load_data=AsyncMock())
+            mock_login_cls.return_value = MagicMock()
+
+            await main_module.main(page)
+
+            mock_dash_cls.call_args.kwargs["on_logout"](main_module.ERASE_DONE_NOTICE)
+            await asyncio.gather(*pending)
+
+        assert mock_login_cls.call_args.kwargs["notice"] == main_module.ERASE_FAILED_NOTICE
+
+    async def test_a_clean_cleanup_leaves_the_erase_notice_alone(self):
+        import asyncio
+
+        page = _make_page()
+        pending: list[asyncio.Task] = []
+        page.run_task = lambda handler, *a, **k: pending.append(
+            asyncio.ensure_future(handler(*a, **k))
+        )
+
+        with (
+            patch("src.main.SessionManager") as mock_sm_cls,
+            patch("src.main.DashboardView") as mock_dash_cls,
+            patch("src.main.LoginView") as mock_login_cls,
+        ):
+            mock_sm = MagicMock()
+            mock_sm.try_restore_session = AsyncMock(return_value=True)
+            mock_sm.logout = MagicMock(return_value=True)
+            mock_sm_cls.return_value = mock_sm
+            mock_dash_cls.return_value = MagicMock(load_data=AsyncMock())
+            mock_login_cls.return_value = MagicMock()
+
+            await main_module.main(page)
+
+            mock_dash_cls.call_args.kwargs["on_logout"](main_module.ERASE_DONE_NOTICE)
+            await asyncio.gather(*pending)
+
+        assert mock_login_cls.call_args.kwargs["notice"] == main_module.ERASE_DONE_NOTICE
+
+    async def test_a_failed_cleanup_does_not_invent_a_notice_on_a_plain_sign_out(self):
+        """Only the erase promised completeness, so only it gets downgraded.
+
+        A plain sign-out never claimed the credentials were gone from this
+        computer; turning a silent sign-out into a red banner would be a
+        separate feature, not this fix.
+        """
+        import asyncio
+
+        page = _make_page()
+        pending: list[asyncio.Task] = []
+        page.run_task = lambda handler, *a, **k: pending.append(
+            asyncio.ensure_future(handler(*a, **k))
+        )
+
+        with (
+            patch("src.main.SessionManager") as mock_sm_cls,
+            patch("src.main.DashboardView") as mock_dash_cls,
+            patch("src.main.LoginView") as mock_login_cls,
+        ):
+            mock_sm = MagicMock()
+            mock_sm.try_restore_session = AsyncMock(return_value=True)
+            mock_sm.logout = MagicMock(return_value=False)
+            mock_sm_cls.return_value = mock_sm
+            mock_dash_cls.return_value = MagicMock(load_data=AsyncMock())
+            mock_login_cls.return_value = MagicMock()
+
+            await main_module.main(page)
+
+            mock_dash_cls.call_args.kwargs["on_logout"](None)
+            await asyncio.gather(*pending)
+
+        assert mock_login_cls.call_args.kwargs["notice"] is None
 
     async def test_page_configured(self):
         page = _make_page()

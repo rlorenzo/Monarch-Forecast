@@ -130,7 +130,7 @@ def test_dashboard_accepts_demo_overrides(tmp_path) -> None:
     sm = DemoSessionManager()
     dashboard = DashboardView(
         session_manager=sm,
-        on_logout=lambda: None,
+        on_logout=lambda _notice: None,
         raw_client=DemoClient(),
         cache=DataCache(db_path=tmp_path / "cache.db"),
         preferences=Preferences(path=tmp_path / "prefs.json"),

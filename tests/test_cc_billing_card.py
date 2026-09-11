@@ -29,7 +29,7 @@ def dashboard(patched_session_manager, tmp_path: Path):
     prefs = Preferences(path=tmp_path / "prefs.json")
     dash = DashboardView(
         session_manager=patched_session_manager,
-        on_logout=lambda: None,
+        on_logout=lambda _notice: None,
         preferences=prefs,
     )
     # Both helpers reach for ``self.page`` which is None on an unmounted

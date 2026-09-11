@@ -25,20 +25,26 @@ _FAKE_CONTAINER_EVENT: Any = cast(ft.Event[ft.Container], None)
 
 class TestCCSectionDefaults:
     def test_starts_collapsed(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         assert dash._cc_section_expanded is False
 
     def test_chevron_and_wrapper_unset_before_update_cc_info(self, patched_session_manager):
         # Before _update_cc_info has been called (no CC accounts loaded yet),
         # the section's mutable handles are None.
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         assert dash._cc_chevron is None
         assert dash._cc_cards_wrapper is None
 
 
 class TestToggleHandler:
     def test_toggle_with_widgets_present(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_chevron = ft.Icon(ft.Icons.KEYBOARD_ARROW_RIGHT)
         dash._cc_cards_wrapper = ft.Container(visible=False)
 
@@ -56,12 +62,16 @@ class TestToggleHandler:
         # If _update_cc_info hasn't built the chevron yet (e.g. fired
         # during dashboard construction), the toggle should still flip
         # the persisted flag without raising.
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._toggle_cc_section(_FAKE_CONTAINER_EVENT)
         assert dash._cc_section_expanded is True
 
     def test_chevron_semantics_label_updates(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_chevron = ft.Icon(
             ft.Icons.KEYBOARD_ARROW_RIGHT,
             semantics_label="Expand credit cards section",
@@ -75,20 +85,26 @@ class TestToggleHandler:
 
 class TestUpdateCcInfo:
     def test_no_cc_accounts_clears_container(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_accounts = []
         dash._update_cc_info()
         assert dash.cc_info_container.content is None
 
     def test_builds_chevron_and_wrapper(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_accounts = [{"id": "cc1", "name": "Test Card", "balance": -100.0}]
         dash._update_cc_info()
         assert dash._cc_chevron is not None
         assert dash._cc_cards_wrapper is not None
 
     def test_default_collapsed_after_initial_build(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_accounts = [{"id": "cc1", "name": "Test Card", "balance": -100.0}]
         dash._update_cc_info()
         # Default state is collapsed → wrapper hidden, chevron RIGHT.
@@ -98,7 +114,9 @@ class TestUpdateCcInfo:
         assert dash._cc_chevron.icon == ft.Icons.KEYBOARD_ARROW_RIGHT
 
     def test_respects_expanded_state_across_rebuilds(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_accounts = [{"id": "cc1", "name": "Test Card", "balance": -100.0}]
         dash._cc_section_expanded = True
         dash._update_cc_info()
@@ -117,7 +135,7 @@ class TestUpdateCcInfo:
         prefs.set_cc_excluded("cc3", excluded=True)
         dash = DashboardView(
             session_manager=patched_session_manager,
-            on_logout=lambda: None,
+            on_logout=lambda _notice: None,
             preferences=prefs,
         )
         dash._cc_accounts = [
@@ -165,7 +183,9 @@ class TestRunForecastCcStrip:
 
         from src.data.models import RecurringItem
 
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._selected_account_id = "chk1"
         dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 1000.0}]
         dash._txn_history = []
@@ -231,7 +251,9 @@ class TestNextCcDueDate:
 
         from src.forecast.credit_cards import _next_month_day
 
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         # Billing settings but NO charges in history: the estimator skips
         # such a card unless an override exists, so _next_cc_due_date must
         # inject a placeholder override to recover the settings due date.
@@ -250,6 +272,8 @@ class TestNextCcDueDate:
         assert due == (today if today.day == 15 else _next_month_day(today, 15))
 
     async def test_unknown_card_returns_none(self, patched_session_manager):
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         dash._cc_accounts = []
         assert dash._next_cc_due_date("nope") is None

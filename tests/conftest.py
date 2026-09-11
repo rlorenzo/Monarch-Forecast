@@ -32,3 +32,20 @@ def patched_session_manager(tmp_path: Path, monkeypatch):
     with patch("src.auth.session_manager.keyring") as mock_keyring:
         mock_keyring.get_password.return_value = None
         yield SessionManager()
+
+
+@pytest.fixture(autouse=True)
+def _redirect_demo_paths(tmp_path: Path, monkeypatch):
+    """Keep demo-mode's files out of the developer's real home directory.
+
+    ``erase_demo_data`` and the demo dashboard both resolve their paths
+    from ``src.data.demo_data`` at call time, and both *delete* what they
+    find. Without this, running the suite wipes the real
+    ``~/.monarch-forecast/demo-*`` files — which can hold one-offs typed
+    while exploring demo mode. Autouse rather than per-test because the
+    tests that reach these paths do so indirectly (via
+    ``DashboardView._erase_local_data`` or ``main``'s auto-demo branch),
+    so opting in is something a future test would forget.
+    """
+    monkeypatch.setattr("src.data.demo_data.DEMO_CACHE_DB", tmp_path / "demo-cache.db")
+    monkeypatch.setattr("src.data.demo_data.DEMO_PREFS_FILE", tmp_path / "demo-preferences.json")

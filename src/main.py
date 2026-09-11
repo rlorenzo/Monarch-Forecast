@@ -1,11 +1,10 @@
 """Monarch Forecast - Financial forecasting desktop app."""
 
 import os
-from pathlib import Path
 
 import flet as ft
 
-from src.auth.login_view import LoginView
+from src.auth.login_view import LoginNotice, LoginView
 from src.auth.session_manager import DemoSessionManager, SessionManager
 from src.data import demo_data
 from src.data.cache import DataCache
@@ -14,7 +13,12 @@ from src.data.preferences import Preferences
 from src.utils.assets import ASSETS_DIR
 from src.utils.updater import get_current_version
 from src.views import tokens
-from src.views.dashboard import CONTENT_HORIZONTAL_PADDING, DashboardView
+from src.views.dashboard import (
+    CONTENT_HORIZONTAL_PADDING,
+    ERASE_DONE_NOTICE,
+    ERASE_FAILED_NOTICE,
+    DashboardView,
+)
 from src.views.side_nav import RAIL_WIDTH
 from src.views.transactions_table import LEDGER_COLUMNS_WIDTH
 
@@ -95,11 +99,6 @@ def dispatch_keyboard_shortcut(
         return True
 
     return False
-
-
-_DATA_DIR = Path.home() / ".monarch-forecast"
-DEMO_CACHE_DB = _DATA_DIR / "demo-cache.db"
-DEMO_PREFS_FILE = _DATA_DIR / "demo-preferences.json"
 
 
 async def main(page: ft.Page) -> None:
@@ -187,43 +186,55 @@ async def main(page: ft.Page) -> None:
         page.controls.clear()
         # Wipe the cache so edits to demo_data.py are picked up on next
         # launch instead of shadowed by the 30-minute TTL.
-        DEMO_CACHE_DB.unlink(missing_ok=True)
+        demo_data.DEMO_CACHE_DB.unlink(missing_ok=True)
         # Re-seed one-offs every launch: their dates are relative to
         # today, so a previously-saved set would have rolled into the
         # past and been filtered out.
-        demo_prefs = Preferences(path=DEMO_PREFS_FILE)
+        demo_prefs = Preferences(path=demo_data.DEMO_PREFS_FILE)
         demo_prefs.set_one_off_transactions(demo_data.build_one_off_transactions())
         dashboard = DashboardView(
             session_manager=DemoSessionManager(),
-            on_logout=lambda: page.run_task(show_login),
+            on_logout=lambda notice: page.run_task(show_login, notice),
             raw_client=DemoClient(),
-            cache=DataCache(db_path=DEMO_CACHE_DB),
+            cache=DataCache(db_path=demo_data.DEMO_CACHE_DB),
             preferences=demo_prefs,
         )
         page.controls.append(dashboard)
         page.update()
         await dashboard.load_data()
 
-    async def do_logout() -> None:
-        _get_session_manager().logout()
-        await show_login()
+    async def do_logout(notice: LoginNotice | None = None) -> None:
+        # Credentials and the session file are the session manager's to
+        # drop, on both the plain sign-out and the erase path; the
+        # dashboard has already dealt with the cache and preferences.
+        #
+        # This is the last place that learns anything about the erase, so
+        # it is the only place that can downgrade the dashboard's verdict.
+        # A locked keychain or an unlinkable session.pickle leaves the
+        # account reachable from this computer, which is exactly what the
+        # dialog promised to undo — "erased" would be a lie. Sign-out
+        # itself still proceeds: the user is told, not trapped.
+        if not _get_session_manager().logout() and notice == ERASE_DONE_NOTICE:
+            notice = ERASE_FAILED_NOTICE
+        await show_login(notice)
 
     async def show_dashboard() -> None:
         page.controls.clear()
         dashboard = DashboardView(
             session_manager=_get_session_manager(),
-            on_logout=lambda: page.run_task(do_logout),
+            on_logout=lambda notice: page.run_task(do_logout, notice),
         )
         page.controls.append(dashboard)
         page.update()
         await dashboard.load_data()
 
-    async def show_login() -> None:
+    async def show_login(notice: LoginNotice | None = None) -> None:
         page.controls.clear()
         login_view = LoginView(
             session_manager=_get_session_manager(),
             on_login_success=lambda: page.run_task(show_dashboard),
             on_demo=lambda: page.run_task(show_demo_dashboard),
+            notice=notice,
         )
         page.controls.append(
             ft.Container(

@@ -341,6 +341,49 @@ def _ledger_dropdown(
     )
 
 
+def dialog_action_button(
+    label: str,
+    *,
+    on_click: Callable[[ft.Event[ft.Button]], Any],
+    bgcolor: str = tokens.CORAL,
+    hover_bgcolor: str = tokens.CORAL_DEEP,
+    color: str = tokens.PAPER,
+    autofocus: bool = False,
+) -> ft.Button:
+    """A dialog action built on a real button, so it can hold focus.
+
+    ``coral_button`` renders a Container, and a Container cannot take
+    focus. AGENTS.md asks every dialog to pull focus into the modal —
+    through a first TextField, or failing that through an action button —
+    so dialogs with no fields use this instead. The surface colour rides
+    on ``ButtonStyle``, which Material honours; a control-level
+    ``bgcolor`` gets swallowed by ``ft.FilledButton``'s tonal elevation.
+    A real button also announces itself to screen readers without the
+    ``Semantics`` wrapper the Container version needs.
+    """
+    return ft.Button(
+        label,
+        on_click=on_click,
+        autofocus=autofocus,
+        tooltip=label,
+        style=ft.ButtonStyle(
+            bgcolor={
+                ft.ControlState.HOVERED: hover_bgcolor,
+                ft.ControlState.DEFAULT: bgcolor,
+            },
+            color=color,
+            elevation=0,
+            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+            shape=ft.RoundedRectangleBorder(radius=6),
+            text_style=ft.TextStyle(
+                font_family=tokens.FONT_BODY,
+                size=14,
+                weight=ft.FontWeight.W_600,
+            ),
+        ),
+    )
+
+
 def coral_button(
     label: str,
     *,

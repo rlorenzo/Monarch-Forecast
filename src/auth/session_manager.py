@@ -4,6 +4,7 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 import keyring
 import keyring.errors
@@ -49,6 +50,22 @@ def _session_file_is_safe_to_load(path: Path) -> bool:
     return not st.st_mode & 0o022
 
 
+def _credential_is_gone(key: str) -> bool:
+    """Whether `key` reads back as absent from the keychain.
+
+    Proof of absence, not a best guess: only a clean ``None`` counts. A
+    value means the credential survived, and a read that fails means we
+    cannot tell — both report "still there", because an erase that is
+    unsure must not print "erased" over a live credential.
+    """
+    try:
+        return keyring.get_password(SERVICE_NAME, key) is None
+    except Exception:
+        # Locked keychain, dead backend, anything else — no proof. Nothing
+        # here may raise: logout() promises not to.
+        return False
+
+
 # HTTP statuses that mean the saved credential itself was refused. Every other
 # failure — timeout, DNS, connection reset, 5xx — is about reaching Monarch,
 # not about the token.
@@ -85,12 +102,27 @@ def _is_credential_rejection(exc: BaseException) -> bool:
     return getattr(exc, "code", None) in _AUTH_REJECTED_STATUSES
 
 
-def _discard_session_file() -> None:
-    """Remove the session file, tolerating anything that isn't a file."""
+def _discard_session_file() -> bool:
+    """Remove the session file, tolerating anything that isn't a file.
+
+    Returns True when nothing is left at the path — a session file that
+    was never written counts. The restore paths ignore the verdict (they
+    are dropping a session they already know is unusable); ``logout()``
+    uses it, because an "erase everything" that leaves a loadable session
+    on disk must not report success.
+
+    Deliberately not ``src.utils.files.erase_file``, which does the same
+    thing for the cache and preferences: ``src.auth`` is a leaf module in
+    tach.toml (``depends_on = []``) and importing a helper this small is
+    not worth widening that boundary.
+    """
     try:
         SESSION_FILE.unlink()
+    except FileNotFoundError:
+        return True
     except OSError:
-        pass
+        return False
+    return True
 
 
 def _chmod_session_file() -> None:
@@ -138,6 +170,13 @@ def _prepare_session_file_for_write() -> None:
 class SessionManager:
     """Handles login, MFA, and session token persistence."""
 
+    # Whether this session has credentials, a session file, and real cached
+    # data of its own on this computer. Views read this instead of
+    # type-testing the class, so a future session kind declares its own
+    # answer here rather than being missed by an ``isinstance`` check in
+    # some view that predates it.
+    owns_local_data: ClassVar[bool] = True
+
     def __init__(self) -> None:
         SESSION_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
         # mode= on mkdir only applies when the directory is created; if it
@@ -168,12 +207,38 @@ class SessionManager:
         password = keyring.get_password(SERVICE_NAME, "password")
         return email, password
 
-    def clear_credentials(self) -> None:
+    def clear_credentials(self) -> bool:
+        """Drop the keychain entries, reporting whether they are all gone.
+
+        Deleting an entry that was never saved is not a failure — a user who
+        signed in without "remember me" has nothing to fail at — but the
+        exception type alone cannot establish that is what happened.
+        Absence is confirmed by reading the credential back; see
+        `_credential_is_gone`.
+        """
+        cleared = True
         for key in ("email", "password"):
             try:
                 keyring.delete_password(SERVICE_NAME, key)
             except keyring.errors.PasswordDeleteError:
-                pass
+                # Usually "nothing stored under this key", but not always:
+                # the macOS backend wraps *every* Security API error in
+                # PasswordDeleteError, KeychainDenied included, so a refusal
+                # to delete a credential that is very much still there lands
+                # here rather than in the KeyringError branch below. Only a
+                # read-back tells the two apart.
+                if not _credential_is_gone(key):
+                    cleared = False
+            except keyring.errors.KeyringError:
+                # KeyringLocked, InitError and NoKeyringError are
+                # PasswordDeleteError's siblings under KeyringError, and
+                # they mean the opposite thing: the password may well still
+                # be in the keychain. Still swallowed — raising out of
+                # logout() would strand the user on a dashboard whose cache
+                # and preferences an erase has already deleted — but
+                # reported, so the erase does not claim to be complete.
+                cleared = False
+        return cleared
 
     async def try_restore_session(self) -> bool:
         """Attempt to restore a saved session. Returns True if successful.
@@ -240,14 +305,22 @@ class SessionManager:
         _chmod_session_file()
         self._authenticated = True
 
-    def logout(self) -> None:
+    def logout(self) -> bool:
+        """Sign out, returning True when no credential or session remains.
+
+        Never raises: _discard_session_file() swallows OSError (not just
+        FileNotFoundError) so a planted directory at SESSION_FILE doesn't
+        crash logout — unlink() can't remove dirs and raises
+        IsADirectoryError — and clear_credentials() swallows keyring
+        errors. Both report what they could not remove instead, because
+        the erase path turns this into what the user is told.
+        """
         self._authenticated = False
-        self.clear_credentials()
-        # Best-effort cleanup: _discard_session_file() swallows OSError (not
-        # just FileNotFoundError) so a planted directory at SESSION_FILE
-        # doesn't crash logout — unlink() can't remove dirs and raises
-        # IsADirectoryError.
-        _discard_session_file()
+        # Both run before the verdict: a locked keychain must not skip the
+        # session file, which is the half that keeps an account reachable.
+        credentials_cleared = self.clear_credentials()
+        session_discarded = _discard_session_file()
+        return credentials_cleared and session_discarded
 
 
 class DemoSessionManager(SessionManager):
@@ -259,6 +332,11 @@ class DemoSessionManager(SessionManager):
     its own `raw_client` override to DashboardView.
     """
 
+    # No keychain entry, no session file, and only the throwaway ``demo-*``
+    # files — so an "erase everything on this computer" action offered here
+    # could not honour its own promise.
+    owns_local_data: ClassVar[bool] = False
+
     def __init__(self) -> None:
         # Skip super().__init__ — no MonarchMoney, no keychain, no filesystem.
         self._mm = None  # type: ignore[assignment]
@@ -267,8 +345,9 @@ class DemoSessionManager(SessionManager):
     def load_credentials(self) -> tuple[str | None, str | None]:
         return (DEMO_EMAIL, None)
 
-    def logout(self) -> None:
-        pass
+    def logout(self) -> bool:
+        # Nothing to remove: no keychain entry and no session file.
+        return True
 
     async def try_restore_session(self) -> bool:
         return True

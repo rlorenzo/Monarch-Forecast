@@ -381,6 +381,7 @@ def _make_side_nav(icon_path: str | None = None) -> SideNav:
         on_refresh=lambda: None,
         on_logout=lambda: None,
         on_about=lambda: None,
+        on_erase_data=lambda: None,
         user_email="user@example.com",
         icon_path=icon_path,
     )
@@ -431,6 +432,7 @@ class TestSideNavLogo:
             on_refresh=lambda: None,
             on_logout=lambda: None,
             on_about=lambda: None,
+            on_erase_data=lambda: None,
             user_email="",
             icon_path="data:image/png;base64,XX",
         )
@@ -446,6 +448,7 @@ class TestSideNavLogo:
             on_refresh=lambda: None,
             on_logout=lambda: None,
             on_about=lambda: None,
+            on_erase_data=lambda: None,
             user_email="",
             icon_path=None,
         )

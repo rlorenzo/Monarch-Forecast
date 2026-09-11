@@ -212,3 +212,13 @@ class CachedMonarchClient:
 
     def clear_cache(self) -> None:
         self._cache.clear()
+
+    def erase_cache(self) -> bool:
+        """Delete the cache database outright, not just its rows.
+
+        The client is unusable afterwards — ``DataCache.erase`` closes the
+        connection this instance holds — so this is only for the sign-out
+        and erase paths, which navigate away immediately. Returns whatever
+        ``DataCache.erase`` reports: False means cache.db is still on disk.
+        """
+        return self._cache.erase()

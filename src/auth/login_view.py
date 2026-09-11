@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
 import flet as ft
 from monarchmoney import (
@@ -24,6 +24,20 @@ CAPTCHA_STATUS_MESSAGE = (
 )
 
 
+class LoginNotice(NamedTuple):
+    """A message to show on the login screen the moment it opens.
+
+    The dashboard is torn down before the login view is built, so anything
+    it still needs to tell the user — a cache it could not clear, an erase
+    that succeeded — has to travel as data rather than as a control. The
+    status line is already a Semantics live region, so a notice delivered
+    this way is announced to screen readers like any sign-in failure.
+    """
+
+    message: str
+    color: str
+
+
 class LoginView(ft.Column):
     """Login form with email, password, and optional MFA fields."""
 
@@ -35,6 +49,7 @@ class LoginView(ft.Column):
         # value is unused either way.
         on_login_success: Callable[[], Any],
         on_demo: Callable[[], Any],
+        notice: LoginNotice | None = None,
     ) -> None:
         super().__init__()
         self.session_manager = session_manager
@@ -107,8 +122,8 @@ class LoginView(ft.Column):
             ),
         )
         self.status_text = ft.Text(
-            value="",
-            color=ft.Colors.RED_400,
+            value=notice.message if notice else "",
+            color=notice.color if notice else ft.Colors.RED_400,
             size=13,
         )
         # Wrap the status text in a Semantics live region so assistive tech

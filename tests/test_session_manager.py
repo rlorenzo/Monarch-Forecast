@@ -72,9 +72,65 @@ class TestCredentials:
         import keyring.errors
 
         mock_keyring.delete_password.side_effect = keyring.errors.PasswordDeleteError()
+        # Read-back finds nothing, which is what makes this "never saved"
+        # rather than "refused to delete".
+        mock_keyring.get_password.return_value = None
         mock_keyring.errors = keyring.errors
         sm = SessionManager()
-        sm.clear_credentials()  # should not raise
+        # Nothing stored is not a failure: no credential is left either way,
+        # so an erase built on this verdict can still say it is complete.
+        assert sm.clear_credentials() is True
+
+    @patch("src.auth.session_manager.keyring")
+    def test_a_denied_delete_is_reported_even_as_passworddeleteerror(
+        self, mock_keyring, tmp_session
+    ):
+        """PasswordDeleteError does not mean the credential was absent.
+
+        keyring's macOS backend funnels every Security API error into
+        PasswordDeleteError — KeychainDenied and SecAuthFailure included —
+        so the "nothing was stored" branch would otherwise report success
+        over a credential macOS simply refused to delete.
+        """
+        import keyring.errors
+
+        mock_keyring.delete_password.side_effect = keyring.errors.PasswordDeleteError(
+            "Can't delete password in keychain: KeychainDenied"
+        )
+        mock_keyring.get_password.return_value = "still-here"
+        mock_keyring.errors = keyring.errors
+        sm = SessionManager()
+        assert sm.clear_credentials() is False
+        assert mock_keyring.delete_password.call_count == 2
+
+    @patch("src.auth.session_manager.keyring")
+    def test_an_unverifiable_delete_is_reported_not_assumed_clear(self, mock_keyring, tmp_session):
+        """If the read-back itself fails, absence is unproven, so: failure."""
+        import keyring.errors
+
+        mock_keyring.delete_password.side_effect = keyring.errors.PasswordDeleteError()
+        mock_keyring.get_password.side_effect = keyring.errors.KeyringLocked()
+        mock_keyring.errors = keyring.errors
+        sm = SessionManager()
+        assert sm.clear_credentials() is False
+
+    @patch("src.auth.session_manager.keyring")
+    def test_a_locked_keychain_is_reported_not_raised(self, mock_keyring, tmp_session):
+        """A locked keychain may still be holding the password.
+
+        Swallowed so logout() cannot strand the user on a dashboard whose
+        cache and preferences an erase has already deleted, but reported —
+        "erased" would otherwise be printed over a live credential.
+        """
+        import keyring.errors
+
+        mock_keyring.delete_password.side_effect = keyring.errors.KeyringLocked()
+        mock_keyring.errors = keyring.errors
+        sm = SessionManager()
+        assert sm.clear_credentials() is False
+        # Both keys are still attempted — the first failure must not skip
+        # whichever one the keychain might have given up.
+        assert mock_keyring.delete_password.call_count == 2
 
 
 class TestSessionDirPermissions:
@@ -387,8 +443,8 @@ class TestLogin:
 
         sm = SessionManager()
         sm._authenticated = True
-        sm.logout()
 
+        assert sm.logout() is True
         assert sm.is_authenticated is False
         assert not session_file.exists()
 
@@ -424,8 +480,29 @@ class TestLogin:
         session_file.mkdir()
 
         sm = SessionManager()
-        sm.logout()  # must not raise
+        assert sm.logout() is False  # must not raise, but must not lie either
         assert session_file.is_dir()
+
+    @patch("src.auth.session_manager.keyring")
+    def test_logout_clears_the_session_even_when_the_keychain_is_locked(
+        self, mock_keyring, tmp_session, tmp_path
+    ):
+        """The session file is the half that keeps the account reachable.
+
+        A keyring failure must not short-circuit past it — and the verdict
+        still has to come back False, because the password may remain.
+        """
+        import keyring.errors
+
+        mock_keyring.delete_password.side_effect = keyring.errors.KeyringLocked()
+        mock_keyring.errors = keyring.errors
+        session_file = tmp_path / "session.pickle"
+        session_file.write_bytes(b"fake")
+
+        sm = SessionManager()
+
+        assert sm.logout() is False
+        assert not session_file.exists()
 
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX uid")
     @patch("src.auth.session_manager.keyring")

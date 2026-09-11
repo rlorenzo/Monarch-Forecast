@@ -9,10 +9,10 @@ PRODUCT.md, so the rail is built from primitives:
 - A `PAGES` section listing destinations as left-aligned text rows. Active
   state is a 2px coral vertical rule on the left edge of the row — no filled
   pill background. Honours the One Voice Rule.
-- A `ACTIONS` section at the bottom holding refresh + sign-out, with the
-  last-refresh timestamp tucked beneath in `ink-3`. Keeps actions out of the
-  destinations list (the previous design treated Refresh as a destination,
-  which was conceptually muddled).
+- A `ACTIONS` section at the bottom holding refresh, about, sign-out and
+  erase-local-data, with the last-refresh timestamp tucked beneath in
+  `ink-3`. Keeps actions out of the destinations list (the previous design
+  treated Refresh as a destination, which was conceptually muddled).
 - 1px `rule` hairline on the right edge instead of a Material divider.
 
 The component exposes ``selected_index`` (settable) and ``set_last_refresh``
@@ -174,6 +174,11 @@ class SideNav(ft.Container):
         on_refresh: Callable[[], None],
         on_logout: Callable[[], None],
         on_about: Callable[[], None],
+        # Optional: demo mode passes None, because a demo session has
+        # no credentials, session or real data of its own to erase and
+        # an action that cannot honour its own promise is worse than
+        # an absent one. None omits the row entirely.
+        on_erase_data: Callable[[], None] | None,
         user_email: str = "",
         icon_path: str | None = None,
     ) -> None:
@@ -281,6 +286,19 @@ class SideNav(ft.Container):
             sr_label="Sign out",
             on_click=on_logout,
         )
+        # Last in the block, below Sign out: the destructive action sits
+        # furthest from the cursor's resting place on the rows above it,
+        # and reads as the escalation of Sign out that it is.
+        erase_row: ft.Control = (
+            self._build_action_row(
+                icon=ft.Icons.DELETE_FOREVER_OUTLINED,
+                label="Erase local data",
+                sr_label="Erase local data from this computer",
+                on_click=on_erase_data,
+            )
+            if on_erase_data is not None
+            else ft.Container(height=0)
+        )
 
         actions_eyebrow = ft.Text(
             "ACTIONS",
@@ -302,7 +320,7 @@ class SideNav(ft.Container):
 
         # --- Layout -----------------------------------------------------
         # Vertical stack: wordmark → PAGES → destinations → spacer →
-        # ACTIONS → refresh (with timestamp) → about → sign-out → email.
+        # ACTIONS → refresh (with timestamp) → about → sign-out → erase → email.
         content = ft.Column(
             controls=[
                 ft.Container(
@@ -327,6 +345,7 @@ class SideNav(ft.Container):
                 ),
                 about_row,
                 logout_row,
+                erase_row,
                 ft.Container(
                     content=footer_email,
                     padding=ft.Padding.only(left=20, right=16, top=8, bottom=16),

@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 from src.data.preferences import Preferences
 
@@ -241,6 +242,89 @@ class TestCcOverrideExpiry:
         prefs = Preferences(path=tmp_path / "prefs.json")
         prefs.set_cc_amount_override("cc1", 500.0, expires_on=date.today())
         assert prefs.cc_amount_overrides == {"cc1": 500.0}
+
+
+class TestErase:
+    def test_erase_deletes_file(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        assert path.exists()
+        assert prefs.erase() is True
+        assert not path.exists()
+
+    def test_erase_resets_in_memory_and_does_not_resurrect(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        prefs.erase()
+        assert prefs.excluded_recurring_names == set()
+
+        # A subsequent setter (which triggers _save()) must not bring back
+        # the erased data — only the newly-set value should be written.
+        prefs.set_cc_excluded("cc-999", excluded=True)
+        fresh = Preferences(path=path)
+        assert fresh.excluded_recurring_names == set()
+        assert fresh.excluded_cc_ids == {"cc-999"}
+
+    def test_erase_missing_file_does_not_raise(self, tmp_path: Path):
+        prefs = Preferences(path=tmp_path / "prefs.json")
+        assert prefs.erase() is True  # never saved; nothing to delete
+
+    def test_erase_reports_a_file_it_could_not_remove(self, tmp_path: Path):
+        """Swallowed so one wedged file cannot abort the rest of an erase.
+
+        Reported, because the caller uses this to decide whether it can
+        tell the user their data is gone from this computer.
+        """
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+
+        with patch.object(Path, "unlink", side_effect=PermissionError("read-only")):
+            assert prefs.erase() is False
+
+        assert path.exists()
+
+    def test_a_wedged_file_does_not_skip_the_tmp_sidecar(self, tmp_path: Path):
+        """The verdict must not short-circuit past the second unlink.
+
+        The sidecar holds a full copy of the preferences, so skipping it
+        after a failure on the main file would leave the "erased" data on
+        disk in readable JSON.
+        """
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        sidecar = tmp_path / "prefs.json.tmp"
+        sidecar.write_text('{"excluded_recurring": ["leftover"]}')
+        real_unlink = Path.unlink
+
+        def refuse_the_main_file(self: Path, *args: object, **kwargs: object) -> None:
+            if self == path:
+                raise PermissionError("read-only")
+            real_unlink(self)
+
+        with patch.object(Path, "unlink", refuse_the_main_file):
+            assert prefs.erase() is False
+
+        assert not sidecar.exists()
+
+    def test_erase_twice_does_not_raise(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        assert prefs.erase() is True
+        assert prefs.erase() is True
+
+    def test_erase_removes_stale_tmp_file(self, tmp_path: Path):
+        path = tmp_path / "prefs.json"
+        prefs = Preferences(path=path)
+        prefs.set_recurring_excluded("Netflix", excluded=True)
+        tmp_file = tmp_path / "prefs.json.tmp"
+        tmp_file.write_text('{"excluded_recurring": ["leftover"]}')
+        assert prefs.erase() is True
+        assert not tmp_file.exists()
 
 
 class TestSymlinkSafety:
