@@ -160,7 +160,8 @@ jobs:
           BUNDLE_PY="$(find build/linux -type d -name 'python3.*' -print -quit)"
           BUNDLE_SP="$(find build/linux -type d -name 'site-packages' -print -quit)"
           if [ -z "$BUNDLE_PY" ] || [ ! -d "$BUNDLE_PY" ]; then
-            echo "::error::No python3.* directory anywhere under build/linux after flet build linux."
+            echo "::error::No python3.* directory anywhere under build/linux" \
+              "after flet build linux."
             echo "::error::Flet relocated or restructured the Python bundle; full tree below."
             find build/linux -type d | head -200
             exit 1
