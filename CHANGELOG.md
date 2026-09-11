@@ -7,6 +7,41 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.5.0] (2026-09-11)
+
+Adds a way to erase everything the app has stored locally, puts the Monarch
+Money disclaimer in front of users inside the app rather than only in the
+README, and collects the launch-speed, ledger, sign-in, and session fixes made
+since 1.4.1.
+
+### Added
+
+- **Erase local data.** A new action in the nav rail, below Sign out, removes
+  everything the app has written to this computer: the keychain credentials,
+  the saved session, `cache.db`, `preferences.json`, the first-run flag, and
+  any leftover demo-mode files. Sign out deliberately keeps your preferences —
+  the exclusions, overrides, and one-off transactions are your own work, and
+  dropping them on a routine sign-out would be a regression — so this is the
+  action for handing the machine on or clearing an account signed in by
+  mistake. It asks for confirmation, naming each store it will remove, and
+  cannot be undone. Nothing in your Monarch Money account is touched. Cancel
+  holds the keyboard focus rather than Erase, so Return dismisses the dialog
+  instead of destroying your data.
+
+- **An About dialog carrying the Monarch Money disclaimer.** Reached from the
+  nav rail, it states plainly that this app is not affiliated with, endorsed
+  by, or supported by Monarch Money, what the unofficial-API situation
+  actually is, and that the app reaches the network for two things only. The
+  same text lives under "Disclaimer" in the README, and a test fails if the
+  two drift apart.
+
+- Signing out now tells you when it could not clear the local cache. The
+  failure was always logged but never surfaced, so cached balances could
+  survive a sign-out with nobody the wiser. The message appears on the
+  sign-in screen, which is a live region, so screen readers announce it.
+  Sign-out still completes either way: refusing to sign you out because a
+  disk operation failed is the worse outcome.
+
 ### Changed
 
 - The Fraunces and Inter fonts now ship with the app instead of being fetched
@@ -15,6 +50,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   platform fallbacks, and every launch made an outbound request before
   painting. Adds ~1.2 MB to the bundle; the OFL licences ship beside the
   files as the licence requires.
+
+- Upgraded Flet 0.85.3 to 0.86.5 (and `flet-charts` to 0.86.5). Importing
+  `flet` drops from **0.352s to 0.047s** (medians of 9 warmed runs each, in
+  matched isolated venvs on an arm64 Mac) — about 305 ms off every launch
+  before the window is even created. Flutter engine boot and first paint are
+  on top of that and were not measured here, so treat 305 ms as the floor of
+  the launch improvement, not the whole of it. No application code changed: every
+  API this project pins — `ft.Border.all`, `page.show_dialog`/`pop_dialog`,
+  `page.services`, `ft.Event[T]` generics, async `Control.focus`, and
+  `flet_charts.LineChart` — is unchanged in 0.86.5.
+- `requirements.txt` tracks the same Flet pins as `pyproject.toml`. A test now
+  fails if the two manifests disagree.
+
+- GitPython moved to 3.1.61, clearing five advisories (one critical, two high,
+  two moderate). Development tooling only — it reaches this project through
+  `tach`, the module-boundary checker that runs in pre-commit and CI, and was
+  never present in a released build. No user was exposed.
 
 ### Fixed
 
@@ -43,20 +95,6 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   **with MFA** on the next launch. The file is now discarded only when Monarch
   actually refuses the credential (HTTP 401/403, or a session carrying no
   usable auth); everything else leaves it in place to retry.
-
-### Changed
-
-- Upgraded Flet 0.85.3 to 0.86.5 (and `flet-charts` to 0.86.5). Importing
-  `flet` drops from **0.352s to 0.047s** (medians of 9 warmed runs each, in
-  matched isolated venvs on an arm64 Mac) — about 305 ms off every launch
-  before the window is even created. Flutter engine boot and first paint are
-  on top of that and were not measured here, so treat 305 ms as the floor of
-  the launch improvement, not the whole of it. No application code changed: every
-  API this project pins — `ft.Border.all`, `page.show_dialog`/`pop_dialog`,
-  `page.services`, `ft.Event[T]` generics, async `Control.focus`, and
-  `flet_charts.LineChart` — is unchanged in 0.86.5.
-- `requirements.txt` tracks the same Flet pins as `pyproject.toml`. A test now
-  fails if the two manifests disagree.
 
 ## [1.4.1] (2026-09-03)
 
@@ -367,7 +405,9 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.0
+[1.4.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.4.1
 [1.4.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.4.0
 [1.3.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.1
 [1.3.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.3.0
