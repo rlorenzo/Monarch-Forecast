@@ -163,8 +163,21 @@ reverse-engineered API client, since Monarch Money does not offer a public API
   overrides, and one-off transactions.
 - **Transaction cache**: SQLite database at
   `~/.monarch-forecast/cache.db` caching recent Monarch data to avoid
-  hammering the API on every launch. Cleared on logout. Preferences are
-  kept across logins; delete `preferences.json` to reset them.
+  hammering the API on every launch. Cleared on logout.
+
+**Sign out** keeps your preferences. The exclusions, overrides, and one-off
+transactions you have built up are your own work, so signing out leaves them
+in place for the next time you sign in. If a sign-out cannot clear the cache
+— a locked database, a read-only disk — the app says so on the login screen
+rather than leaving you to assume the cached balances are gone.
+
+**Erase local data** (in the nav rail, below Sign out) is the action that
+takes everything: keychain credentials, the session token, `cache.db`,
+`preferences.json`, the first-run flag, and any leftover demo-mode files. It
+asks for confirmation, cannot be undone, and signs you out when it finishes.
+Nothing in your Monarch Money account is touched. Demo mode does not offer
+the action — a demo session has no credentials or real data of its own, and
+an action that cannot honour its own promise is worse than an absent one.
 
 Your financial data is only sent to Monarch Money's servers. The only
 other outbound request is an update check to the GitHub Releases API on

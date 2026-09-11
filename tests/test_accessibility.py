@@ -182,7 +182,9 @@ class TestIconButtonLabels:
     def test_dashboard_icon_buttons(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dashboard = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         _assert_every_icon_button_is_labeled(dashboard, "DashboardView")
 
     def test_login_view_icon_buttons(self, patched_session_manager):
@@ -268,7 +270,9 @@ class TestFilterChipsHaveLabeledSemantics:
     def test_dashboard_mode_chips(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        dash = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         self._assert_chips_wrapped(dash._txn_mode_row, "dashboard mode toggle")
 
     def test_sortable_date_header_is_a_labeled_button(self):

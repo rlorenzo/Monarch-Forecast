@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from src.data.models import ForecastTransaction
+from src.utils.files import erase_file
 
 PREFS_DIR = Path.home() / ".monarch-forecast"
 PREFS_FILE = PREFS_DIR / "preferences.json"
@@ -44,6 +45,16 @@ class Preferences:
         except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError
             self._data = {}
 
+    @property
+    def _tmp_path(self) -> Path:
+        """Sibling temp file ``_save`` writes through and ``erase`` removes.
+
+        Derived in one place so the two can't drift: if this naming ever
+        changes in ``_save`` alone, ``erase`` would silently leave a full
+        copy of the "erased" preferences on disk.
+        """
+        return self._path.with_suffix(".json.tmp")
+
     def _save(self) -> None:
         # Write-to-temp + atomic rename so a crash mid-write can't leave a
         # truncated preferences.json (which _load would silently reset,
@@ -58,7 +69,7 @@ class Preferences:
         # at the temp path in the unlink-to-open window, the save fails
         # closed instead of writing through it. os.replace does not follow
         # a symlink at the destination; it replaces the link itself.
-        tmp_path = self._path.with_suffix(".json.tmp")
+        tmp_path = self._tmp_path
         try:
             tmp_path.unlink()
         except FileNotFoundError:
@@ -70,6 +81,30 @@ class Preferences:
         with os.fdopen(fd, "w") as fh:
             fh.write(json.dumps(self._data, indent=2))
         os.replace(tmp_path, self._path)
+
+    def erase(self) -> bool:
+        """Permanently delete the preferences file and reset in-memory state.
+
+        Resets ``self._data`` first: ``_save()`` recreates the file via
+        ``os.replace(tmp_path, self._path)`` from whatever is in memory, so
+        deleting the file alone would let a later ``_save()`` resurrect the
+        erased preferences from the stale dict. Also removes the sibling
+        ``.json.tmp`` file, which a crash mid-``_save`` can leave behind
+        holding the same data. Does not call ``_save()`` — callers erase,
+        they don't recreate. Safe to call repeatedly, including when no
+        preferences file was ever written.
+
+        Returns True when neither file is left on disk; never raises, so a
+        wedged preferences file cannot stop a caller from erasing the rest.
+        A planted directory or a permissions failure returns False rather
+        than passing silently, because the caller uses this to decide
+        whether it can tell the user their data is gone.
+        """
+        self._data = {}
+        # Both unlinks run before the verdict — a list, not a generator, so
+        # a failed ``self._path`` cannot short-circuit past the sidecar and
+        # leave a full copy of the "erased" preferences behind.
+        return all([erase_file(self._path), erase_file(self._tmp_path)])
 
     @property
     def excluded_recurring_names(self) -> set[str]:

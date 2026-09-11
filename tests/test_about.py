@@ -189,6 +189,7 @@ class TestNavRailEntry:
             on_refresh=lambda: None,
             on_logout=lambda: None,
             on_about=lambda: None,
+            on_erase_data=lambda: None,
             **kwargs,
         )
 
@@ -211,6 +212,7 @@ class TestNavRailEntry:
             on_refresh=lambda: None,
             on_logout=lambda: None,
             on_about=lambda: calls.append(1),
+            on_erase_data=lambda: None,
         )
         row = next(
             c
@@ -228,7 +230,9 @@ class TestDashboardWiring:
     """The rail's callback has to reach the dialog."""
 
     def test_handle_about_opens_the_dialog(self, patched_session_manager):
-        dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+        dashboard = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
         page = MagicMock(spec=ft.Page)
         with patch.object(ft.BaseControl, "page", new_callable=PropertyMock, return_value=page):
             dashboard._handle_about()

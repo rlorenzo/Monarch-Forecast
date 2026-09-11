@@ -1,11 +1,13 @@
 """Tests for the data cache."""
 
 import os
+import sqlite3
 import stat
 import sys
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -104,6 +106,107 @@ class TestDataCache:
             assert mode == 0o700, f"expected 0o700, got {oct(mode)}"
         finally:
             c.close()
+
+    def test_erase_removes_db_file(self, tmp_path: Path):
+        db_path = tmp_path / "erase.db"
+        c = DataCache(db_path=db_path)
+        c.set("k", "v")
+        c.erase()
+        assert not db_path.exists()
+
+    def test_erase_data_gone_from_fresh_instance(self, tmp_path: Path):
+        db_path = tmp_path / "erase.db"
+        c = DataCache(db_path=db_path)
+        c.set("k", "v")
+        c.erase()
+        fresh = DataCache(db_path=db_path)
+        try:
+            assert fresh.get("k") is None
+        finally:
+            fresh.close()
+
+    def test_a_failed_row_wipe_still_removes_the_file(self, tmp_path: Path):
+        """Wiping the rows is the nice-to-have; removing the file is the point.
+
+        ``clear()`` can raise ``OperationalError`` — a read-only disk, or the
+        file unlinked out from under the open connection. If that escaped,
+        ``erase()`` would skip the close and unlink and leave cache.db,
+        transaction bytes and all, sitting on disk.
+        """
+        db = tmp_path / "c.db"
+        cache = DataCache(db_path=db)
+        cache.set("txn_history:abc:750", [{"amount": 1.0}])
+        cache.clear = MagicMock(  # type: ignore[method-assign]
+            side_effect=sqlite3.OperationalError("attempt to write a readonly database")
+        )
+
+        assert cache.erase() is True  # the file went; the rows went with it
+
+        assert not db.exists()
+
+    def test_an_erased_cache_answers_empty_instead_of_raising(self, tmp_path: Path):
+        """A refresh suspended on a network call can resume after an erase.
+
+        The connection it held is gone by then. Raising there would surface
+        as an unhandled error in a detached task with nowhere to report it,
+        so the erased cache behaves as an empty one.
+        """
+        cache = DataCache(db_path=tmp_path / "c.db")
+        cache.set("txn_history:abc:750", [{"amount": 1.0}])
+        cache.erase()
+
+        assert cache.get("txn_history:abc:750") is None
+        cache.set("txn_history:abc:750", [{"amount": 2.0}])
+        cache.delete("txn_history:abc:750")
+        cache.clear()
+
+    def test_a_late_write_cannot_recreate_the_erased_file(self, tmp_path: Path):
+        """The whole promise is that the file is gone and stays gone."""
+        db = tmp_path / "c.db"
+        cache = DataCache(db_path=db)
+        cache.erase()
+
+        cache.set("txn_history:abc:750", [{"amount": 1.0}])
+
+        assert not db.exists()
+
+    def test_erase_twice_does_not_raise(self, tmp_path: Path):
+        db_path = tmp_path / "erase.db"
+        c = DataCache(db_path=db_path)
+        c.set("k", "v")
+        c.erase()
+        c.erase()
+
+    def test_erase_survives_an_unlink_that_will_not_happen(self, tmp_path: Path):
+        """A read-only directory can refuse the unlink; erase must not raise.
+
+        The rows are still wiped by ``clear()``, so the cached transactions
+        are gone from the file's contents even though the file survives —
+        which is the whole reason ``clear()`` runs before the unlink.
+        """
+        db = tmp_path / "c.db"
+        cache = DataCache(db_path=db)
+        cache.set("txn_history:abc:750", [{"amount": 1.0}])
+
+        with patch.object(Path, "unlink", side_effect=OSError("read-only")):
+            # Reported, not hidden: ``clear()``'s VACUUM is best-effort, so a
+            # file that survives can still hold the deleted rows in its free
+            # pages. Callers decide what to tell the user.
+            assert cache.erase() is False
+
+        assert db.exists()  # the unlink was refused
+        fresh = DataCache(db_path=db)
+        try:
+            assert fresh.get("txn_history:abc:750") is None  # rows still wiped
+        finally:
+            fresh.close()
+
+    def test_erase_when_file_already_gone_does_not_raise(self, tmp_path: Path):
+        db_path = tmp_path / "erase.db"
+        c = DataCache(db_path=db_path)
+        c.close()
+        db_path.unlink()
+        assert c.erase() is True  # nothing left to remove is not a failure
 
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks")
     def test_db_path_refuses_symlink(self, tmp_path: Path):

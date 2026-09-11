@@ -358,7 +358,7 @@ class TestDashboardTxnModeToggle:
     def _dashboard(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        return DashboardView(patched_session_manager, on_logout=lambda: None)
+        return DashboardView(patched_session_manager, on_logout=lambda _notice: None)
 
     def test_toggle_swaps_body_and_button(self, patched_session_manager):
         dash = self._dashboard(patched_session_manager)
@@ -448,7 +448,7 @@ class TestBothMode:
     def _dashboard(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        return DashboardView(patched_session_manager, on_logout=lambda: None)
+        return DashboardView(patched_session_manager, on_logout=lambda _notice: None)
 
     def test_both_mode_combines_ledgers(self, patched_session_manager):
         dash = self._dashboard(patched_session_manager)
@@ -508,7 +508,7 @@ class TestSortOrder:
     def _dashboard(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        return DashboardView(patched_session_manager, on_logout=lambda: None)
+        return DashboardView(patched_session_manager, on_logout=lambda _notice: None)
 
     def test_defaults_to_oldest_first_everywhere(self, patched_session_manager):
         dash = self._dashboard(patched_session_manager)
@@ -582,7 +582,7 @@ class TestToggleGuard:
     ):
         from src.views.dashboard import DashboardView
 
-        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(patched_session_manager, on_logout=lambda _notice: None)
         assert dash._current_nav_index == 0  # Overview
         dash._dirty_cc_cards = {"cc1": {"name": "Card"}}
         monkeypatch.setattr(dash, "_show_unsaved_cc_dialog", lambda: None)

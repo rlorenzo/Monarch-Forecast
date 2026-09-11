@@ -13,7 +13,50 @@ preferences on every demo launch so the deficit is always visible.
 from datetime import date, timedelta
 from typing import Any
 
+from src.data.cache import CACHE_DIR
 from src.data.models import ForecastTransaction
+from src.data.preferences import Preferences
+from src.utils.files import erase_file
+
+# Demo mode keeps its own cache and preferences so experimenting never
+# touches the real ones. They live here rather than in ``src.main`` so
+# that "Erase local data" can remove them too: they are written under
+# the app's own directory and can hold adjustments the user typed while
+# exploring, which "erase everything" has to mean.
+DEMO_CACHE_DB = CACHE_DIR / "demo-cache.db"
+DEMO_PREFS_FILE = CACHE_DIR / "demo-preferences.json"
+
+
+def erase_demo_data() -> bool:
+    """Remove demo mode's cache and preferences, tolerating their absence.
+
+    The preferences half goes through ``Preferences.erase`` rather than a
+    bare unlink so the two stay in sync by construction: ``_save`` writes
+    a sibling ``.json.tmp`` that a crash can leave behind holding a full
+    copy, and only ``Preferences.erase`` knows to remove it. A hand-rolled
+    unlink here would silently leave that copy on disk — and would go on
+    missing whatever sidecar ``_save`` grows next.
+
+    The cache half stays a plain unlink: opening a demo ``cache.db`` just
+    to erase it would fail on a corrupt file, and the whole point of this
+    path is that the file goes regardless of what is inside it.
+
+    Never raises, in the same way the other erase paths don't: one wedged
+    file must not stop the rest of an erase from running. Absence is
+    success — most users never open demo mode — but a planted directory or
+    a permissions failure returns False, so the caller does not report a
+    completeness it did not reach.
+    """
+    cache_erased = erase_file(DEMO_CACHE_DB)
+    try:
+        prefs_erased = Preferences(path=DEMO_PREFS_FILE).erase()
+    except OSError:
+        # ``Preferences.__init__`` mkdirs its parent, which is outside the
+        # handling ``erase`` does internally: a file planted where the
+        # directory belongs raises NotADirectoryError from the constructor.
+        prefs_erased = False
+    return cache_erased and prefs_erased
+
 
 CHECKING_ID = "demo-checking"
 CHECKING_NAME = "Everyday Checking"

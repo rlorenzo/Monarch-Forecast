@@ -37,7 +37,7 @@ def dashboard(patched_session_manager, tmp_path: Path):
     prefs.set_onboarding_seen(True)
     dash = DashboardView(
         session_manager=patched_session_manager,
-        on_logout=lambda: None,
+        on_logout=lambda _notice: None,
         preferences=prefs,
     )
 
@@ -368,7 +368,7 @@ class TestSplitHistoryFetch:
         from src.forecast.credit_cards import CC_HISTORY_DAYS
         from src.views.dashboard import DashboardView
 
-        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(patched_session_manager, on_logout=lambda _notice: None)
         dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 100.0}]
         dash._cc_accounts = [
             {"id": "cc1", "name": "Card", "balance": -50.0},

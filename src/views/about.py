@@ -10,13 +10,12 @@ two in sync.
 """
 
 import webbrowser
-from collections.abc import Callable
 
 import flet as ft
 
 from src.utils.updater import get_current_version
 from src.views import tokens
-from src.views.adjustments import _dialog_title
+from src.views.adjustments import _dialog_title, dialog_action_button
 
 REPO_URL = "https://github.com/rlorenzo/Monarch-Forecast"
 MONARCH_URL = "https://www.monarchmoney.com/"
@@ -60,41 +59,6 @@ def _md_style() -> ft.MarkdownStyleSheet:
     return ft.MarkdownStyleSheet(p_text_style=body, a_text_style=link)
 
 
-def _close_button(on_click: Callable[[ft.Event[ft.Button]], None]) -> ft.Control:
-    """The coral Close action, built on a real button so it can take focus.
-
-    ``coral_button`` renders a Container, and a Container cannot hold
-    focus. AGENTS.md asks a dialog's primary action to carry
-    ``autofocus=True`` unless a first TextField takes it instead, and this
-    dialog has no fields — so Close wears the coral surface through
-    ``ButtonStyle``, which Material honours (unlike the control-level
-    ``bgcolor`` that its tonal elevation swallows on ``ft.FilledButton``).
-    A real button also announces itself to screen readers without the
-    ``Semantics`` wrapper the Container version needs.
-    """
-    return ft.Button(
-        "Close",
-        on_click=on_click,
-        autofocus=True,
-        tooltip="Close",
-        style=ft.ButtonStyle(
-            bgcolor={
-                ft.ControlState.HOVERED: tokens.CORAL_DEEP,
-                ft.ControlState.DEFAULT: tokens.CORAL,
-            },
-            color=tokens.PAPER,
-            elevation=0,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-            shape=ft.RoundedRectangleBorder(radius=6),
-            text_style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=14,
-                weight=ft.FontWeight.W_600,
-            ),
-        ),
-    )
-
-
 def _open_link(e: ft.Event[ft.Markdown]) -> None:
     url = e.data or ""
     if url in _ALLOWED_LINKS:
@@ -136,6 +100,6 @@ def show_about_dialog(page: ft.Page | ft.BasePage) -> None:
             width=460,
             scroll=ft.ScrollMode.AUTO,
         ),
-        actions=[_close_button(handle_close)],
+        actions=[dialog_action_button("Close", on_click=handle_close, autofocus=True)],
     )
     page.show_dialog(dialog)

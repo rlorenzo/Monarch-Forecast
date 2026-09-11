@@ -71,7 +71,9 @@ def test_ledger_body_sits_inside_a_horizontal_scroller(patched_session_manager):
     The only scrolling ancestor used to be a Column, which scrolls vertically,
     so a narrow window cut the last column off unreachably.
     """
-    dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+    dashboard = DashboardView(
+        session_manager=patched_session_manager, on_logout=lambda _notice: None
+    )
     body = dashboard._txn_tab_body
 
     ancestors = next(
@@ -94,6 +96,8 @@ def test_scrolled_ledger_body_keeps_a_bounded_width(patched_session_manager):
     are a layout error. The body has to carry its own finite width so those
     descendants still see a bounded constraint.
     """
-    dashboard = DashboardView(session_manager=patched_session_manager, on_logout=lambda: None)
+    dashboard = DashboardView(
+        session_manager=patched_session_manager, on_logout=lambda _notice: None
+    )
 
     assert dashboard._txn_tab_body.width == tt.LEDGER_COLUMNS_WIDTH

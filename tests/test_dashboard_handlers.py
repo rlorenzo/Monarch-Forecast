@@ -517,7 +517,7 @@ class TestForecastAccountIds:
     def test_scopes_to_checking_plus_cards(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(patched_session_manager, on_logout=lambda _notice: None)
         dash._checking_accounts = [{"id": "chk1", "name": "Checking", "balance": 100.0}]
         dash._cc_accounts = [{"id": "cc1", "name": "Card", "balance": -50.0}]
         assert dash._forecast_account_ids() == ["chk1", "cc1"]
@@ -525,5 +525,5 @@ class TestForecastAccountIds:
     def test_none_before_first_load_syncs_everything(self, patched_session_manager):
         from src.views.dashboard import DashboardView
 
-        dash = DashboardView(patched_session_manager, on_logout=lambda: None)
+        dash = DashboardView(patched_session_manager, on_logout=lambda _notice: None)
         assert dash._forecast_account_ids() is None
