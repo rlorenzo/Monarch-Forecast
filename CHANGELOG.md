@@ -9,92 +9,89 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [1.5.0] (2026-09-11)
 
-Adds a way to erase everything the app has stored locally, puts the Monarch
-Money disclaimer in front of users inside the app rather than only in the
-README, and collects the launch-speed, ledger, sign-in, and session fixes made
-since 1.4.1.
+You can now wipe everything Monarch Forecast has stored on your computer. The
+Monarch Money disclaimer has moved into the app itself rather than sitting only
+in a README nobody has to read. The rest is the launch-speed, ledger,
+sign-in, and session work done since 1.4.1.
 
 ### Added
 
-- **Erase local data.** A new action in the nav rail, below Sign out, removes
-  everything the app has written to this computer: the keychain credentials,
-  the saved session, `cache.db`, `preferences.json`, the first-run flag, and
-  any leftover demo-mode files. Sign out deliberately keeps your preferences —
-  the exclusions, overrides, and one-off transactions are your own work, and
-  dropping them on a routine sign-out would be a regression — so this is the
-  action for handing the machine on or clearing an account signed in by
-  mistake. It asks for confirmation, naming each store it will remove, and
-  cannot be undone. Nothing in your Monarch Money account is touched. Cancel
-  holds the keyboard focus rather than Erase, so Return dismisses the dialog
-  instead of destroying your data.
+- Erase local data, a new action in the nav rail below Sign out. It removes the
+  keychain credentials, the saved session, `cache.db`, `preferences.json`, the
+  first-run flag, and any leftover demo-mode files. Sign out deliberately keeps
+  your preferences, because the exclusions, overrides, and one-off transactions
+  are your own work and losing them on a routine sign-out would be a
+  regression. Erase is for the other case: handing the machine on, or clearing
+  an account you signed into by mistake. It asks first, and names each store it
+  will remove. It cannot be undone. Your Monarch Money account is untouched.
+  Cancel holds the keyboard focus, not Erase, so a stray Return closes the
+  dialog rather than destroying months of your own work.
 
-- **An About dialog carrying the Monarch Money disclaimer.** Reached from the
-  nav rail, it states plainly that this app is not affiliated with, endorsed
-  by, or supported by Monarch Money, what the unofficial-API situation
-  actually is, and that the app reaches the network for two things only. The
-  same text lives under "Disclaimer" in the README, and a test fails if the
-  two drift apart.
+- An About dialog, reached from the nav rail, carrying the Monarch Money
+  disclaimer. It says plainly that this app is not affiliated with, endorsed
+  by, or supported by Monarch Money, explains what the unofficial-API situation
+  actually is, and names the two things the app uses the network for. The same
+  text lives under "Disclaimer" in the README. A test fails if the two drift
+  apart.
 
 - Signing out now tells you when it could not clear the local cache. The
-  failure was always logged but never surfaced, so cached balances could
-  survive a sign-out with nobody the wiser. The message appears on the
-  sign-in screen, which is a live region, so screen readers announce it.
-  Sign-out still completes either way: refusing to sign you out because a
-  disk operation failed is the worse outcome.
+  failure was always logged, but nothing surfaced it, so cached balances could
+  outlive a sign-out with nobody the wiser. The message lands on the sign-in
+  screen, which is a live region, so screen readers announce it. Sign-out still
+  completes. Refusing to sign you out because a disk operation failed would be
+  the worse outcome by far.
 
 ### Changed
 
-- The Fraunces and Inter fonts now ship with the app instead of being fetched
-  from `raw.githubusercontent.com` at launch. A first run offline, a GitHub
-  outage, or a moved upstream path used to fall through silently to the
-  platform fallbacks, and every launch made an outbound request before
-  painting. Adds ~1.2 MB to the bundle; the OFL licences ship beside the
-  files as the licence requires.
+- The Fraunces and Inter fonts ship with the app now. They used to be fetched
+  from `raw.githubusercontent.com` at launch, so a first run offline, a GitHub
+  outage, or a moved upstream path fell through silently to the platform
+  fallbacks, and every launch made an outbound request before painting. This
+  adds about 1.2 MB to the bundle. The OFL licences ship beside the files, as
+  the licence requires.
 
-- Upgraded Flet 0.85.3 to 0.86.5 (and `flet-charts` to 0.86.5). Importing
-  `flet` drops from **0.352s to 0.047s** (medians of 9 warmed runs each, in
-  matched isolated venvs on an arm64 Mac) — about 305 ms off every launch
-  before the window is even created. Flutter engine boot and first paint are
-  on top of that and were not measured here, so treat 305 ms as the floor of
-  the launch improvement, not the whole of it. No application code changed: every
-  API this project pins — `ft.Border.all`, `page.show_dialog`/`pop_dialog`,
-  `page.services`, `ft.Event[T]` generics, async `Control.focus`, and
-  `flet_charts.LineChart` — is unchanged in 0.86.5.
+- Flet 0.85.3 to 0.86.5, and `flet-charts` to 0.86.5. Importing `flet` drops
+  from **0.352s to 0.047s**, medians of 9 warmed runs each in matched isolated
+  venvs on an arm64 Mac. That is roughly 305 ms off every launch before the
+  window even exists. Flutter engine boot and first paint sit on top and were
+  not measured, so treat 305 ms as the floor rather than the whole gain. No
+  application code changed. Every API this project pins stayed put in 0.86.5:
+  `ft.Border.all`, `page.show_dialog`/`pop_dialog`, `page.services`,
+  `ft.Event[T]` generics, async `Control.focus`, and `flet_charts.LineChart`.
+
 - `requirements.txt` tracks the same Flet pins as `pyproject.toml`. A test now
   fails if the two manifests disagree.
 
-- GitPython moved to 3.1.61, clearing five advisories (one critical, two high,
-  two moderate). Development tooling only — it reaches this project through
-  `tach`, the module-boundary checker that runs in pre-commit and CI, and was
-  never present in a released build. No user was exposed.
+- GitPython moved to 3.1.61, clearing five advisories: one critical, two high,
+  two moderate. This is development tooling only. It reaches the project
+  through `tach`, the module-boundary checker that runs in pre-commit and CI,
+  and it has never been present in a released build, so no user was exposed.
 
 ### Fixed
 
 - A Monarch captcha challenge no longer reports itself as a credentials
   problem. `CaptchaRequiredException` subclasses `LoginFailedException`, so the
-  sign-in screen caught it with the general handler and said "Login failed.
-  Check your credentials" — sending users to change a password that was fine.
-  It now gets its own message pointing at monarchmoney.com, where signing in
-  through a browser clears the challenge. The same subclassing would have made
-  a captcha during session restore delete a valid session; it is now
-  classified as the transient challenge it is.
+  sign-in screen caught it with the general handler and told you to check
+  credentials that were fine. It now gets its own message pointing at
+  monarchmoney.com, where signing in through a browser clears the challenge.
+  That same subclassing would have made a captcha during session restore delete
+  a valid session. It is now treated as the transient challenge it is.
 
-- The transaction ledger no longer cuts off its BALANCE column. The window
-  needs 1118px for the ledger's fixed columns to draw beside the nav rail and
-  inside the padding, but the app opened at 1100 — so the last column was
-  clipped at the app's own default size, and the only scrolling ancestor was
-  a Column, which scrolls vertically. The ledger now pans horizontally when
-  the window is too narrow, and the default window size is computed from the
-  column, nav-rail, and padding constants themselves rather than a
-  hand-written number that had already drifted (its comment claimed the
-  columns were "~890px"; they are 858).
+- The transaction ledger no longer cuts off its BALANCE column. The ledger's
+  fixed columns need 1118px to draw beside the nav rail and inside the padding,
+  and the app opened at 1100, so the last column was clipped at the app's own
+  default size. The only scrolling ancestor was a Column, which scrolls
+  vertically. The ledger now pans horizontally when the window is too narrow,
+  and the default window size is computed from the column, nav-rail, and
+  padding constants rather than a hand-written number that had already drifted:
+  its comment claimed the columns were "~890px" when they are 858.
 
 - A dropped connection, a timeout, or a Monarch server error no longer signs
   you out. Restoring a saved session caught every exception alike and deleted
   the session file, so any hiccup while validating it forced a full re-login
   **with MFA** on the next launch. The file is now discarded only when Monarch
-  actually refuses the credential (HTTP 401/403, or a session carrying no
-  usable auth); everything else leaves it in place to retry.
+  actually refuses the credential, meaning HTTP 401/403 or a session carrying
+  no usable auth. Everything else stays put to retry.
 
 ## [1.4.1] (2026-09-03)
 
