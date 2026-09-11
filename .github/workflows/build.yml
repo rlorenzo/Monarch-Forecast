@@ -127,10 +127,15 @@ jobs:
         # ModuleNotFoundError before Flet builds its widget tree, so
         # the window opens with a painted background and nothing else.
         #
-        # Flet's runtime adds ``build/linux/python3.12`` to the import
-        # path but NOT ``python3.12/lib-dynload``, so dropping the .so
-        # files in lib-dynload doesn't help. They have to land flat
-        # alongside socket.pyc (i.e. in ``python3.12/`` itself).
+        # Flet's runtime adds the bundle's ``python3.x`` directory to the
+        # import path but NOT its ``lib-dynload`` subdirectory, so dropping
+        # the .so files in lib-dynload doesn't help. They have to land flat
+        # alongside socket.pyc, in ``python3.x/`` itself.
+        #
+        # The path is discovered rather than hardcoded: 0.86 relocated it
+        # and the hardcoded ``build/linux/python3.12`` failed the v1.5.0
+        # release build. The layout is printed unconditionally so the next
+        # move is diagnosable from the log alone.
         #
         # Copy the missing .so files from the runner's CPython 3.12
         # (set up by actions/setup-python; same minor version ⇒
@@ -138,26 +143,38 @@ jobs:
         # for belt-and-suspenders. Bloats the artifact by ~10-15 MB.
         # Remove this step once Flet upstream ships a complete bundle.
         run: |
-          BUNDLE_PY="build/linux/python3.12"
-          BUNDLE_SP="build/linux/site-packages"
-          if [ ! -d "$BUNDLE_PY" ]; then
-            echo "::error::Expected $BUNDLE_PY to exist after flet build linux"
+          # Always print the layout. 0.86 moved this once already and the
+          # hardcoded path gave a one-line failure with nothing to act on;
+          # a tree in the log makes the next relocation a five-minute fix
+          # instead of another round-trip through a 15-minute build.
+          echo "--- build/linux layout ---"
+          find build/linux -maxdepth 3 -type d | head -40
+          echo "--------------------------"
+          # Discover rather than hardcode: 0.85 put this at
+          # build/linux/python3.12, and the exact path is Flet's to change.
+          BUNDLE_PY="$(find build/linux -maxdepth 3 -type d -name 'python3.*' | head -1)"
+          BUNDLE_SP="$(find build/linux -maxdepth 3 -type d -name 'site-packages' | head -1)"
+          if [ -z "$BUNDLE_PY" ] || [ ! -d "$BUNDLE_PY" ]; then
+            echo "::error::No python3.* directory under build/linux after flet build linux."
+            echo "::error::Flet relocated the Python bundle again; see the layout above."
             exit 1
           fi
+          echo "Using bundle python dir: $BUNDLE_PY"
+          echo "Using bundle site-packages: ${BUNDLE_SP:-<none>}"
           RUNNER_LD="$(python3 -c 'import sysconfig, pathlib; print(pathlib.Path(sysconfig.get_paths()["stdlib"]) / "lib-dynload")')"
           if [ ! -d "$RUNNER_LD" ]; then
             echo "::error::Runner Python lib-dynload not found at $RUNNER_LD"
             exit 1
           fi
           echo "Runner lib-dynload: $(ls "$RUNNER_LD"/*.so | wc -l) .so files"
-          echo "Bundle python3.12 .so (before): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
+          echo "Bundle .so (before): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
           # cp -n so we don't overwrite anything Flet already shipped.
           cp -n "$RUNNER_LD"/*.so "$BUNDLE_PY"/ 2>/dev/null || true
           cp -n "$RUNNER_LD"/*.so "$BUNDLE_PY/lib-dynload"/ 2>/dev/null || true
           if [ -d "$BUNDLE_SP" ]; then
             cp -n "$RUNNER_LD"/*.so "$BUNDLE_SP"/ 2>/dev/null || true
           fi
-          echo "Bundle python3.12 .so (after): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
+          echo "Bundle .so (after): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
           if ! ls "$BUNDLE_PY"/_socket*.so >/dev/null 2>&1; then
             echo "::error::_socket still missing in $BUNDLE_PY after patch"
             exit 1
