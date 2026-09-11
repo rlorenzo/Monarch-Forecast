@@ -23,3 +23,13 @@ env/
 .review-pr-ignored-*
 .antigravitycli/
 packaging/macos/.fonts-cache/
+
+# Agent and tooling scratch output. These land in the working tree during
+# normal work and are never part of a change: graphify's knowledge-graph
+# cache, the review loop's summary, and the PLAN-* scratch notes used while
+# scoping work. Ignored so `git status` stays a signal about the change in
+# progress rather than a list of artifacts to mentally filter out.
+graphify-out/
+agent-review-summary.md
+agent-code-review.md
+PLAN-*
