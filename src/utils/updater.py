@@ -44,7 +44,8 @@ def check_for_update() -> dict[str, Any] | None:
         )
         # RELEASES_URL is a hardcoded https://api.github.com constant — no
         # attacker-controlled scheme is reachable here.
-        with urlopen(req, timeout=10) as resp:  # nosec B310  # nosemgrep: dynamic-urllib-use-detected
+        # nosemgrep: dynamic-urllib-use-detected
+        with urlopen(req, timeout=10) as resp:  # nosec B310
             data = json.loads(resp.read().decode())
     except (URLError, json.JSONDecodeError, OSError):
         return None
