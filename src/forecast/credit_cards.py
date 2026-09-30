@@ -4,7 +4,9 @@ Estimates upcoming CC payments by:
 1. Using user-provided due date and statement close day (if set)
 2. Inferring from payment history (last payment day-of-month)
 3. Anchoring the statement amount on the account balance rolled back to
-   the statement close (removing posted post-close activity)
+   the statement close (removing posted post-close activity), net of
+   every credit posted since the close (issuers reduce what's owed by
+   refunds as well as payments)
 4. Falling back to recurring payment amount or current balance
 
 Anchoring on the balance rather than summing cycle charges matters because
@@ -169,12 +171,12 @@ def _estimate_from_cycle(
     # A payment due TODAY is still upcoming (strict <, not <=): the
     # forecast starts from today's balance, and treating a due-today
     # payment as already gone silently drops it from the checkbook on the
-    # one morning it matters most. Separately, payments posted on the
-    # card since the close count against the statement amount-aware:
-    # fully settled statements move on to the next cycle, while a PARTIAL
-    # payment leaves the unpaid remainder billed on the upcoming due date
-    # instead of vanishing until next cycle.
-    paid_since_close = _sum_payment_credits(cc_id, transactions, last_close, today)
+    # one morning it matters most. Separately, credits posted on the card
+    # since the close (payments AND refunds) count against the statement
+    # amount-aware: fully settled statements move on to the next cycle,
+    # while a PARTIAL payment leaves the unpaid remainder billed on the
+    # upcoming due date instead of vanishing until next cycle.
+    paid_since_close = _sum_credits(cc_id, transactions, last_close, today)
     remaining = max(stmt_balance - paid_since_close, 0.0)
     statement_settled = stmt_balance > 0 and paid_since_close >= stmt_balance - 0.01
 
@@ -190,7 +192,7 @@ def _estimate_from_cycle(
             stmt_balance = max(
                 -_balance_at_close(cc_id, transactions, balance, next_close, today), 0.0
             )
-            paid = _sum_payment_credits(cc_id, transactions, next_close, today)
+            paid = _sum_credits(cc_id, transactions, next_close, today)
             amount = max(stmt_balance - paid, 0.0)
             label = "stmt"
         else:
@@ -286,8 +288,8 @@ def _card_txns(cc_id: str, transactions: list[dict]) -> Iterator[tuple[dict, flo
 
 
 # Text markers of a payment/transfer credit on a card account, as opposed
-# to a merchandise refund. Payments must NOT reduce the estimated statement
-# (the previous payment doesn't shrink the new bill) while refunds must.
+# to a merchandise refund. Used only to infer the due day from payment
+# history; statement netting counts every credit (see _sum_credits).
 _PAYMENT_CREDIT_WORDS = (
     "payment",
     "autopay",
@@ -302,18 +304,33 @@ _PAYMENT_CREDIT_WORDS = (
 )
 
 
-def _sum_payment_credits(cc_id: str, transactions: list[dict], start: date, end: date) -> float:
-    """Total payment credits posted on the card in (start, end].
+def _posted_amounts(
+    cc_id: str, transactions: list[dict], start: date, end: date
+) -> Iterator[float]:
+    """Amounts of the card's POSTED rows dated in (start, end].
 
-    Payments made between statement close and the due date count against
-    the statement that just closed — amount-aware, so a partial payment
-    reduces (rather than suppresses) the forecast for that statement.
+    Pending rows are skipped: Monarch's Chase balance is the posted
+    balance, so pending activity is neither in the balance to roll back
+    nor credited against the statement yet. Verified against a real
+    statement, where rolling back pending post-close charges pushed the
+    estimate below the billed amount by exactly their total.
     """
-    return sum(
-        amount
-        for txn, amount, txn_date in _card_txns(cc_id, transactions)
-        if amount > 0 and start < txn_date <= end and _is_payment_credit(txn)
-    )
+    for txn, amount, txn_date in _card_txns(cc_id, transactions):
+        if start < txn_date <= end and not txn.get("pending"):
+            yield amount
+
+
+def _sum_credits(cc_id: str, transactions: list[dict], start: date, end: date) -> float:
+    """Total posted credits on the card in (start, end].
+
+    Payments AND merchant refunds posted between statement close and the
+    due date count against the statement that just closed: Chase's
+    statement says AutoPay "will be reduced by any payments or merchant
+    credits that post to your account before we process your AutoPay
+    payment". Amount-aware, so a partial payment reduces (rather than
+    suppresses) the forecast for that statement.
+    """
+    return sum(a for a in _posted_amounts(cc_id, transactions, start, end) if a > 0)
 
 
 def _is_payment_credit(txn: dict) -> bool:
@@ -327,17 +344,8 @@ def _balance_at_close(
     cc_id: str, transactions: list[dict], balance: float, close: date, today: date
 ) -> float:
     """Roll the current balance back to the statement close by removing
-    activity dated after it.
-
-    Pending rows are rolled back like posted ones: Monarch's balance
-    includes pending charges (verified against a real Chase statement),
-    and pending activity is never part of the closed statement.
-    """
-    return balance - sum(
-        amount
-        for _txn, amount, txn_date in _card_txns(cc_id, transactions)
-        if close < txn_date <= today
-    )
+    posted activity dated after it (see _posted_amounts)."""
+    return balance - sum(_posted_amounts(cc_id, transactions, close, today))
 
 
 def _is_cc_payment_txn(text: str, cc_name_lower: str) -> bool:

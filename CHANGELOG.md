@@ -7,6 +7,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- Credit card statement estimates no longer come out far too low when the card
+  has pending charges. Monarch's card balance leaves pending charges out, but
+  the estimate was subtracting them anyway when working back to the statement
+  close, understating the payment by the full pending total.
+- The estimate now subtracts every credit posted since the statement closed,
+  refunds included, not just payments. That matches what AutoPay actually
+  takes: Chase reduces it by "any payments or merchant credits" that post
+  first.
+
 ## [1.5.0] (2026-09-11)
 
 You can now wipe everything Monarch Forecast has stored on your computer. The
