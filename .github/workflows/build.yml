@@ -150,7 +150,9 @@ jobs:
           # Depth-limited only for readability — this is the shape of the
           # tree, not the search.
           echo "--- build/linux layout (to depth 4) ---"
-          find build/linux -maxdepth 4 -type d | head -60
+          # `|| true`: head exits after 60 lines, find then dies writing to
+          # the closed pipe, and pipefail would fail the step on a printout.
+          find build/linux -maxdepth 4 -type d | head -60 || true
           echo "---------------------------------------"
           # The search itself is unbounded on purpose. Capping the depth
           # would assume the nesting we are here to discover, and a cap set
@@ -163,7 +165,7 @@ jobs:
             echo "::error::No python3.* directory anywhere under build/linux" \
               "after flet build linux."
             echo "::error::Flet relocated or restructured the Python bundle; full tree below."
-            find build/linux -type d | head -200
+            find build/linux -type d | head -200 || true
             exit 1
           fi
           echo "Using bundle python dir: $BUNDLE_PY"
@@ -340,9 +342,9 @@ jobs:
               APP_PID=$!
               ;;
             linux)
-              BINARY="$(find . -maxdepth 4 -type f -name 'monarch_forecast' -perm -u+x | head -1)"
+              BINARY="$(find . -maxdepth 4 -type f -name 'monarch_forecast' -perm -u+x -print -quit)"
               if [ -z "$BINARY" ]; then
-                BINARY="$(find . -maxdepth 4 -type f -name 'Monarch Forecast' -perm -u+x | head -1)"
+                BINARY="$(find . -maxdepth 4 -type f -name 'Monarch Forecast' -perm -u+x -print -quit)"
               fi
               [ -n "$BINARY" ] || { echo "::error::Linux binary not found"; find . -maxdepth 4 -type f -perm -u+x; exit 1; }
               echo "Launching: $BINARY"
