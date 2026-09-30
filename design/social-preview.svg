@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <!-- GitHub social preview (Settings → General → Social preview). Render: rsvg-convert -o social-preview.png social-preview.svg -->
+  <rect width="1280" height="640" fill="#faf6f3"/>
+  <rect x="24" y="24" width="1232" height="592" fill="none" stroke="#d6c5ba" stroke-width="2"/>
+
+  <!-- Icon (design/icon.svg), scaled to 360px -->
+  <g transform="translate(96 140) scale(0.703125)">
+    <circle cx="256" cy="256" r="240" fill="#faf6f3" stroke="#d6c5ba" stroke-width="3"/>
+    <line x1="80" y1="280" x2="432" y2="280" stroke="#d4a657" stroke-width="6" stroke-dasharray="14 16" stroke-linecap="round"/>
+    <g fill="none" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="100,230 190,180 234,280" stroke="#2e9764"/>
+      <polyline points="234,280 270,360 310,280" stroke="#d04632"/>
+      <polyline points="310,280 350,200 420,240" stroke="#2e9764"/>
+    </g>
+  </g>
+
+  <g font-family="Georgia, 'Source Serif Pro', serif" fill="#392b24">
+    <text x="530" y="280" font-size="84" font-weight="500">Monarch</text>
+    <text x="530" y="372" font-size="84" font-weight="500">Forecast</text>
+  </g>
+  <rect x="532" y="400" width="64" height="4" fill="#d97a64"/>
+  <g font-family="'Helvetica Neue', Inter, sans-serif" fill="#5e4f47" font-size="28">
+    <text x="530" y="452">See where your checking balance is headed,</text>
+    <text x="530" y="490">day by day. Spot shortfalls before they happen.</text>
+  </g>
+  <text x="530" y="560" font-family="'Helvetica Neue', Inter, sans-serif" font-size="20" fill="#77675d" letter-spacing="1.5">DESKTOP APP · MACOS · WINDOWS · LINUX · FOR MONARCH MONEY USERS</text>
+</svg>

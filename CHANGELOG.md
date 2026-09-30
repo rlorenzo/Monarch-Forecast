@@ -7,6 +7,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.5.1] (2026-09-30)
+
+Credit card payments are forecast much closer to what your card actually
+charges. Sign-in and sync also work behind a proxy now.
+
 ### Fixed
 
 - Credit card statement estimates no longer come out far too low when the card
@@ -17,6 +22,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   refunds included, not just payments. That matches what AutoPay actually
   takes: Chase reduces it by "any payments or merchant credits" that post
   first.
+- Sign-in and sync work on networks that route traffic through
+  `HTTP_PROXY`/`HTTPS_PROXY`. The Monarch Money client library (now
+  `monarchmoneycommunity` 1.6.0) was ignoring those settings.
 
 ## [1.5.0] (2026-09-11)
 
@@ -413,7 +421,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.1
 [1.5.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.0
 [1.4.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.4.1
 [1.4.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.4.0
