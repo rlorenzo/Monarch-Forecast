@@ -431,7 +431,8 @@ def _on_card_payment(amount: float, txn_date: date, account_id: str = "cc1") -> 
 
 class TestRefundNetting:
     """Refunds and statement credits reduce the estimated payment;
-    payments and transfers do not."""
+    payments dated before the close (paying the previous statement)
+    do not."""
 
     def test_refund_reduces_estimate(self):
         today = date(2026, 6, 20)
@@ -700,9 +701,9 @@ class TestBalanceAnchoring:
         assert payments[0].amount == pytest.approx(-11000.0)
         assert "stmt" in payments[0].name
 
-    def test_pending_post_close_spend_is_rolled_back(self):
-        """Monarch's balance includes pending charges, so pending rows
-        dated after the close roll back like posted ones."""
+    def test_pending_post_close_spend_is_not_rolled_back(self):
+        """Monarch's balance excludes pending charges, so rolling a
+        pending row back would subtract money that was never in it."""
         today = date(2026, 6, 20)
         txns = [
             _charge(-500.0, date(2026, 6, 5)),
@@ -716,7 +717,7 @@ class TestBalanceAnchoring:
             },
         ]
         payments = estimate_cc_payments(
-            [_cc("Card", -600.0)],
+            [_cc("Card", -500.0)],  # posted balance only
             [],
             transactions=txns,
             today=today,
@@ -724,3 +725,57 @@ class TestBalanceAnchoring:
         )
         assert len(payments) == 1
         assert payments[0].amount == pytest.approx(-500.0)
+
+    def test_post_close_refund_nets_only_once_posted(self):
+        """A posted refund after the close reduces the statement due; a
+        pending one hasn't posted, so it doesn't yet."""
+        today = date(2026, 6, 20)
+        txns = [
+            _charge(-500.0, date(2026, 6, 5)),
+            _refund(100.0, date(2026, 6, 17)),
+            {**_refund(50.0, date(2026, 6, 18)), "pending": True},
+        ]
+        payments = estimate_cc_payments(
+            [_cc("Card", -400.0)],  # posted balance: 500 - 100
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 10, "close_day": 15}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == date(2026, 7, 10)
+        assert payments[0].amount == pytest.approx(-400.0)
+
+    def test_statement_nets_post_close_credits_and_skips_pending(self):
+        """Regression shaped on a real Chase statement: the issuer billed
+        3000 and AutoPay took that less the 500 of credits posted since
+        the close. The old estimate rolled back pending charges the posted
+        balance never held, and netted only the refund whose category
+        happened to read "Transfer", landing far below either figure."""
+        today = date(2026, 9, 30)
+        pending = {"pending": True}
+        txns = [
+            # Dated before the close but posted after it, so billed on the
+            # NEXT statement; the feed has no post date to catch this.
+            _charge(-50.0, date(2026, 9, 3)),
+            # Posted post-close spend and credits.
+            _charge(-4000.0, date(2026, 9, 15)),
+            _refund(200.0, date(2026, 9, 16)),
+            {**_refund(300.0, date(2026, 9, 27)), "category": {"name": "Transfer"}},
+            # Pending: not in the balance, not rolled back, not netted.
+            {**_charge(-1500.0, date(2026, 9, 28)), **pending},
+            {**_refund(100.0, date(2026, 9, 29)), **pending},
+        ]
+        # Posted balance: 3000 billed + 50 late-posting + 4000 - 500 credits.
+        payments = estimate_cc_payments(
+            [_cc("Card", -6550.0)],
+            [],
+            transactions=txns,
+            today=today,
+            cc_settings={"cc1": {"due_day": 1, "close_day": 4}},
+        )
+        assert len(payments) == 1
+        assert payments[0].date == date(2026, 10, 1)
+        # Actual due is 2500; the 50 over is the late-posting charge.
+        assert payments[0].amount == pytest.approx(-2550.0)
+        assert "stmt" in payments[0].name
