@@ -81,9 +81,9 @@ _ONE_OFF_OFFSETS: list[tuple[int, float, str, str]] = [
 ]
 
 # Monthly expenses keyed on day-of-month for the recurring detector to pick up
-# as "monthly" over 3 months of history.
+# as "monthly" over 3 months of history. Rent is added in `build_transactions`
+# at `_rent_day(today)`.
 _MONTHLY_ITEMS: list[tuple[int, float, str, str]] = [
-    (1, _RENT, "Rent", "Housing"),
     (5, -22.00, "News Subscription", "Subscriptions"),
     (8, -12.00, "Streaming Music", "Subscriptions"),
     (12, -94.00, "Electric Bill", "Utilities"),
@@ -131,9 +131,22 @@ def build_credit_card_accounts() -> list[dict[str, Any]]:
     ]
 
 
-def build_transactions() -> list[dict[str, Any]]:
+def _rent_day(today: date) -> int:
+    """Day of month for rent, so the next one lands 11-14 days out.
+
+    A fixed day drifts against the paycheck cycle: on the 1st, a fixed
+    day-1 rent hit before the paycheck and sank the whole demo below zero
+    from day one. Two weeks out keeps it just after the next paycheck
+    (10 days out); capping at 28 so every month has the day pulls it at
+    most three days earlier.
+    """
+    return min((today + timedelta(days=14)).day, 28)
+
+
+def build_transactions(today: date | None = None) -> list[dict[str, Any]]:
     """90 days of synthetic history, shaped for the recurring detector."""
-    today = date.today()
+    if today is None:
+        today = date.today()
     txns: list[dict[str, Any]] = []
 
     # Paychecks — biweekly. Offset so the most recent landed 4 days ago and
@@ -145,7 +158,8 @@ def build_transactions() -> list[dict[str, Any]]:
         )
 
     # Monthly expenses across up to 4 months back (some will fall outside 90d).
-    for day_of_month, amount, name, category in _MONTHLY_ITEMS:
+    monthly = [(_rent_day(today), _RENT, "Rent", "Housing"), *_MONTHLY_ITEMS]
+    for day_of_month, amount, name, category in monthly:
         for offset in range(4):
             y, m = today.year, today.month - offset
             while m <= 0:

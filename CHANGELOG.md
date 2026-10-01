@@ -7,6 +7,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- Demo mode shows the same dip-and-recover forecast on any date. Rent was
+  fixed to the 1st, so on the 1st it landed before the paycheck and the demo
+  opened at −$1,130 and bottomed out at −$2,434.80.
+
+### Changed
+
+- README screenshots show the current design (Source Serif 4, the
+  paper-and-ink chart, true minus signs) instead of v1.0.1.
+
 ## [1.6.0] (2026-09-30)
 
 ### Changed
