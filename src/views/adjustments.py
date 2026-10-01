@@ -898,7 +898,7 @@ _RC_NAME_W = 200
 _RC_FREQ_W = 84
 _RC_NEXT_W = 88
 _RC_AMOUNT_W = 96
-_RC_OVERRIDE_W = 92
+_RC_OVERRIDE_W = 112
 
 
 class AdjustmentsPanel(ft.Column):

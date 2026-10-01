@@ -12,6 +12,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Demo mode shows the same dip-and-recover forecast on any date. Rent was
   fixed to the 1st, so on the 1st it landed before the paycheck and the demo
   opened at −$1,130 and bottomed out at −$2,434.80.
+- The balance chart's axis no longer prints its padded bounds (like
+  "−643.3") on top of the nearest round label.
+- Recurring-item override fields are wide enough to show "$3200.00" in full.
 
 ### Changed
 
