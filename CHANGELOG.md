@@ -7,6 +7,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.7.0] (2026-10-01)
+
 ### Added
 
 - The Mac app updates itself. A new version brings up the standard macOS
@@ -485,7 +487,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.7.0
 [1.6.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.6.0
 [1.5.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.1
 [1.5.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.0
