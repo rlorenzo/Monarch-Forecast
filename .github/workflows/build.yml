@@ -106,6 +106,7 @@ jobs:
             --product "Monarch Forecast" \
             --description "Financial forecasting powered by Monarch Money" \
             --build-version "$BUILD_VERSION" \
+            --python-version 3.12 \
             --compile-app \
             --compile-packages \
             $EXCLUDES \
@@ -184,11 +185,15 @@ jobs:
             cp -n "$RUNNER_LD"/*.so "$BUNDLE_SP"/ 2>/dev/null || true
           fi
           echo "Bundle .so (after): $(find "$BUNDLE_PY" -maxdepth 1 -name '*.so' | wc -l)"
-          if ! ls "$BUNDLE_PY"/_socket*.so >/dev/null 2>&1; then
+          # Match the ABI tag, not just the name: Flet 1.0 started bundling
+          # the newest Python (3.14) unless pinned, and 3.12 .so files in a
+          # 3.14 bundle pass a bare _socket*.so check but never load.
+          PY_TAG="cpython-$(basename "$BUNDLE_PY" | tr -d 'python.')"
+          if ! ls "$BUNDLE_PY"/_socket."$PY_TAG"-*.so >/dev/null 2>&1; then
             echo "::error::_socket still missing in $BUNDLE_PY after patch"
             exit 1
           fi
-          echo "_socket landed at: $(ls "$BUNDLE_PY"/_socket*.so)"
+          echo "_socket landed at: $(ls "$BUNDLE_PY"/_socket."$PY_TAG"-*.so)"
 
       - name: Install Linux smoke-test deps
         if: matrix.platform == 'linux'
