@@ -86,7 +86,7 @@ class TestSeverityStyling:
         found = False
         for c in _walk(wrapper):
             if isinstance(c, ft.Icon) and c.icon == ft.Icons.WARNING_AMBER:
-                assert c.color == tokens.SIGNAL_THRESHOLD
+                assert c.color == tokens.SIGNAL_THRESHOLD_INK
                 found = True
                 break
         assert found

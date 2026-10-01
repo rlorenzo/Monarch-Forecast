@@ -10,6 +10,7 @@ from datetime import date
 import flet as ft
 
 from src.forecast.models import ForecastResult
+from src.utils.money import format_money
 from src.views import tokens
 
 
@@ -35,6 +36,7 @@ def generate_alerts(
 ) -> list[Alert]:
     """Analyze a forecast and generate alerts for shortfalls and low balances."""
     alerts: list[Alert] = []
+    thr = format_money(safety_threshold, cents=False)
 
     negative_days = [d for d in forecast.days if d.ending_balance < 0]
     first_negative = negative_days[0] if negative_days else None
@@ -54,9 +56,9 @@ def generate_alerts(
                 severity="critical",
                 title="Overdraft & Below Safety Threshold",
                 message=(
-                    f"Balance projected to drop below ${safety_threshold:,.0f} and go "
+                    f"Balance projected to drop below {thr} and go "
                     f"negative on {first_negative.date.strftime('%b %d')} "
-                    f"(${first_negative.ending_balance:,.2f}). "
+                    f"({format_money(first_negative.ending_balance)}). "
                     f"{len(negative_days)} day(s) in the red."
                 ),
                 date=first_negative.date,
@@ -71,7 +73,7 @@ def generate_alerts(
                     message=(
                         f"Balance projected to go negative on "
                         f"{first_negative.date.strftime('%b %d')} "
-                        f"(${first_negative.ending_balance:,.2f}). "
+                        f"({format_money(first_negative.ending_balance)}). "
                         f"{len(negative_days)} day(s) in the red."
                     ),
                     date=first_negative.date,
@@ -83,9 +85,9 @@ def generate_alerts(
                     severity="warning",
                     title="Low Balance Warning",
                     message=(
-                        f"Balance projected to drop below ${safety_threshold:,.0f} "
+                        f"Balance projected to drop below {thr} "
                         f"on {first_band.date.strftime('%b %d')} "
-                        f"(${first_band.ending_balance:,.2f}). "
+                        f"({format_money(first_band.ending_balance)}). "
                         f"{len(band_days)} day(s) below threshold."
                     ),
                     date=first_band.date,
@@ -99,14 +101,16 @@ def generate_alerts(
             day = large_outflow_days[0]
             names = ", ".join(t.name for t in day.transactions if t.amount < 0)
             message = (
-                f"${abs(day.net_change):,.2f} going out on {day.date.strftime('%b %d')}: {names}"
+                f"{format_money(abs(day.net_change))} going out on "
+                f"{day.date.strftime('%b %d')}: {names}"
             )
         else:
             bullet_lines = []
             for day in large_outflow_days:
                 names = ", ".join(t.name for t in day.transactions if t.amount < 0)
                 bullet_lines.append(
-                    f"\u2022 {day.date.strftime('%b %d')}: ${abs(day.net_change):,.2f} ({names})"
+                    f"\u2022 {day.date.strftime('%b %d')}: "
+                    f"{format_money(abs(day.net_change))} ({names})"
                 )
             message = "\n".join(bullet_lines)
         alerts.append(
@@ -194,7 +198,6 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
         return handle
 
     for alert in alerts:
-        # Step 2 of bisect: token-backed colors but no structure change.
         bg_color = tokens.PAPER_2
         if alert.severity == "critical":
             icon = ft.Icons.ERROR
@@ -202,8 +205,10 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
             border_color = tokens.SIGNAL_NEGATIVE
         elif alert.severity == "warning":
             icon = ft.Icons.WARNING_AMBER
-            icon_color = tokens.SIGNAL_THRESHOLD
-            border_color = tokens.SIGNAL_THRESHOLD
+            # INK variant for the icon (3:1 non-text); the border is a plain
+            # hairline since the icon and title already carry the signal.
+            icon_color = tokens.SIGNAL_THRESHOLD_INK
+            border_color = tokens.RULE
         else:
             icon = ft.Icons.INFO_OUTLINE
             icon_color = tokens.INK_2
@@ -237,10 +242,10 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
                     ),
                     ft.Column(
                         [
-                            ft.Text(alert.title, weight=ft.FontWeight.BOLD, size=13),
-                            ft.Text(alert.message, size=12),
+                            ft.Text(alert.title, style=tokens.headline_style()),
+                            ft.Text(alert.message, style=tokens.body_style(tokens.INK_2)),
                         ],
-                        spacing=2,
+                        spacing=4,
                         expand=True,
                     ),
                     dismiss_button,
@@ -250,7 +255,7 @@ def build_alerts_banner(alerts: list[Alert]) -> ft.Control:
             padding=12,
             bgcolor=bg_color,
             border=ft.Border.all(1, border_color),
-            border_radius=8,
+            border_radius=10,
         )
 
         # The IconButton is nested inside the Semantics wrapper — attach the

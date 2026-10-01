@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 import flet as ft
 
 from src.utils.updater import check_for_update, get_current_version
+from src.views import tokens
 
 _executor = ThreadPoolExecutor(max_workers=1)
 
@@ -57,18 +58,17 @@ def build_update_banner(update_info: dict) -> ft.Container:
     banner = ft.Container(
         content=ft.Row(
             [
-                ft.Icon(ft.Icons.SYSTEM_UPDATE, color=ft.Colors.PRIMARY, size=22),
+                ft.Icon(ft.Icons.SYSTEM_UPDATE, color=tokens.INK_2, size=22),
                 ft.Column(
                     [
                         ft.Text(
                             f"Version {version} available",
-                            weight=ft.FontWeight.BOLD,
-                            size=13,
+                            style=tokens.title_style(tokens.INK),
                         ),
                         ft.Text(
                             f"You're running v{get_current_version()}. "
                             "Download the latest version for new features and fixes.",
-                            size=12,
+                            style=tokens.body_style(tokens.INK_2),
                         ),
                     ],
                     spacing=2,
@@ -89,8 +89,8 @@ def build_update_banner(update_info: dict) -> ft.Container:
             spacing=12,
         ),
         padding=12,
-        bgcolor=ft.Colors.PRIMARY_CONTAINER,
-        border=ft.Border.all(1, ft.Colors.PRIMARY),
-        border_radius=8,
+        bgcolor=tokens.PAPER_2,
+        border=ft.Border.all(1, tokens.RULE),
+        border_radius=10,
     )
     return banner

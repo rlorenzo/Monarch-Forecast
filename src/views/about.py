@@ -28,7 +28,7 @@ _ALLOWED_LINKS = frozenset({REPO_URL, MONARCH_URL})
 
 DISCLAIMER = (
     "**Monarch Forecast is not affiliated with Monarch Money.** It is an "
-    "independent, unofficial companion app — not made, endorsed, sponsored, "
+    "independent, unofficial companion app, not made, endorsed, sponsored, "
     f"or supported by [Monarch Money]({MONARCH_URL}). *Monarch* and *Monarch "
     "Money* are their marks, used here only to say what this app connects to."
     "\n\n"

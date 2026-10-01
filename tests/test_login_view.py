@@ -255,8 +255,8 @@ class TestErrors:
             "the credentials are almost certainly fine; saying otherwise sends "
             "the user to change a working password"
         )
-        # Orange like the MFA prompt: recoverable, not a rejection.
-        assert view.status_text.color == ft.Colors.ORANGE_400
+        # Neutral like the MFA prompt: recoverable, not a rejection.
+        assert view.status_text.color == ft.Colors.ON_SURFACE_VARIANT
         # No point yanking focus to a field with nothing wrong in it.
         _m(view.password_field.focus).assert_not_awaited()
         _m(view.on_login_success).assert_not_called()
@@ -351,3 +351,25 @@ class TestAutofillDisposeAction:
         # First submit trips MFA — credentials not yet validated, so
         # the autofill group must NOT commit.
         assert view._autofill_group.dispose_action == ft.AutofillGroupDisposeAction.CANCEL
+
+
+def test_login_view_uses_theme_roles_only():
+    """Login sits below src.views (tach), so it must style via theme roles."""
+    import re
+    from pathlib import Path
+
+    import src.auth.login_view as mod
+
+    src = Path(mod.__file__).read_text()
+    assert not re.search(r"[\"']#[0-9A-Fa-f]{3,8}[\"']", src)
+    assert not re.search(r"Colors\.(RED|BLUE|ORANGE|GREEN|GREY|AMBER)_", src)
+    assert not re.search(r"Colors\.(WHITE|BLACK)", src)
+
+
+def test_login_view_scrolls_and_buttons_use_small_radius():
+    view = _make_view()
+    assert view.scroll == ft.ScrollMode.AUTO
+    for b in (view.login_button, view.demo_button):
+        assert isinstance(b.style, ft.ButtonStyle)
+        assert isinstance(b.style.shape, ft.RoundedRectangleBorder)
+        assert b.style.shape.radius == 6

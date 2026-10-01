@@ -6,7 +6,7 @@ Renders `dmg-background.png` (1x, 72 dpi) and `dmg-background@2x.png`
 HiDPI TIFF with `tiffutil -cathidpicheck`, so the installer window is crisp on
 Retina displays.
 
-Uses the app's real type — **Fraunces** (display serif) and **Inter** (body) —
+Uses the app's real type — **Source Serif 4** (display serif) and **Inter** (body) —
 the same variable fonts the app registers via `page.fonts` in
 `src/views/tokens.py`. They're downloaded on demand into `.fonts-cache/`
 (gitignored); if that fails (offline), it falls back to New York / SF so the
@@ -46,9 +46,9 @@ APPS_XY = (490, 200)
 
 # The app's variable fonts (same sources as src/views/tokens.py::FONT_URLS).
 FONT_URLS = {
-    "Fraunces.ttf": (
-        "https://raw.githubusercontent.com/google/fonts/main/ofl/fraunces/"
-        "Fraunces%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf"
+    "SourceSerif4.ttf": (
+        "https://raw.githubusercontent.com/google/fonts/main/ofl/sourceserif4/"
+        "SourceSerif4%5Bopsz%2Cwght%5D.ttf"
     ),
     "Inter.ttf": (
         "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
@@ -77,8 +77,8 @@ def _font(name: str, fallback: str, size: int, axes: dict[str, float]) -> ImageF
     """Load a variable font at `size`, applying `axes` (matched by axis name).
 
     `axes` keys are matched case-insensitively against the font's axis names
-    (e.g. "weight", "optical", "soft", "wonky"); missing axes keep their
-    default so this works across Fraunces and Inter alike.
+    (e.g. "weight", "optical"); missing axes keep their default so this
+    works across Source Serif 4 and Inter alike.
     """
     path = _cached_font(name)
     font = ImageFont.truetype(str(path) if path else fallback, size)
@@ -116,14 +116,9 @@ def render() -> Image.Image:
     img = Image.new("RGB", (W * S, H * S), PAPER)
     d = ImageDraw.Draw(img)
 
-    # Fraunces SemiBold at a large optical size — a substantial editorial
-    # wordmark (not the thin default), wonk off for a clean install screen.
-    title = _font(
-        "Fraunces.ttf",
-        FALLBACK_SERIF,
-        30 * S,
-        {"optical": 144, "weight": 600, "soft": 0, "wonky": 0},
-    )
+    # Source Serif 4 SemiBold at its display optical size — a substantial
+    # editorial wordmark rather than the regular-weight default.
+    title = _font("SourceSerif4.ttf", FALLBACK_SERIF, 30 * S, {"optical": 60, "weight": 600})
     body = _font("Inter.ttf", FALLBACK_SANS, 13 * S, {"weight": 440, "optical": 18})
     small = _font("Inter.ttf", FALLBACK_SANS, 11 * S, {"weight": 480, "optical": 14})
 

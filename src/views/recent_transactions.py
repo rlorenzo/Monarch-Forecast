@@ -133,14 +133,7 @@ def parse_history_transactions(raw_txns: list[dict]) -> list[HistoryTransaction]
 def _category_cell(category: str) -> ft.Control:
     return ft.Text(
         (category or "uncategorized").upper(),
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_500,
-            color=tokens.INK_3,
-            letter_spacing=0.4,
-            height=1.3,
-        ),
+        style=tokens.label_style(tokens.INK_3),
         max_lines=1,
         overflow=ft.TextOverflow.ELLIPSIS,
     )
@@ -221,7 +214,7 @@ def _history_header(
             spacing=0,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        padding=ft.Padding.only(bottom=10, top=4),
+        padding=ft.Padding.only(bottom=8, top=4),
         border=ft.Border(bottom=ft.BorderSide(1, tokens.RULE)),
     )
 
@@ -304,7 +297,7 @@ def build_recent_transactions_table(
                     vertical_alignment=ft.CrossAxisAlignment.START,
                     expand=True,
                 ),
-                padding=ft.Padding.only(top=2, bottom=10),
+                padding=ft.Padding.only(top=2, bottom=12),
                 border=(
                     None if rendered_blocks == 0 else ft.Border(top=ft.BorderSide(1, tokens.RULE))
                 ),

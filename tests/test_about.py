@@ -143,8 +143,8 @@ class TestDialog:
 
     def test_close_action_has_an_accessible_name(self):
         _, dialog = _shown_dialog()
-        buttons = [c for c in _walk(dialog.actions) if isinstance(c, ft.Button)]
-        assert any(b.content == "Close" for b in buttons)
+        names = [c.label for c in _walk(dialog.actions) if isinstance(c, ft.Semantics) and c.button]
+        assert "Close" in names
 
     def test_close_action_takes_focus(self):
         """The dialog has no TextField, so Close must be what focus lands on."""
@@ -220,7 +220,7 @@ class TestNavRailEntry:
             if isinstance(c, ft.Semantics) and c.label == "About Monarch Forecast"
         )
         container = row.content
-        assert isinstance(container, ft.Container)
+        assert isinstance(container, ft.Button)
         assert container.on_click is not None
         container.on_click(MagicMock())
         assert calls == [1]

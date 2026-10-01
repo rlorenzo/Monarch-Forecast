@@ -326,7 +326,7 @@ class TestRecentTransactionsView:
         amount_colors = {
             c.style.color
             for c in _walk(view)
-            if isinstance(c, ft.Text) and c.value and c.value.startswith(("+ $", "− $"))
+            if isinstance(c, ft.Text) and c.value and c.value.startswith(("+$", "−$"))
         }
         assert tokens.SIGNAL_POSITIVE in amount_colors
         assert tokens.SIGNAL_NEGATIVE in amount_colors
@@ -412,8 +412,8 @@ class TestStrictAccountScoping:
         view.set_account_filter("acct-1")
         shown = [t for t in view._txns if view._should_show(t)]
         assert [t.name for t in shown] == ["Grocery Store"]
-        assert "+ $2,853.25" not in _texts(view)
-        assert "− $120.00" in _texts(view)
+        assert "+$2,853.25" not in _texts(view)
+        assert "−$120.00" in _texts(view)
 
     def test_no_selection_shows_nothing(self):
         view = self._view_two_accounts()

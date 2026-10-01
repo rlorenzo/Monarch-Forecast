@@ -65,14 +65,14 @@ class TestSelectedIndex:
     def test_setter_updates_active_paint(self):
         nav = _make()
         # Overview starts active
-        assert nav._dest_parts[0].rail.bgcolor == tokens.CORAL
+        assert nav._dest_parts[0].rail.bgcolor == tokens.CORAL_DEEP
         assert nav._dest_parts[1].rail.bgcolor == "transparent"
 
         nav.selected_index = 1
 
         assert nav.selected_index == 1
         assert nav._dest_parts[0].rail.bgcolor == "transparent"
-        assert nav._dest_parts[1].rail.bgcolor == tokens.CORAL
+        assert nav._dest_parts[1].rail.bgcolor == tokens.CORAL_DEEP
         # Icon swaps to its filled selected variant
         assert nav._dest_parts[1].icon.icon == ft.Icons.TABLE_CHART
         assert nav._dest_parts[0].icon.icon == ft.Icons.DASHBOARD_OUTLINED

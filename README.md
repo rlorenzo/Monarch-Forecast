@@ -68,7 +68,7 @@ period.
   drop below a safety threshold
 - **Manual adjustments**: Add one-off transactions (upcoming bills,
   expected refunds) to refine the forecast
-- **Editorial design**: Custom paper-and-ink design system, Fraunces
+- **Editorial design**: Custom paper-and-ink design system, Source Serif 4
   display serif paired with Inter, tabular lining figures across every
   money column. The app ships light-only for now: a dark token ramp is
   defined in the design system but not yet wired into the views
@@ -350,7 +350,7 @@ vs what happened. Even small reports help.
 ## Disclaimer
 
 **Monarch Forecast is not affiliated with Monarch Money.** It is an
-independent, unofficial companion app — not made, endorsed, sponsored, or
+independent, unofficial companion app, not made, endorsed, sponsored, or
 supported by [Monarch Money](https://www.monarchmoney.com/). *Monarch* and
 *Monarch Money* are their marks, used here only to say what this app
 connects to.

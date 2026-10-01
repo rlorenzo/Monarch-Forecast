@@ -25,46 +25,12 @@ from src.data.preferences import Preferences
 from src.views.adjustments import (
     AdjustmentsPanel,
     _section_header,
-    coral_button,
-    ghost_button,
-    ink_button,
 )
 from src.views.dashboard import DashboardView
 
 
 def _m(obj: Any) -> Any:
     return obj
-
-
-# ---------------------------------------------------------------------------
-# Editorial button hover handlers — update() raises on unmounted Container
-# ---------------------------------------------------------------------------
-
-
-class TestButtonHoverSwallowsRuntimeError:
-    def test_coral_button_hover_unmounted_does_not_raise(self):
-        button = coral_button("Save", on_click=lambda _e: None)
-        assert isinstance(button, ft.Semantics)
-        container = button.content
-        assert isinstance(container, ft.Container)
-        # Don't stub update — the unmounted update raises and the
-        # handler's try/except swallows it.
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
-        _m(container.on_hover)(SimpleNamespace(data="false", control=container))
-
-    def test_ghost_button_hover_unmounted_does_not_raise(self):
-        button = ghost_button("Cancel", on_click=lambda _e: None)
-        assert isinstance(button, ft.Semantics)
-        container = button.content
-        assert isinstance(container, ft.Container)
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
-
-    def test_ink_button_hover_unmounted_does_not_raise(self):
-        button = ink_button("Got it", on_click=lambda _e: None)
-        assert isinstance(button, ft.Semantics)
-        container = button.content
-        assert isinstance(container, ft.Container)
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
 
 
 # ---------------------------------------------------------------------------
@@ -80,10 +46,14 @@ class TestSectionHeaderHoverSwallowsRuntimeError:
             "Subtitle",
             on_click=lambda _e: None,
         )
-        # The clickable variant wraps the column in a Container.
-        assert isinstance(header, ft.Container)
-        _m(header.on_hover)(SimpleNamespace(data="true", control=header))
-        _m(header.on_hover)(SimpleNamespace(data="false", control=header))
+        # The clickable variant is a Semantics(button) around the hover Container.
+        assert isinstance(header, ft.Semantics)
+        assert header.button is True
+        assert header.label == "Title"
+        box = header.content
+        assert isinstance(box, ft.Container)
+        _m(box.on_hover)(SimpleNamespace(data="true", control=box))
+        _m(box.on_hover)(SimpleNamespace(data="false", control=box))
 
 
 # ---------------------------------------------------------------------------
@@ -104,27 +74,17 @@ def dashboard(patched_session_manager, tmp_path: Path):
     return dash
 
 
-class TestDashboardHoverSwallows:
-    def test_add_one_off_button_hover_unmounted(self, dashboard):
-        # ``_build_add_one_off_button`` returns ``Semantics(content=Container(...))``.
-        # Reach into the container's on_hover and fire unmounted — should
-        # swallow the resulting RuntimeError.
+class TestDashboardButtons:
+    def test_add_one_off_button_is_focusable_button(self, dashboard):
         button = dashboard._add_one_off_button
         assert isinstance(button, ft.Semantics)
-        container = button.content
-        assert isinstance(container, ft.Container)
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
-        _m(container.on_hover)(SimpleNamespace(data="false", control=container))
+        assert isinstance(button.content, ft.Button)
+        assert button.label == "Add a one-off transaction"
 
-    def test_dialog_dismiss_button_hover_unmounted(self, dashboard):
-        # ``_build_dialog_dismiss_button`` builds a Container-button used
-        # in the threshold-help dialog. Hover handler must swallow the
-        # update() RuntimeError when the dialog isn't mounted.
+    def test_dialog_dismiss_button_is_focusable_button(self, dashboard):
         button = dashboard._build_dialog_dismiss_button("Got it", on_click=lambda _e: None)
         assert isinstance(button, ft.Semantics)
-        container = button.content
-        assert isinstance(container, ft.Container)
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
+        assert isinstance(button.content, ft.Button)
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +101,7 @@ class TestMetaChipHelper:
         # The inner Text carries the count.
         inner = chip.content
         assert isinstance(inner, ft.Text)
-        assert inner.value == "3 of 12 included"
+        assert inner.value == "3 OF 12 INCLUDED"
 
 
 # ---------------------------------------------------------------------------

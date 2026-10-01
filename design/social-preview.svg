@@ -1,27 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
-  <!-- GitHub social preview (Settings → General → Social preview). Render: rsvg-convert -o social-preview.png social-preview.svg -->
+  <!-- GitHub social preview (Settings → General → Social preview). Needs Source Serif 4 + Inter installed.
+       Render: rsvg-convert -o social-preview.png social-preview.svg -->
   <rect width="1280" height="640" fill="#faf6f3"/>
-  <rect x="24" y="24" width="1232" height="592" fill="none" stroke="#d6c5ba" stroke-width="2"/>
 
-  <!-- Icon (design/icon.svg), scaled to 360px -->
-  <g transform="translate(96 140) scale(0.703125)">
-    <circle cx="256" cy="256" r="240" fill="#faf6f3" stroke="#d6c5ba" stroke-width="3"/>
-    <line x1="80" y1="280" x2="432" y2="280" stroke="#d4a657" stroke-width="6" stroke-dasharray="14 16" stroke-linecap="round"/>
-    <g fill="none" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Lockup: icon (design/icon.svg) at 64px + name -->
+  <g transform="translate(72 76) scale(0.125)">
+    <circle cx="256" cy="256" r="240" fill="#faf6f3" stroke="#d6c5ba" stroke-width="12"/>
+    <line x1="80" y1="280" x2="432" y2="280" stroke="#d4a657" stroke-width="10" stroke-dasharray="14 16" stroke-linecap="round"/>
+    <g fill="none" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="100,230 190,180 234,280" stroke="#2e9764"/>
       <polyline points="234,280 270,360 310,280" stroke="#d04632"/>
       <polyline points="310,280 350,200 420,240" stroke="#2e9764"/>
     </g>
   </g>
+  <text x="152" y="122" font-family="'Source Serif 4', Georgia, serif" font-size="36" font-weight="500" fill="#392b24">Monarch Forecast</text>
 
-  <g font-family="Georgia, 'Source Serif Pro', serif" fill="#392b24">
-    <text x="530" y="280" font-size="84" font-weight="500">Monarch</text>
-    <text x="530" y="372" font-size="84" font-weight="500">Forecast</text>
+  <!-- Verdict headline -->
+  <g font-family="'Source Serif 4', Georgia, serif" font-size="88" font-weight="500" fill="#392b24">
+    <text x="68" y="292">Know<tspan dx="22">before</tspan></text>
+    <text x="68" y="384">you<tspan dx="22">overdraw<tspan dx="8">.</tspan></tspan></text>
   </g>
-  <rect x="532" y="400" width="64" height="4" fill="#d97a64"/>
-  <g font-family="'Helvetica Neue', Inter, sans-serif" fill="#5e4f47" font-size="28">
-    <text x="530" y="452">See where your checking balance is headed,</text>
-    <text x="530" y="490">day by day. Spot shortfalls before they happen.</text>
+  <text x="72" y="452" font-family="Inter, 'Helvetica Neue', sans-serif" font-size="30" fill="#5e4f47">Your checking balance, forecast daily.</text>
+
+  <!-- Illustrative 45-day projection -->
+  <rect x="720" y="360" width="490" height="122" fill="#f4ece6"/>
+  <line x1="720" y1="482" x2="1210" y2="482" stroke="#d6c5ba" stroke-width="2"/>
+  <line x1="720" y1="360" x2="1210" y2="360" stroke="#d4a657" stroke-width="4" stroke-dasharray="12 10" stroke-linecap="round"/>
+  <text x="1210" y="348" text-anchor="end" font-family="Inter, 'Helvetica Neue', sans-serif" font-size="20" font-weight="500" fill="#77675d">threshold</text>
+  <g fill="none" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Segments split at the threshold crossings (984,360) and (1026,360) -->
+    <polyline points="720,220 790,250 830,190 900,235 960,280 984,360" stroke="#217547"/>
+    <polyline points="984,360 1005,430 1026,360" stroke="#bd3a27"/>
+    <polyline points="1026,360 1050,280 1110,230 1160,255 1210,200" stroke="#217547"/>
   </g>
-  <text x="530" y="560" font-family="'Helvetica Neue', Inter, sans-serif" font-size="20" fill="#77675d" letter-spacing="1.5">DESKTOP APP · MACOS · WINDOWS · LINUX · FOR MONARCH MONEY USERS</text>
+  <circle cx="1005" cy="430" r="9" fill="#faf6f3" stroke="#bd3a27" stroke-width="5"/>
+  <text x="1030" y="440" font-family="Inter, 'Helvetica Neue', sans-serif" font-size="22" font-weight="600" fill="#bd3a27">Low on the 22nd</text>
+  <g font-family="Inter, 'Helvetica Neue', sans-serif" font-size="20" fill="#77675d">
+    <text x="720" y="512">Today</text>
+    <text x="1210" y="512" text-anchor="end">+45 days</text>
+  </g>
+
+  <text x="72" y="572" font-family="Inter, 'Helvetica Neue', sans-serif" font-size="22" fill="#77675d">Free, open-source desktop app. An unofficial companion for Monarch Money.</text>
 </svg>

@@ -113,7 +113,7 @@ class TestDialog:
         buttons = [c for c in _walk(_dialog(page).actions) if isinstance(c, ft.Button)]
         focused = [b for b in buttons if b.autofocus]
         assert len(focused) == 1
-        assert focused[0].content == "Cancel"
+        assert focused[0].tooltip == "Cancel"
 
     def test_cancel_closes_without_erasing(self, page: MagicMock):
         calls: list[int] = []
@@ -184,7 +184,7 @@ class TestNavRailEntry:
             c for c in _walk(nav) if isinstance(c, ft.Semantics) and c.label == _ERASE_ROW_LABEL
         )
         container = row.content
-        assert isinstance(container, ft.Container)
+        assert isinstance(container, ft.Button)
         container.on_click(MagicMock())
         assert calls == [1]
 
@@ -397,7 +397,7 @@ class TestEraseHandler:
             if isinstance(c, ft.Semantics) and c.label == _ERASE_ROW_LABEL
         )
         container = row.content
-        assert isinstance(container, ft.Container)
+        assert isinstance(container, ft.Button)
         page = MagicMock(spec=ft.Page)
         with (
             patch.object(ft.BaseControl, "page", new_callable=PropertyMock, return_value=page),

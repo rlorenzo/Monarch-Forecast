@@ -3,7 +3,7 @@
 ``show_amount_edit_dialog``, ``show_add_one_off_dialog``, and
 ``show_edit_one_off_dialog`` all live as closures inside the dialog
 builders — invoke them by walking the rendered dialog tree, finding the
-primary action button's ``on_click`` (a Container nested inside the
+primary action button's ``on_click`` (an ft.Button nested inside the
 coral_button's Semantics wrapper), and calling it.
 
 Validation failures call ``error_text.update()``, which raises
@@ -61,14 +61,14 @@ def _find_action_on_click(dialog: ft.AlertDialog, label: str):
     """Return the ``on_click`` of the editorial button labeled ``label``.
 
     Editorial buttons (``coral_button`` / ``ghost_button`` / ``ink_button``)
-    wrap a Container with the click handler inside an ``ft.Semantics``
+    wrap a focusable ``ft.Button`` with the click handler inside an ``ft.Semantics``
     node labeled with the button text. Match on that label.
     """
     for action in dialog.actions or []:
         for c in _walk(action):
             if isinstance(c, ft.Semantics) and c.label == label:
                 inner = c.content
-                if isinstance(inner, ft.Container) and inner.on_click is not None:
+                if isinstance(inner, ft.Button) and inner.on_click is not None:
                     return inner.on_click
     return None
 

@@ -88,18 +88,32 @@ def _two_day_forecast() -> ForecastResult:
 
 
 class TestFilterChip:
-    def test_unselected_uses_paper_fill(self):
+    def test_chip_is_a_focusable_button_with_square_corners(self):
         chip = _FilterChip(
             label="Income", value="income", selected=False, on_select=lambda _v: None
         )
-        assert chip.bgcolor is not None
-        # Not coral when unselected.
+        assert isinstance(chip, ft.Button)
+        style = _m(chip.style)
+        assert style.shape.radius == 3
+        assert style.side[ft.ControlState.FOCUSED].width == 2
 
-    def test_selected_uses_coral_tint(self):
+    def test_unselected_uses_paper_2_with_paper_3_hover(self):
+        from src.views import tokens
+
+        chip = _FilterChip(
+            label="Income", value="income", selected=False, on_select=lambda _v: None
+        )
+        bg = _m(chip.style).bgcolor
+        assert bg[ft.ControlState.DEFAULT] == tokens.PAPER_2
+        assert bg[ft.ControlState.HOVERED] == tokens.PAPER_3
+
+    def test_selected_uses_coral_tint_and_deep_text(self):
         from src.views import tokens
 
         chip = _FilterChip(label="Income", value="income", selected=True, on_select=lambda _v: None)
-        assert chip.bgcolor == tokens.CORAL_TINT
+        bg = _m(chip.style).bgcolor
+        assert bg[ft.ControlState.DEFAULT] == bg[ft.ControlState.HOVERED] == tokens.CORAL_TINT
+        assert _m(chip._label.style).color == tokens.CORAL_DEEP
 
     def test_click_invokes_on_select_with_value(self):
         picked: list[str] = []
@@ -108,30 +122,6 @@ class TestFilterChip:
         )
         _m(chip.on_click)(MagicMock())
         assert picked == ["income"]
-
-    def test_hover_on_unselected_swaps_bg(self):
-        from src.views import tokens
-
-        chip = _FilterChip(
-            label="Income", value="income", selected=False, on_select=lambda _v: None
-        )
-        # Mock update to swallow the unmounted-control error.
-        _m(chip).update = MagicMock()
-        # Hover in.
-        _m(chip.on_hover)(SimpleNamespace(data="true", control=chip))
-        assert chip.bgcolor == tokens.PAPER_2
-        # Hover out.
-        _m(chip.on_hover)(SimpleNamespace(data="false", control=chip))
-        assert chip.bgcolor == tokens.PAPER
-
-    def test_hover_on_selected_is_noop(self):
-        from src.views import tokens
-
-        chip = _FilterChip(label="All", value="all", selected=True, on_select=lambda _v: None)
-        before = chip.bgcolor
-        _m(chip.on_hover)(SimpleNamespace(data="true", control=chip))
-        # Unchanged.
-        assert chip.bgcolor == before == tokens.CORAL_TINT
 
 
 # ---------------------------------------------------------------------------
@@ -372,10 +362,11 @@ class TestSortableDateHeader:
         oldest, newest = self._label(newest_first=False), self._label(newest_first=True)
         assert oldest.content.value == "DATE ↑"
         assert newest.content.value == "DATE ↓"
+        assert isinstance(oldest, ft.TextButton)
         # The tooltip names the destination, not the current state, so it
         # tells you what the click will do.
-        assert "click for newest first" in (oldest.tooltip or "")
-        assert "click for oldest first" in (newest.tooltip or "")
+        assert "Click for newest first." in (oldest.tooltip or "")
+        assert "Click for oldest first." in (newest.tooltip or "")
 
     def test_hover_recolors_the_label_and_restores_it(self):
         label = self._label()

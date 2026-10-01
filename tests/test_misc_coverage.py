@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
 
 import flet as ft
 
@@ -71,7 +70,7 @@ class TestTooltipBuilder:
             ],
         )
         text = _build_tooltip(day)
-        assert "Net: -$1,600" in text
+        assert "Net: −$1,600" in text
 
     def test_multi_day_tooltip_with_positive_net(self):
         day = ForecastDay(
@@ -388,35 +387,12 @@ def _make_side_nav(icon_path: str | None = None) -> SideNav:
 
 
 class TestSideNavLogo:
-    def test_logo_hover_in_scales_and_rings(self):
-        nav = _make_side_nav(icon_path="data:image/png;base64,XX")
-        assert nav._logo_seal is not None
-        seal = nav._logo_seal
-        _m(seal).update = MagicMock()
-        # Hover in.
-        _m(nav._on_logo_hover)(SimpleNamespace(data="true", control=seal))
-        scale = seal.scale
-        assert scale is not None and getattr(scale, "scale", 1.0) > 1.0
-
-    def test_logo_hover_out_restores_scale(self):
+    def test_logo_is_a_focusable_button_without_hover_scale(self):
         nav = _make_side_nav(icon_path="data:image/png;base64,XX")
         seal = nav._logo_seal
-        assert seal is not None
-        _m(seal).update = MagicMock()
-        _m(nav._on_logo_hover)(SimpleNamespace(data="false", control=seal))
-        scale = seal.scale
-        assert scale is not None and getattr(scale, "scale", 1.0) == 1.0
-
-    def test_logo_hover_unmounted_does_not_raise(self):
-        """``seal`` is a real, never-mounted Container here (``update`` is
-        NOT stubbed) — ``update()`` raises ``RuntimeError`` on an unmounted
-        control, and the handler must swallow that the same way its sibling
-        methods (``refresh_display``, ``_repaint_destinations``) do."""
-        nav = _make_side_nav(icon_path="data:image/png;base64,XX")
-        seal = nav._logo_seal
-        assert seal is not None
-        nav._on_logo_hover(_m(SimpleNamespace(data="true", control=seal)))
-        assert seal.scale is not None and getattr(seal.scale, "scale", 1.0) > 1.0
+        assert isinstance(seal, ft.Button)
+        assert seal.scale is None and seal.animate_scale is None
+        assert not hasattr(nav, "_on_logo_hover")
 
     def test_logo_click_routes_to_first_destination(self):
         picked: list[int] = []

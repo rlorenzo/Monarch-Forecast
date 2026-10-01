@@ -252,7 +252,7 @@ class TestEditDispatchers:
 
 
 class TestShowSnackbar:
-    def test_uses_green_for_success(self, dashboard, fake_page):
+    def test_success_is_neutral_themed(self, dashboard, fake_page):
         # Remove the stubbed _show_snackbar; we want to test the real impl.
         del dashboard._show_snackbar  # type: ignore[attr-defined]
         with _with_mock_page(fake_page):
@@ -260,14 +260,16 @@ class TestShowSnackbar:
         # show_dialog called with a SnackBar
         snack = fake_page.show_dialog.call_args[0][0]
         assert isinstance(snack, ft.SnackBar)
-        assert snack.bgcolor == ft.Colors.GREEN_700
+        assert snack.bgcolor is None  # theme INK background
+        assert snack.content.value == "Saved"
 
-    def test_uses_red_for_failure(self, dashboard, fake_page):
+    def test_failure_is_prefixed_not_red(self, dashboard, fake_page):
         del dashboard._show_snackbar  # type: ignore[attr-defined]
         with _with_mock_page(fake_page):
             dashboard._show_snackbar("Failed", success=False)
         snack = fake_page.show_dialog.call_args[0][0]
-        assert snack.bgcolor == ft.Colors.RED_700
+        assert snack.bgcolor is None
+        assert snack.content.value == "Error: Failed"
 
     def test_swallows_unmounted_error(self, dashboard):
         # Without a fake page, show_dialog access raises — _show_snackbar

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, PropertyMock, patch
 
@@ -162,62 +161,49 @@ class TestAddOneOffFormSuccess:
 # ---------------------------------------------------------------------------
 
 
-def _button_container(button: ft.Control) -> ft.Container:
-    """Editorial buttons wrap the clickable Container in ``ft.Semantics``."""
+def _button(button: ft.Control) -> ft.Button:
+    """Editorial buttons wrap a focusable ``ft.Button`` in ``ft.Semantics``."""
     assert isinstance(button, ft.Semantics)
     inner = button.content
-    assert isinstance(inner, ft.Container)
+    assert isinstance(inner, ft.Button)
     return inner
 
 
-class TestCoralButtonHover:
-    def test_hover_in_switches_to_coral_deep(self):
-        button = coral_button("Save", on_click=lambda _e: None)
-        container = _button_container(button)
-        _m(container).update = MagicMock()
-        # Coral at rest.
-        assert container.bgcolor == tokens.CORAL
-        # Hover in.
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
-        assert container.bgcolor == tokens.CORAL_DEEP
-        # Hover out.
-        _m(container.on_hover)(SimpleNamespace(data="false", control=container))
-        assert container.bgcolor == tokens.CORAL
+def _bg(button: ft.Button) -> dict:
+    style = button.style
+    assert style is not None
+    assert isinstance(style.bgcolor, dict)
+    return style.bgcolor
 
-    def test_with_icon_renders_icon_plus_label(self):
-        button = coral_button("Save", icon=ft.Icons.SAVE, on_click=lambda _e: None)
-        container = _button_container(button)
-        # Row inside has an Icon and a Text.
-        body = container.content
+
+class TestEditorialButtonStates:
+    def test_coral_button_is_contrast_safe_coral_deep(self):
+        bg = _bg(_button(coral_button("Save", on_click=lambda _e: None)))
+        assert bg[ft.ControlState.DEFAULT] == tokens.CORAL_DEEP
+        assert bg[ft.ControlState.HOVERED] == tokens.CORAL_INK
+
+    def test_coral_button_with_icon_renders_icon_plus_label(self):
+        inner = _button(coral_button("Save", icon=ft.Icons.SAVE, on_click=lambda _e: None))
+        body = inner.content
         assert isinstance(body, ft.Row)
-        controls = body.controls or []
-        kinds = {type(c) for c in controls}
+        kinds = {type(c) for c in body.controls or []}
         assert ft.Icon in kinds
         assert ft.Text in kinds
 
+    def test_ghost_button_hover_is_paper_2(self):
+        bg = _bg(_button(ghost_button("Cancel", on_click=lambda _e: None)))
+        assert bg[ft.ControlState.DEFAULT] == "transparent"
+        assert bg[ft.ControlState.HOVERED] == tokens.PAPER_2
 
-class TestGhostButtonHover:
-    def test_hover_in_switches_to_paper_2(self):
-        button = ghost_button("Cancel", on_click=lambda _e: None)
-        container = _button_container(button)
-        _m(container).update = MagicMock()
-        assert container.bgcolor == "transparent"
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
-        assert container.bgcolor == tokens.PAPER_2
-        _m(container.on_hover)(SimpleNamespace(data="false", control=container))
-        assert container.bgcolor == "transparent"
+    def test_ink_button_hover_is_ink_2(self):
+        bg = _bg(_button(ink_button("Got it", on_click=lambda _e: None)))
+        assert bg[ft.ControlState.DEFAULT] == tokens.INK
+        assert bg[ft.ControlState.HOVERED] == tokens.INK_2
 
-
-class TestInkButtonHover:
-    def test_hover_in_switches_to_ink_2(self):
-        button = ink_button("Got it", on_click=lambda _e: None)
-        container = _button_container(button)
-        _m(container).update = MagicMock()
-        assert container.bgcolor == tokens.INK
-        _m(container.on_hover)(SimpleNamespace(data="true", control=container))
-        assert container.bgcolor == tokens.INK_2
-        _m(container.on_hover)(SimpleNamespace(data="false", control=container))
-        assert container.bgcolor == tokens.INK
+    def test_buttons_are_focusable_real_buttons(self):
+        handler = MagicMock()
+        inner = _button(coral_button("Save", on_click=handler))
+        assert inner.on_click is handler
 
 
 class TestButtonAccessibility:
