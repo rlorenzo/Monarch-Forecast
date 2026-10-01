@@ -95,6 +95,11 @@ jobs:
           TEMPLATE_FLAGS=""
           if [ "${{ matrix.platform }}" = "macos" ]; then
             TEMPLATE_FLAGS="--template $(packaging/macos/patch_build_template.sh "$RUNNER_TEMP/flet-template")"
+            # Sparkle compares the appcast's sparkle:version against
+            # CFBundleVersion, which Flet otherwise leaves at 1 forever.
+            # Encode 1.7.0 as 10700; the "Sparkle appcast" step reuses this.
+            # ponytail: assumes minor/patch < 100.
+            TEMPLATE_FLAGS="$TEMPLATE_FLAGS --build-number $(echo "$BUILD_VERSION" | awk -F. '{print $1*10000 + $2*100 + $3}')"
           fi
           # Keep build/dev cruft OUT of the bundled app.zip. Without this,
           # `flet build` sweeps the ENTIRE project directory into app.zip:
@@ -545,6 +550,44 @@ jobs:
             (cd build/macos && tar -czf ../monarch-forecast-macos.tar.gz .)
           fi
 
+      # EdDSA-signs the DMG for Sparkle and writes the <item> the release job
+      # wraps into appcast.xml (it has the CHANGELOG notes). Installed apps
+      # verify this signature against SUPublicEDKey in pyproject.toml before
+      # installing anything. Pinned + SHA-256 checked like create-dmg; keep the
+      # version equal to the Sparkle pod in patch_build_template.sh.
+      - name: Sparkle appcast item (macOS)
+        if: matrix.platform == 'macos' && steps.macsign.outputs.enabled == 'true'
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$SPARKLE_ED_PRIVATE_KEY" ] || { echo "::error::SPARKLE_ED_PRIVATE_KEY secret not set"; exit 1; }
+          if grep -q PASTE_GENERATE_KEYS_PUBLIC_KEY pyproject.toml; then
+            echo "::error::SUPublicEDKey in pyproject.toml is still the placeholder"; exit 1
+          fi
+          SPARKLE_VERSION="2.9.6"
+          SPARKLE_SHA256="52bf9e88cdd972fc0c81501377a880e90d47031bd8ca5462488f843e2609e192"
+          curl -fsSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          echo "${SPARKLE_SHA256}  $RUNNER_TEMP/sparkle.tar.xz" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+
+          VERSION="$(defaults read "$PWD/build/macos/Monarch Forecast.app/Contents/Info" CFBundleShortVersionString)"
+          BUILD="$(defaults read "$PWD/build/macos/Monarch Forecast.app/Contents/Info" CFBundleVersion)"
+          # Prints: sparkle:edSignature="..." length="..."
+          SIG_ATTRS="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" \
+            | "$RUNNER_TEMP/sparkle/bin/sign_update" --ed-key-file - build/monarch-forecast-macos.dmg)"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/monarch-forecast-macos.dmg"
+          cat > build/sparkle-item.xml <<ITEM
+              <title>Version ${VERSION}</title>
+              <sparkle:version>${BUILD}</sparkle:version>
+              <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+              <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
+              <enclosure url="${URL}" type="application/octet-stream" ${SIG_ATTRS}/>
+          ITEM
+          cat build/sparkle-item.xml
+
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -554,6 +597,7 @@ jobs:
             build/monarch-forecast-linux.AppImage
             build/monarch-forecast-macos.dmg
             build/monarch-forecast-macos.tar.gz
+            build/sparkle-item.xml
           if-no-files-found: ignore
 
   release:
@@ -595,6 +639,31 @@ jobs:
             exit 1
           fi
 
+      # Sparkle feed. SUFeedURL points at releases/latest/download/appcast.xml,
+      # so it only goes live when this draft is published. Skipped when the
+      # macOS build was unsigned (no sparkle-item.xml).
+      - name: Build Sparkle appcast
+        run: |
+          ITEM="$(find artifacts -name sparkle-item.xml | head -1)"
+          [ -n "$ITEM" ] || { echo "No sparkle-item.xml; skipping appcast"; exit 0; }
+          {
+            echo '<?xml version="1.0" encoding="utf-8"?>'
+            echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
+            echo '  <channel>'
+            echo '    <title>Monarch Forecast</title>'
+            echo '    <item>'
+            cat "$ITEM"
+            echo "      <pubDate>$(date -R)</pubDate>"
+            # Markdown notes need Sparkle >= 2.9 + macOS 12, both guaranteed.
+            echo '      <description sparkle:format="markdown"><![CDATA['
+            sed 's/]]>/]]]]><![CDATA[>/g' release-notes.md
+            echo '      ]]></description>'
+            echo '    </item>'
+            echo '  </channel>'
+            echo '</rss>'
+          } > appcast.xml
+          cat appcast.xml
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3.0.2
         with:
@@ -603,5 +672,6 @@ jobs:
             artifacts/**/*.AppImage
             artifacts/**/*.dmg
             artifacts/**/*.tar.gz
+            appcast.xml
           body_path: release-notes.md
           draft: true

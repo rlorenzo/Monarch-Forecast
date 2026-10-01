@@ -32,7 +32,9 @@ def check_for_update() -> dict[str, Any] | None:
         Dict with 'version', 'download_url', 'release_notes' if update available,
         None if current version is latest or check fails.
     """
-    if not _VERSION_KNOWN:
+    # macOS builds embed Sparkle (packaging/macos/patch_build_template.sh),
+    # which shows its own update dialog; a banner too would double-prompt.
+    if not _VERSION_KNOWN or sys.platform == "darwin":
         return None
     try:
         req = Request(

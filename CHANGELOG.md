@@ -7,6 +7,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- The Mac app updates itself. A new version brings up the standard macOS
+  update dialog with release notes, and Install Update replaces the app in
+  Applications and relaunches it. Updating to this version is the last one
+  you do by hand.
+
 ### Fixed
 
 - Demo mode shows the same dip-and-recover forecast on any date. Rent was

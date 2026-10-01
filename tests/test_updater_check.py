@@ -12,6 +12,15 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _non_mac_platform(monkeypatch):
+    """check_for_update bows out on macOS (Sparkle owns updates there), so
+    pin a platform where the GitHub check runs, whatever the host is."""
+    monkeypatch.setattr("sys.platform", "linux")
+
 
 def _patch_version(monkeypatch, version: str = "0.1.0", known: bool = True) -> None:
     """Override the module-level ``CURRENT_VERSION`` / ``_VERSION_KNOWN``
@@ -43,19 +52,18 @@ class TestUpdateAvailable:
             "html_url": "https://github.com/owner/repo/releases/tag/v0.2.0",
             "assets": [
                 {
-                    "name": "monarch-forecast-darwin.dmg",
-                    "browser_download_url": "https://example.com/mac",
+                    "name": "monarch-forecast-linux.AppImage",
+                    "browser_download_url": "https://example.com/linux",
                 },
             ],
         }
         with patch("src.utils.updater.urlopen", return_value=_mock_response(payload)):
-            monkeypatch.setattr("sys.platform", "darwin")
             from src.utils.updater import check_for_update
 
             result = check_for_update()
         assert result is not None
         assert result["version"] == "0.2.0"
-        assert result["download_url"] == "https://example.com/mac"
+        assert result["download_url"] == "https://example.com/linux"
         assert result["release_notes"] == "Release notes"
 
     def test_tag_without_v_prefix_still_works(self, monkeypatch):
@@ -90,6 +98,15 @@ class TestUpdateAvailable:
 
 
 class TestNoUpdate:
+    def test_macos_defers_to_sparkle_without_network(self, monkeypatch):
+        _patch_version(monkeypatch, "0.1.0")
+        monkeypatch.setattr("sys.platform", "darwin")
+        with patch("src.utils.updater.urlopen") as mock_urlopen:
+            from src.utils.updater import check_for_update
+
+            assert check_for_update() is None
+        mock_urlopen.assert_not_called()
+
     def test_returns_none_when_remote_same_version(self, monkeypatch):
         _patch_version(monkeypatch, "0.2.0")
         payload = {"tag_name": "v0.2.0", "assets": []}
