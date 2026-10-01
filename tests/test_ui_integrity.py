@@ -173,8 +173,10 @@ class TestViewBuildersSmoke:
         chart = build_forecast_chart(make_forecast())
         assert chart is not None
         # The padded min/max are arbitrary values that overlap interval labels.
-        assert not chart.left_axis.show_min
-        assert not chart.left_axis.show_max
+        axis = chart.left_axis
+        assert axis is not None
+        assert not axis.show_min
+        assert not axis.show_max
 
     def test_build_transactions_table(self):
         from src.views.transactions_table import build_transactions_table
