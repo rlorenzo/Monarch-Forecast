@@ -13,6 +13,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   Text fields and dropdowns now set their outline through `border=` with
   `OutlineInputBorder`, because 1.0 deprecates the old `border_color` and
   `border_width` style properties.
+- The Mac app now needs macOS 12 (Monterey) or later, up from 11. Xcode 27
+  can't build for anything older.
 
 - Headings and the wordmark use Source Serif 4 instead of Fraunces. Fraunces's
   curly, playful letterforms (the lowercase f most of all) read as whimsical on
