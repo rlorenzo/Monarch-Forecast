@@ -208,9 +208,13 @@ def build_forecast_chart(
             border_side=ft.BorderSide(1, tokens.RULE),
             padding=ft.Padding.symmetric(horizontal=12, vertical=8),
         ),
+        # No min/max labels: the padded bounds are arbitrary values
+        # (e.g. -643.3) that collide with the nearest interval label.
         left_axis=ChartAxis(
             title=_axis_text("Balance ($)"),
             label_size=60,
+            show_min=False,
+            show_max=False,
         ),
         right_axis=right_axis,
         bottom_axis=ChartAxis(
