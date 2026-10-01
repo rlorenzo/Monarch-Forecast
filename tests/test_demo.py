@@ -137,3 +137,42 @@ def test_dashboard_accepts_demo_overrides(tmp_path) -> None:
     )
     assert isinstance(dashboard, ft.Column)
     assert dashboard._raw_client.__class__.__name__ == "DemoClient"
+
+
+def test_demo_forecast_shape_holds_on_every_day_of_the_year(monkeypatch) -> None:
+    """The demo starts above zero, dips below it, and recovers, whatever the date.
+
+    It used to depend on the calendar: rent was fixed to the 1st, so on the
+    1st it landed before the paycheck and the demo opened at -$1,130.
+    """
+    from src.data import recurring_detector
+    from src.forecast import credit_cards, engine
+
+    class FakeDate(date):
+        current = date(2028, 1, 1)
+
+        @classmethod
+        def today(cls):
+            return cls.current
+
+    for module in (recurring_detector, credit_cards, engine, demo_data):
+        monkeypatch.setattr(module, "date", FakeDate)
+
+    for offset in range(366):  # 2028 is a leap year
+        today = date(2028, 1, 1) + timedelta(days=offset)
+        FakeDate.current = today
+        txns = demo_data.build_transactions(today)
+        recurring = [r for r in detect_recurring(txns) if r.account_id == demo_data.CHECKING_ID]
+        cc_payments = estimate_cc_payments(
+            demo_data.build_credit_card_accounts(), recurring, forecast_days=45, transactions=txns
+        )
+        result = build_forecast(
+            starting_balance=demo_data.CHECKING_STARTING_BALANCE,
+            recurring_items=recurring,
+            one_off_transactions=demo_data.build_one_off_transactions(today) + cc_payments,
+            days_out=45,
+        )
+        balances = [d.ending_balance for d in result.days]
+        assert balances[0] > 0, f"{today}: demo opens below zero ({balances[0]:.2f})"
+        assert min(balances) < 0, f"{today}: demo never dips below zero"
+        assert balances[-1] > 0, f"{today}: demo does not recover by day 45"

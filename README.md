@@ -29,7 +29,7 @@ The dashboard's headline view: low-balance and overdraft alerts up top, the
 projected low for the window, starting/net/ending balances, and the
 day-by-day balance projection chart.
 
-![Overview tab showing a projected -$568.80 low and the balance chart dipping below zero before recovering](screenshots/overview.png)
+![Overview tab showing a projected −$584.80 low and the balance chart dipping below zero before recovering](screenshots/overview.png)
 
 ### Transactions
 
