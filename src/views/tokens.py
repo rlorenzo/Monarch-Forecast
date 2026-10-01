@@ -216,3 +216,12 @@ def field_label_style(color: str = INK_2) -> ft.TextStyle:
     style.size = round(11 / _FLOATING_LABEL_SCALE, 2)
     style.letter_spacing = 0.88
     return style
+
+
+def field_border(color: str = RULE, width: float = 1) -> dict[ft.ControlState, ft.InputBorder]:
+    """Outline for TextField / Dropdown ``border``: hairline at rest, 2px
+    CORAL_DEEP when focused."""
+    return {
+        ft.ControlState.DEFAULT: ft.OutlineInputBorder(side=ft.BorderSide(width, color)),
+        ft.ControlState.FOCUSED: ft.OutlineInputBorder(side=ft.BorderSide(2, CORAL_DEEP)),
+    }

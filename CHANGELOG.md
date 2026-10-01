@@ -9,6 +9,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 
+- Flet and `flet-charts` 0.86.5 to 1.0.3. The Flutter SDK stays at 3.44.8.
+  Text fields and dropdowns now set their outline through `border=` with
+  `OutlineInputBorder`, because 1.0 deprecates the old `border_color` and
+  `border_width` style properties.
+
 - Headings and the wordmark use Source Serif 4 instead of Fraunces. Fraunces's
   curly, playful letterforms (the lowercase f most of all) read as whimsical on
   a financial verdict; Source Serif 4 keeps the editorial serif voice with

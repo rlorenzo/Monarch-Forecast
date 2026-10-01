@@ -1,6 +1,6 @@
 # Flet integration tests — what works here, and what does not
 
-Flet 0.86 ships `flet.testing`: a Flutter-driver-style harness with finders,
+Flet ships `flet.testing` (since 0.86): a Flutter-driver-style harness with finders,
 real tap/type/drag, `resize_page`, and screenshot comparison. It looked like
 the answer to the gap that let the ledger clipping bug survive 800+ tests —
 none of which render.
