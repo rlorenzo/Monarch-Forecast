@@ -7,15 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.6.0] (2026-09-30)
+
 ### Changed
 
-- Flet and `flet-charts` 0.86.5 to 1.0.3. The Flutter SDK stays at 3.44.8.
-  Text fields and dropdowns now set their outline through `border=` with
-  `OutlineInputBorder`, because 1.0 deprecates the old `border_color` and
-  `border_width` style properties.
 - The Mac app now needs macOS 12 (Monterey) or later, up from 11. Xcode 27
   can't build for anything older.
-
+- Flet and `flet-charts` 0.86.5 to 1.0.3. The Flutter SDK stays at 3.44.8, and
+  the bundled Python stays at 3.12. Text fields and dropdowns now set their
+  outline through `border=` with `OutlineInputBorder`, because 1.0 deprecates
+  the old `border_color` and `border_width` style properties.
 - Headings and the wordmark use Source Serif 4 instead of Fraunces. Fraunces's
   curly, playful letterforms (the lowercase f most of all) read as whimsical on
   a financial verdict; Source Serif 4 keeps the editorial serif voice with
@@ -41,6 +42,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   nothing drops below the 11pt floor (the recurring chip was 10pt, and field
   labels shrank to about 8pt when they floated).
 - Hover scale animations are gone, so reduce-motion users see no movement.
+
+### Security
+
+- Cleared all 17 open Dependabot alerts (PyJWT, urllib3, oauthlib). PyJWT and
+  urllib3 only reached the lockfile through semgrep, which CI now runs with
+  `uvx` instead, and never shipped in the app. oauthlib, which Flet bundles,
+  is at 4.0.0.
 
 ## [1.5.1] (2026-09-30)
 
@@ -456,7 +464,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.6.0
 [1.5.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.1
 [1.5.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.0
 [1.4.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.4.1
