@@ -123,30 +123,82 @@ async def main(page: ft.Page) -> None:
 
     _icon_theme = ft.IconTheme(apply_text_scaling=True)
 
-    # Step 5 of bisect: explicit ColorScheme replaces color_scheme_seed.
-    # Light theme only for now; dark theme stays Material default.
+    # The paper-and-ink system lives in the theme as well as in tokens.py.
+    # Views paint with tokens directly; the theme covers everything they
+    # don't style (bare Text, dialogs, snackbars, sliders, tooltips) and is
+    # the only route for src.auth, which tach keeps independent of
+    # src.views. Light only: the dark ramp is deferred (see DESIGN.md).
     page.theme = ft.Theme(
+        font_family=tokens.FONT_BODY,
         color_scheme=ft.ColorScheme(
-            primary=tokens.CORAL,
+            # CORAL_DEEP, not CORAL: primary paints filled buttons, slider
+            # thumbs, checkboxes and focus rings, all of which need 3:1+
+            # (CORAL is 2.8:1 on PAPER).
+            primary=tokens.CORAL_DEEP,
             on_primary=tokens.PAPER,
             primary_container=tokens.CORAL_TINT,
             on_primary_container=tokens.CORAL_DEEP,
             secondary=tokens.INK_2,
             on_secondary=tokens.PAPER,
-            tertiary=tokens.SIGNAL_THRESHOLD,
-            on_tertiary=tokens.INK,
+            secondary_container=tokens.PAPER_3,
+            on_secondary_container=tokens.INK,
+            tertiary=tokens.SIGNAL_THRESHOLD_INK,
+            on_tertiary=tokens.PAPER,
             error=tokens.SIGNAL_NEGATIVE,
             on_error=tokens.PAPER,
+            error_container=tokens.PAPER_2,
+            on_error_container=tokens.SIGNAL_NEGATIVE,
             surface=tokens.PAPER,
             on_surface=tokens.INK,
             on_surface_variant=tokens.INK_2,
+            surface_tint=tokens.PAPER,
+            surface_container_lowest=tokens.PAPER,
             surface_container_low=tokens.PAPER,
             surface_container=tokens.PAPER_2,
             surface_container_high=tokens.PAPER_2,
             surface_container_highest=tokens.PAPER_3,
+            inverse_surface=tokens.INK,
+            on_inverse_surface=tokens.PAPER,
+            inverse_primary=tokens.CORAL_TINT,
             outline=tokens.RULE,
             outline_variant=tokens.RULE,
+            shadow=tokens.INK,
+            scrim=tokens.INK,
         ),
+        text_theme=ft.TextTheme(
+            display_small=tokens.display_style(),
+            headline_small=tokens.headline_style(),
+            title_medium=tokens.title_style(),
+            body_medium=tokens.body_style(),
+            body_small=tokens.body_style(tokens.INK_2),
+            label_small=tokens.label_style(),
+        ),
+        dialog_theme=ft.DialogTheme(
+            bgcolor=tokens.PAPER,
+            shadow_color=tokens.INK,
+            barrier_color=ft.Colors.with_opacity(0.32, tokens.INK),
+            shape=ft.RoundedRectangleBorder(radius=14),
+            title_text_style=tokens.headline_style(),
+            content_text_style=tokens.body_style(),
+        ),
+        snackbar_theme=ft.SnackBarTheme(
+            bgcolor=tokens.INK,
+            content_text_style=tokens.body_style(tokens.PAPER),
+            action_text_color=tokens.CORAL_TINT,
+            shape=ft.RoundedRectangleBorder(radius=6),
+            behavior=ft.SnackBarBehavior.FLOATING,
+        ),
+        slider_theme=ft.SliderTheme(
+            active_track_color=tokens.CORAL_DEEP,
+            inactive_track_color=tokens.RULE,
+            thumb_color=tokens.CORAL_DEEP,
+            overlay_color=ft.Colors.with_opacity(0.12, tokens.CORAL_DEEP),
+        ),
+        tooltip_theme=ft.TooltipTheme(
+            text_style=tokens.body_style(tokens.PAPER),
+            decoration=ft.BoxDecoration(bgcolor=tokens.INK, border_radius=6),
+        ),
+        progress_indicator_theme=ft.ProgressIndicatorTheme(color=tokens.CORAL_DEEP),
         icon_theme=_icon_theme,
     )
 

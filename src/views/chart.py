@@ -10,16 +10,17 @@ from flet_charts import (
     LineChartData,
     LineChartDataPoint,
     LineChartDataPointTooltip,
+    LineChartTooltip,
 )
 
 from src.forecast.models import ForecastResult
+from src.utils.money import format_money
 from src.views import tokens
 
-# Step 3 of bisect: chart line / threshold / point colors use tokens.
-# Structure (LineChart args, height, expand=True) unchanged.
-_BLUE = tokens.CORAL
-_GREEN = tokens.SIGNAL_POSITIVE
-_RED = tokens.SIGNAL_NEGATIVE
+# CORAL_DEEP, not CORAL: the brand coral is 2.8:1 on paper and fails the 3:1
+# non-text contrast floor for a data line.
+_LINE = tokens.CORAL_DEEP
+_THRESHOLD = tokens.SIGNAL_THRESHOLD
 
 
 def build_forecast_chart_summary(result: ForecastResult) -> str:
@@ -39,24 +40,26 @@ def build_forecast_chart_summary(result: ForecastResult) -> str:
     low_date = result.lowest_balance_date
     parts = [
         f"Balance projection over {total_days} days: "
-        f"starts at ${result.starting_balance:,.2f} on "
+        f"starts at {format_money(result.starting_balance)} on "
         f"{first.date.strftime('%b %d')}, "
-        f"ends at ${last.ending_balance:,.2f} on "
+        f"ends at {format_money(last.ending_balance)} on "
         f"{last.date.strftime('%b %d')}."
     ]
     if low_date is not None:
-        parts.append(f"Lowest projected balance is ${low:,.2f} on {low_date.strftime('%b %d')}.")
+        parts.append(
+            f"Lowest projected balance is {format_money(low)} on {low_date.strftime('%b %d')}."
+        )
     if result.safety_threshold > 0:
         if result.has_shortfall:
             first_short = result.shortfall_dates[0]
             parts.append(
-                f"Drops below the ${result.safety_threshold:,.0f} safety "
+                f"Drops below the {format_money(result.safety_threshold, cents=False)} safety "
                 f"threshold on {first_short.strftime('%b %d')}, "
                 f"{len(result.shortfall_dates)} day(s) below threshold."
             )
         else:
             parts.append(
-                f"Stays above the ${result.safety_threshold:,.0f} safety "
+                f"Stays above the {format_money(result.safety_threshold, cents=False)} safety "
                 f"threshold for the entire window."
             )
     parts.append("See the Transactions tab for a full day-by-day text breakdown.")
@@ -68,7 +71,9 @@ def build_forecast_chart(
     height: float = 400,
     reduce_motion: bool = False,
 ) -> LineChart:
-    """Create an interactive line chart with a blue balance line and green/red point coloring.
+    """Create an interactive line chart: a 2px coral balance line, an amber dashed
+    threshold line labelled at the right edge, and amber markers where the
+    balance crosses the threshold.
 
     When ``reduce_motion`` is True the balance line is drawn as straight
     segments instead of a curved spline — helpful for users who set the OS
@@ -80,43 +85,39 @@ def build_forecast_chart(
 
     start_date = result.days[0].date
 
+    threshold = result.safety_threshold
     points = []
+    prev_below: bool | None = None
     for day in result.days:
         x = (day.date - start_date).days
-        tooltip_text = _build_tooltip(day)
-        color = _GREEN if day.ending_balance >= 0 else _RED
-
+        # Crossing marker (6px amber circle) only where the balance moves
+        # across the threshold; every other point is invisible until hovered.
+        below = day.ending_balance < threshold
+        crossing = threshold > 0 and prev_below is not None and below != prev_below
+        prev_below = below
         points.append(
             LineChartDataPoint(
                 x=x,
                 y=day.ending_balance,
-                tooltip=LineChartDataPointTooltip(
-                    text=tooltip_text,
-                    text_style=ft.TextStyle(
-                        color=ft.Colors.WHITE,
-                        size=11,
-                        weight=ft.FontWeight.W_500,
-                    ),
-                ),
+                tooltip=_build_tooltip_spec(day),
                 show_tooltip=True,
-                point=ChartCirclePoint(radius=3, color=color),
-                selected_point=ChartCirclePoint(radius=5, color=color),
+                point=ChartCirclePoint(radius=3 if crossing else 0, color=_THRESHOLD),
+                selected_point=ChartCirclePoint(radius=4, color=_LINE),
             )
         )
 
-    # Single data series with blue line; points colored green/red
     balance_series = LineChartData(
         points=points,
-        color=_BLUE,
-        stroke_width=2.5,
+        color=_LINE,
+        stroke_width=2,
         curved=not reduce_motion,
         prevent_curve_over_shooting=True,
     )
 
     data_series: list[LineChartData] = [balance_series]
 
-    # Optional dashed reference line at the user's safety threshold.
-    threshold = result.safety_threshold
+    # Optional 1px dashed amber reference line at the user's safety threshold
+    # (labelled on the right axis below).
     if threshold > 0 and result.days:
         x_start = 0
         x_end = (result.days[-1].date - start_date).days
@@ -125,16 +126,16 @@ def build_forecast_chart(
                 LineChartDataPoint(
                     x=x_start,
                     y=threshold,
-                    point=ChartCirclePoint(radius=0, color=_RED),
+                    point=ChartCirclePoint(radius=0, color=_THRESHOLD),
                 ),
                 LineChartDataPoint(
                     x=x_end,
                     y=threshold,
-                    point=ChartCirclePoint(radius=0, color=_RED),
+                    point=ChartCirclePoint(radius=0, color=_THRESHOLD),
                 ),
             ],
-            color=ft.Colors.with_opacity(0.7, _RED),
-            stroke_width=1.5,
+            color=_THRESHOLD,
+            stroke_width=1,
             dash_pattern=[6, 4],
         )
         data_series.append(threshold_series)
@@ -155,13 +156,13 @@ def build_forecast_chart(
             x_labels.append(
                 ChartAxisLabel(
                     value=day_offset,
-                    label=ft.Text(day.date.strftime("%b %d"), size=12),
+                    label=_axis_text(day.date.strftime("%b %d")),
                 )
             )
     x_labels.append(
         ChartAxisLabel(
             value=total_days,
-            label=ft.Text(result.days[-1].date.strftime("%b %d"), size=12),
+            label=_axis_text(result.days[-1].date.strftime("%b %d")),
         )
     )
 
@@ -183,20 +184,43 @@ def build_forecast_chart(
         min_y -= 100
         max_y += 100
     y_range = max_y - min_y
+    # Right-edge threshold label: an axis label pinned to the threshold's y.
+    right_axis = None
+    if threshold > 0:
+        right_axis = ChartAxis(
+            labels=[
+                ChartAxisLabel(
+                    value=threshold,
+                    label=_axis_text(
+                        f"Threshold {format_money(threshold, cents=False)}",
+                        tokens.SIGNAL_THRESHOLD_INK,
+                    ),
+                )
+            ],
+            label_size=110,
+        )
     return LineChart(
         data_series=data_series,
         interactive=True,
+        tooltip=LineChartTooltip(
+            bgcolor=tokens.PAPER,
+            border_radius=6,
+            border_side=ft.BorderSide(1, tokens.RULE),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+        ),
         left_axis=ChartAxis(
-            title=ft.Text("Balance ($)", size=12),
+            title=_axis_text("Balance ($)"),
             label_size=60,
         ),
+        right_axis=right_axis,
         bottom_axis=ChartAxis(
             labels=x_labels,
             label_size=30,
         ),
         horizontal_grid_lines=ChartGridLines(
             interval=max(y_range / 5, 1),
-            color=ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE),
+            color=tokens.RULE,
+            width=1,
         ),
         min_y=min_y,
         max_y=max_y,
@@ -205,20 +229,57 @@ def build_forecast_chart(
     )
 
 
+def _axis_text(value: str, color: str = tokens.INK_3) -> ft.Text:
+    """Axis text: 11pt Inter, ink-3 (the Label floor, no uppercase for dates)."""
+    style = tokens.label_style(color)
+    style.letter_spacing = 0
+    return ft.Text(value, style=style)
+
+
+def _build_tooltip_spec(day) -> LineChartDataPointTooltip:
+    """Tooltip content: date in the serif headline role, balance in figures,
+    delta on its own line in signal color with an explicit +/\u2212 glyph."""
+    date_style = tokens.title_style(tokens.INK)
+    date_style.font_family = tokens.FONT_DISPLAY
+    balance_style = tokens.figure_secondary_style(tokens.INK)
+    spans = [
+        ft.TextSpan(day.date.strftime("%b %d") + "\n", style=date_style),
+        ft.TextSpan(format_money(day.ending_balance), style=balance_style),
+    ]
+    if day.transactions:
+        delta_color = tokens.SIGNAL_POSITIVE if day.net_change >= 0 else tokens.SIGNAL_NEGATIVE
+        spans.append(
+            ft.TextSpan(
+                "\n" + format_money(day.net_change, signed=True),
+                style=tokens.body_style(delta_color),
+            )
+        )
+        for txn in day.transactions[:4]:
+            spans.append(
+                ft.TextSpan(
+                    f"\n{format_money(txn.amount, signed=True, cents=False)} {txn.name[:18]}",
+                    style=tokens.label_style(tokens.INK_2),
+                )
+            )
+        if len(day.transactions) > 4:
+            spans.append(
+                ft.TextSpan(
+                    f"\n+{len(day.transactions) - 4} more",
+                    style=tokens.label_style(tokens.INK_3),
+                )
+            )
+    return LineChartDataPointTooltip(
+        text="", text_style=tokens.body_style(tokens.INK), text_spans=spans
+    )
+
+
 def _build_tooltip(day) -> str:
-    """Build concise tooltip text for a data point."""
-    lines = [f"{day.date.strftime('%b %d')}: ${day.ending_balance:,.2f}"]
+    """Plain-text form of the tooltip (kept for tests and text fallbacks)."""
+    lines = [f"{day.date.strftime('%b %d')}: {format_money(day.ending_balance)}"]
     for txn in day.transactions[:4]:
-        name = txn.name[:18]
-        if txn.amount >= 0:
-            lines.append(f"+${txn.amount:,.0f} {name}")
-        else:
-            lines.append(f"-${abs(txn.amount):,.0f} {name}")
+        lines.append(f"{format_money(txn.amount, signed=True, cents=False)} {txn.name[:18]}")
     if len(day.transactions) > 4:
         lines.append(f"...+{len(day.transactions) - 4} more")
     if len(day.transactions) > 1:
-        if day.net_change >= 0:
-            lines.append(f"Net: +${day.net_change:,.0f}")
-        else:
-            lines.append(f"Net: -${abs(day.net_change):,.0f}")
+        lines.append(f"Net: {format_money(day.net_change, signed=True, cents=False)}")
     return "\n".join(lines)

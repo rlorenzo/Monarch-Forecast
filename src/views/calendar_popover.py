@@ -15,6 +15,8 @@ from datetime import date
 
 import flet as ft
 
+from src.views import tokens
+
 _WEEKDAY_LABELS = ("S", "M", "T", "W", "T", "F", "S")
 
 
@@ -40,7 +42,7 @@ def show_calendar_popover(
     # Mutable cursor so prev/next month buttons can update the visible grid.
     cursor = {"year": initial_date.year, "month": initial_date.month}
 
-    month_label = ft.Text("", size=15, weight=ft.FontWeight.W_600)
+    month_label = ft.Text("", style=tokens.title_style(tokens.INK))
     grid_container = ft.Container()
 
     def in_range(d: date) -> bool:
@@ -59,31 +61,55 @@ def show_calendar_popover(
         is_today = d == date.today()
         is_selected = d == initial_date
         enabled = in_range(d)
+        # Selected = CORAL_TINT + CORAL_DEEP (4.9:1); today = PAPER_3 band.
+        # Radius 6 (not a circle) to match the button radius everywhere else.
         bg = None
-        fg = None
+        fg = tokens.INK
         if is_selected:
-            bg = ft.Colors.PRIMARY
-            fg = ft.Colors.ON_PRIMARY
+            bg, fg = tokens.CORAL_TINT, tokens.CORAL_DEEP
         elif is_today:
-            bg = ft.Colors.PRIMARY_CONTAINER
-            fg = ft.Colors.ON_PRIMARY_CONTAINER
-        return ft.Container(
-            content=ft.Text(
-                str(d.day),
-                size=13,
-                color=fg if fg is not None else ft.Colors.ON_SURFACE,
-                text_align=ft.TextAlign.CENTER,
-                weight=ft.FontWeight.W_600 if (is_today or is_selected) else None,
+            bg = tokens.PAPER_3
+        bold = is_today or is_selected
+        if not enabled:
+            return ft.Container(
+                content=ft.Text(
+                    str(d.day),
+                    style=tokens.body_style(tokens.INK),
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                width=36,
+                height=36,
+                alignment=ft.Alignment(0, 0),
+                opacity=0.35,
+            )
+        label = d.strftime("%A, %b %d, %Y")
+        # A focusable ft.TextButton so keyboard users can Tab/Enter a day;
+        # Semantics supplies the accessible name (tooltips are not announced).
+        return ft.Semantics(
+            button=True,
+            label=f"Pick {label}",
+            content=ft.TextButton(
+                content=ft.Text(
+                    str(d.day),
+                    style=tokens.body_style(fg),
+                    weight=ft.FontWeight.W_600 if bold else None,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                width=36,
+                height=36,
+                tooltip=label,
+                on_click=lambda _e, _d=d: handle_pick(_d),
+                style=ft.ButtonStyle(
+                    shadow_color="transparent",
+                    bgcolor={
+                        ft.ControlState.DEFAULT: bg or "transparent",
+                        ft.ControlState.HOVERED: bg or tokens.PAPER_2,
+                    },
+                    padding=ft.Padding.all(0),
+                    shape=ft.RoundedRectangleBorder(radius=6),
+                    overlay_color="transparent",
+                ),
             ),
-            width=36,
-            height=36,
-            alignment=ft.Alignment(0, 0),
-            bgcolor=bg,
-            border_radius=18,
-            ink=enabled,
-            on_click=(lambda _e, _d=d: handle_pick(_d)) if enabled else None,
-            tooltip=d.strftime("%A, %b %d, %Y") if enabled else None,
-            opacity=1.0 if enabled else 0.35,
         )
 
     def build_month_grid() -> ft.Column:
@@ -104,7 +130,16 @@ def show_calendar_popover(
             weeks.append(row_cells)
 
         header_row = ft.Row(
-            [ft.Text(w, size=11, color=ft.Colors.ON_SURFACE_VARIANT) for w in _WEEKDAY_LABELS],
+            [
+                ft.Container(
+                    ft.Text(
+                        w, style=tokens.label_style(tokens.INK_2), text_align=ft.TextAlign.CENTER
+                    ),
+                    width=36,
+                    alignment=ft.Alignment(0, 0),
+                )
+                for w in _WEEKDAY_LABELS
+            ],
             spacing=0,
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             width=36 * 7,

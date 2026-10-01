@@ -98,7 +98,11 @@ class LoginView(ft.Column):
             label="Remember credentials",
             value=False,
         )
-        self.login_text = ft.Text("Sign In")
+        self.login_text = ft.Text(
+            "Sign In",
+            theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
+            color=ft.Colors.ON_PRIMARY,
+        )
         self.progress = ft.ProgressRing(visible=False, width=18, height=18, stroke_width=2)
         self.login_button = ft.Button(
             content=ft.Row(
@@ -109,22 +113,32 @@ class LoginView(ft.Column):
             width=350,
             on_click=self._handle_login,
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
+                shadow_color="transparent",
+                shape=ft.RoundedRectangleBorder(radius=6),
+                bgcolor=ft.Colors.PRIMARY,
+                color=ft.Colors.ON_PRIMARY,
             ),
         )
         self.demo_button = ft.OutlinedButton(
-            content=ft.Text("Try Demo Mode"),
+            content=ft.Text(
+                "Try Demo Mode",
+                theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
+                color=ft.Colors.ON_SURFACE,
+            ),
             width=350,
             on_click=lambda _: self.on_demo(),
             tooltip="Explore the app with sample data before signing in",
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
+                shadow_color="transparent",
+                shape=ft.RoundedRectangleBorder(radius=6),
+                side=ft.BorderSide(1, ft.Colors.OUTLINE),
+                color=ft.Colors.ON_SURFACE,
             ),
         )
         self.status_text = ft.Text(
             value=notice.message if notice else "",
-            color=notice.color if notice else ft.Colors.RED_400,
-            size=13,
+            color=notice.color if notice else ft.Colors.ERROR,
+            theme_style=ft.TextThemeStyle.BODY_SMALL,
         )
         # Wrap the status text in a Semantics live region so assistive tech
         # announces login failures / MFA prompts when status_text.value
@@ -146,42 +160,45 @@ class LoginView(ft.Column):
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
         self.alignment = ft.MainAxisAlignment.CENTER
         self.spacing = 0
+        # Scroll so the form and Demo button are never clipped at the 600px
+        # minimum window height.
+        self.scroll = ft.ScrollMode.AUTO
         self.controls = [
-            # Header with gradient background
+            # Paper-and-ink wordmark header, matching the side-nav: caps
+            # eyebrow, serif title, short coral underscore.
             ft.Container(
                 content=ft.Column(
                     [
-                        ft.Icon(ft.Icons.ACCOUNT_BALANCE, size=56, color=ft.Colors.WHITE),
                         ft.Text(
-                            "Monarch Forecast",
-                            size=28,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.WHITE,
+                            "MONARCH",
+                            theme_style=ft.TextThemeStyle.LABEL_SMALL,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                            semantics_label="Monarch Forecast",
                         ),
+                        ft.Text(
+                            "Forecast",
+                            theme_style=ft.TextThemeStyle.DISPLAY_SMALL,
+                            color=ft.Colors.ON_SURFACE,
+                        ),
+                        ft.Container(width=24, height=2, bgcolor=ft.Colors.PRIMARY),
+                        ft.Container(height=8),
                         ft.Text(
                             "See where your money is headed",
-                            size=14,
-                            color=ft.Colors.with_opacity(0.85, ft.Colors.WHITE),
+                            theme_style=ft.TextThemeStyle.BODY_MEDIUM,
+                            color=ft.Colors.ON_SURFACE,
                         ),
-                        ft.Container(height=4),
                         ft.Text(
                             "Project your checking account balance day-by-day using\n"
                             "your Monarch Money data. Spot shortfalls before they happen.",
-                            size=12,
-                            color=ft.Colors.with_opacity(0.7, ft.Colors.WHITE),
+                            theme_style=ft.TextThemeStyle.BODY_SMALL,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
                             text_align=ft.TextAlign.CENTER,
                         ),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=6,
+                    spacing=4,
                 ),
-                padding=ft.Padding.symmetric(vertical=40, horizontal=24),
-                gradient=ft.LinearGradient(
-                    begin=ft.Alignment(-1, -1),
-                    end=ft.Alignment(1, 1),
-                    colors=["#1565C0", "#1E88E5", "#42A5F5"],
-                ),
-                border_radius=16,
+                padding=ft.Padding.symmetric(vertical=32, horizontal=24),
                 width=450,
             ),
             # Login form card
@@ -201,7 +218,7 @@ class LoginView(ft.Column):
                         ft.Container(height=4),
                         ft.Text(
                             "Want to try the app before signing in?",
-                            size=11,
+                            theme_style=ft.TextThemeStyle.LABEL_SMALL,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                         ),
                         self.demo_button,
@@ -215,12 +232,12 @@ class LoginView(ft.Column):
             ft.Container(
                 content=ft.Row(
                     [
-                        ft.Icon(ft.Icons.LOCK_OUTLINE, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                        ft.Icon(ft.Icons.LOCK_OUTLINE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Text(
                             "Credentials are stored in your OS keychain "
                             "(macOS Keychain, Windows Credential Locker, or Linux SecretService). "
                             "Nothing is sent to third parties.",
-                            size=11,
+                            theme_style=ft.TextThemeStyle.LABEL_SMALL,
                             color=ft.Colors.ON_SURFACE_VARIANT,
                             width=340,
                         ),
@@ -287,7 +304,7 @@ class LoginView(ft.Column):
             self.mfa_field.visible = True
             self.mfa_field.autofocus = True
             self.status_text.value = "MFA required. Enter your code below."
-            self.status_text.color = ft.Colors.ORANGE_400
+            self.status_text.color = ft.Colors.ON_SURFACE_VARIANT
             self.mfa_field.update()
             await self.mfa_field.focus()
 
@@ -296,19 +313,19 @@ class LoginView(ft.Column):
         # tell the user to check credentials that are almost certainly fine.
         except CaptchaRequiredException:
             self.status_text.value = CAPTCHA_STATUS_MESSAGE
-            self.status_text.color = ft.Colors.ORANGE_400
+            self.status_text.color = ft.Colors.ON_SURFACE_VARIANT
             # Nothing to retype, so focus stays put rather than being yanked
             # into the password field as it is for a real credential failure.
 
         except LoginFailedException:
             self.status_text.value = "Login failed. Check your credentials."
-            self.status_text.color = ft.Colors.RED_400
+            self.status_text.color = ft.Colors.ERROR
             await self.password_field.focus()
 
         except Exception:
             logger.exception("Unexpected error during login")
             self.status_text.value = "Sign-in failed. Please try again."
-            self.status_text.color = ft.Colors.RED_400
+            self.status_text.color = ft.Colors.ERROR
 
         finally:
             self.login_button.disabled = False

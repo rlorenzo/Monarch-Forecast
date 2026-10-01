@@ -28,15 +28,19 @@ from src.forecast.credit_cards import (
 from src.forecast.engine import build_forecast
 from src.forecast.models import ForecastResult
 from src.utils.assets import ASSETS_DIR
+from src.utils.money import format_money
 from src.views import tokens
 from src.views.about import show_about_dialog
 from src.views.adjustments import (
     AdjustmentsPanel,
+    _ledger_dropdown,
     _ledger_field,
     _meta_chip,
     _section_header,
     _section_rule,
     coral_button,
+    ghost_button,
+    ink_button,
     show_add_one_off_dialog,
     show_amount_edit_dialog,
     show_edit_one_off_dialog,
@@ -218,13 +222,16 @@ class DashboardView(ft.Column):
         self._cc_cards_wrapper: ft.Container | None = None
 
         # --- UI controls ---
-        self.account_dropdown = ft.Dropdown(
+        self.account_dropdown = _ledger_dropdown(
             label="Checking Account",
+            value="",
+            options=[],
             width=350,
-            on_select=self._on_account_change,
             tooltip="Select which checking account to forecast",
         )
-        self._days_label = ft.Text(f"{self._days_out} days", size=12, weight=ft.FontWeight.W_500)
+        self.account_dropdown.value = None
+        self.account_dropdown.on_select = self._on_account_change
+        self._days_label = ft.Text(f"{self._days_out} days", style=tokens.body_style(tokens.INK))
         self.days_slider = ft.Slider(
             min=14,
             max=90,
@@ -235,9 +242,9 @@ class DashboardView(ft.Column):
             on_change_end=self._on_days_change,
             width=250,
         )
-        self.threshold_field = ft.TextField(
+        self.threshold_field = _ledger_field(
             label="Safety threshold",
-            prefix=ft.Text("$"),
+            prefix=ft.Text("$", style=tokens.body_style(tokens.INK_2)),
             value=f"{self._safety_threshold:g}",
             width=150,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -260,12 +267,11 @@ class DashboardView(ft.Column):
         self.loading = ft.ProgressRing(width=48, height=48)
         self.loading_stage = ft.Text(
             "",
-            size=16,
-            weight=ft.FontWeight.W_500,
+            style=tokens.title_style(tokens.INK),
             text_align=ft.TextAlign.CENTER,
         )
         self.alerts_container = ft.Container()
-        self.summary_row = ft.Row(spacing=20, wrap=True, run_spacing=16)
+        self.summary_row = ft.Row(spacing=24, wrap=True, run_spacing=16)
         self.chart_container = ft.Container(height=400)
         # Stateful Transactions tab (filter strip + editorial day-block ledger).
         # Held as an attribute so its search/filter state survives the per-
@@ -294,16 +300,11 @@ class DashboardView(ft.Column):
                 self.alerts_container,
                 self.summary_row,
                 ft.Container(height=16),
-                ft.Text(
-                    "Balance Projection",
-                    size=18,
-                    weight=ft.FontWeight.W_600,
-                ),
+                ft.Text("Balance Projection", style=tokens.headline_style(tokens.INK)),
                 ft.Text(
                     "Hover over data points to see transactions for that day. "
                     "Switch to the Transactions tab for a full text breakdown.",
-                    size=12,
-                    color=ft.Colors.ON_SURFACE_VARIANT,
+                    style=tokens.body_style(tokens.INK_2),
                 ),
                 ft.Container(height=4),
                 self.chart_container,
@@ -413,12 +414,10 @@ class DashboardView(ft.Column):
                     [
                         ft.Row(
                             [
-                                ft.Text(
-                                    "Forecast window:", size=12, color=ft.Colors.ON_SURFACE_VARIANT
-                                ),
+                                ft.Text("FORECAST WINDOW", style=tokens.label_style(tokens.INK_2)),
                                 self._days_label,
                             ],
-                            spacing=6,
+                            spacing=8,
                         ),
                         self.days_slider,
                     ],
@@ -432,7 +431,7 @@ class DashboardView(ft.Column):
             ],
             alignment=ft.MainAxisAlignment.START,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=28,
+            spacing=24,
         )
 
         # Scrollable tab content area — only the currently active tab page.
@@ -454,15 +453,24 @@ class DashboardView(ft.Column):
                     tight=True,
                 ),
                 padding=32,
-                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
-                border_radius=12,
-                shadow=ft.BoxShadow(
-                    blur_radius=24,
-                    color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK),
-                ),
+                bgcolor=tokens.PAPER,
+                border=ft.Border.all(1, tokens.RULE),
+                border_radius=14,
+                shadow=[
+                    ft.BoxShadow(
+                        offset=ft.Offset(0, 12),
+                        blur_radius=32,
+                        color=ft.Colors.with_opacity(0.14, tokens.INK),
+                    ),
+                    ft.BoxShadow(
+                        offset=ft.Offset(0, 2),
+                        blur_radius=6,
+                        color=ft.Colors.with_opacity(0.08, tokens.INK),
+                    ),
+                ],
             ),
             alignment=ft.Alignment(0, 0),
-            bgcolor=ft.Colors.with_opacity(0.4, ft.Colors.BLACK),
+            bgcolor=ft.Colors.with_opacity(0.32, tokens.INK),
             expand=True,
             visible=False,
         )
@@ -481,7 +489,7 @@ class DashboardView(ft.Column):
                     content=ft.SelectionArea(
                         content=ft.Column(
                             controls=[self._controls_row, self._scroll_area],
-                            spacing=20,
+                            spacing=24,
                             expand=True,
                         ),
                     ),
@@ -654,7 +662,7 @@ class DashboardView(ft.Column):
             self.account_dropdown.options = [
                 ft.dropdown.Option(
                     key=a["id"],
-                    text=f"{a['name']}: ${a['balance']:,.2f}",
+                    text=f"{a['name']}: {format_money(a['balance'])}",
                 )
                 for a in self._checking_accounts
             ]
@@ -683,7 +691,7 @@ class DashboardView(ft.Column):
                 _safe_update(self.account_dropdown)
                 self._forecast = None
                 self.summary_row.controls = [
-                    ft.Text("No checking accounts found.", color=ft.Colors.ON_SURFACE_VARIANT)
+                    ft.Text("No checking accounts found.", style=tokens.body_style(tokens.INK_2))
                 ]
                 _safe_update(self.summary_row)
                 self.chart_container.content = None
@@ -706,7 +714,7 @@ class DashboardView(ft.Column):
             self.summary_row.controls = [
                 ft.Text(
                     "Error loading data. Check your connection and try Refresh.",
-                    color=ft.Colors.RED_400,
+                    style=tokens.body_style(tokens.SIGNAL_NEGATIVE),
                 )
             ]
             _safe_update(self.summary_row)
@@ -800,7 +808,7 @@ class DashboardView(ft.Column):
             return ft.Container(height=1, bgcolor=tokens.RULE, expand=True)
 
         def _tick() -> ft.Control:
-            return ft.Container(width=2, height=14, bgcolor=tokens.CORAL)
+            return ft.Container(width=2, height=14, bgcolor=tokens.CORAL_DEEP)
 
         return ft.Row(
             controls=[
@@ -825,7 +833,7 @@ class DashboardView(ft.Column):
                 _tick(),
                 _rule(),
             ],
-            spacing=10,
+            spacing=12,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -946,33 +954,42 @@ class DashboardView(ft.Column):
             self.page.pop_dialog()
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Welcome to Monarch Forecast!"),
+            title=ft.Text("Welcome to Monarch Forecast", style=tokens.headline_style(tokens.INK)),
             content=ft.Column(
                 [
                     ft.Text(
                         "This app projects your checking account balance day-by-day "
                         "using your transaction history.",
-                        size=14,
+                        style=tokens.body_style(tokens.INK),
                     ),
                     ft.Container(height=8),
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.DASHBOARD, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Overview: balance summary and projection chart"),
+                            ft.Icon(ft.Icons.DASHBOARD, color=tokens.INK_2, size=20),
+                            ft.Text(
+                                "Overview: balance summary and projection chart",
+                                style=tokens.body_style(tokens.INK),
+                            ),
                         ],
                         spacing=12,
                     ),
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.TABLE_CHART, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Transactions: projected transactions plus recent activity"),
+                            ft.Icon(ft.Icons.TABLE_CHART, color=tokens.INK_2, size=20),
+                            ft.Text(
+                                "Transactions: projected transactions plus recent activity",
+                                style=tokens.body_style(tokens.INK),
+                            ),
                         ],
                         spacing=12,
                     ),
                     ft.Row(
                         [
-                            ft.Icon(ft.Icons.TUNE, color=ft.Colors.PRIMARY, size=20),
-                            ft.Text("Adjustments: add one-off items, toggle recurring items"),
+                            ft.Icon(ft.Icons.TUNE, color=tokens.INK_2, size=20),
+                            ft.Text(
+                                "Adjustments: add one-off items, toggle recurring items",
+                                style=tokens.body_style(tokens.INK),
+                            ),
                         ],
                         spacing=12,
                     ),
@@ -980,14 +997,13 @@ class DashboardView(ft.Column):
                     ft.Text(
                         "Use the controls at the top to switch accounts, "
                         "change the forecast window, or set a safety threshold.",
-                        size=12,
-                        color=ft.Colors.ON_SURFACE_VARIANT,
+                        style=tokens.body_style(tokens.INK_2),
                     ),
                 ],
                 spacing=8,
                 tight=True,
             ),
-            actions=[ft.TextButton("Got it!", on_click=dismiss, autofocus=True)],
+            actions=[ink_button("Got it", on_click=dismiss, autofocus=True)],
         )
         self.page.show_dialog(dialog)
 
@@ -1058,8 +1074,7 @@ class DashboardView(ft.Column):
     def _show_snackbar(self, message: str, success: bool = True) -> None:
         """Show a short-lived status message at the bottom of the page."""
         snack = ft.SnackBar(
-            content=ft.Text(message, color=ft.Colors.WHITE),
-            bgcolor=ft.Colors.GREEN_700 if success else ft.Colors.RED_700,
+            content=ft.Text(message if success else f"Error: {message}"),
             duration=ft.Duration(seconds=2),
         )
         try:
@@ -1211,104 +1226,23 @@ class DashboardView(ft.Column):
             _safe_update(self._cc_cards_wrapper)
 
     def _build_add_one_off_button(self) -> ft.Control:
-        """Editorial primary action — coral fill, paper text, 6px radius.
-
-        Built as a hover-styled Container (not ``ft.FilledButton``) so we
-        sidestep Material's tonal-elevation chrome and keep the
-        Flat-By-Default Rule from DESIGN.md. Wrapped in
-        ``ft.Semantics(button=True, label=...)`` to keep screen-reader
-        affordance — the same contract the accessibility regression test
-        enforces.
-        """
-        label = ft.Text(
+        """Primary action: the shared focusable coral button."""
+        return coral_button(
             "Add One-Off",
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=14,
-                weight=ft.FontWeight.W_600,
-                color=tokens.PAPER,
-                height=1.2,
-            ),
-        )
-        icon = ft.Icon(ft.Icons.ADD, size=18, color=tokens.PAPER)
-        body = ft.Row(
-            controls=[icon, label],
-            spacing=8,
-            tight=True,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-
-        button = ft.Container(
-            content=body,
-            bgcolor=tokens.CORAL,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-            border_radius=ft.BorderRadius.all(6),
+            icon=ft.Icons.ADD,
             on_click=lambda _: self._open_add_one_off_dialog(),
-            on_hover=self._on_add_one_off_hover,
             tooltip="Add a one-off transaction",
-            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT_QUART),
+            sr_label="Add a one-off transaction",
         )
-
-        return ft.Semantics(
-            button=True,
-            label="Add a one-off transaction",
-            content=button,
-        )
-
-    def _on_add_one_off_hover(self, e: ft.Event[ft.Container]) -> None:
-        """Swap coral and coral-deep on hover. 150ms ease-out per DESIGN.md."""
-        is_in = e.data == "true"
-        e.control.bgcolor = tokens.CORAL_DEEP if is_in else tokens.CORAL
-        try:
-            e.control.update()
-        except (RuntimeError, AssertionError):
-            pass
 
     def _build_dialog_dismiss_button(
         self,
         label: str,
         *,
-        on_click: Callable[[ft.Event[ft.Container]], Any],
+        on_click: Callable[[ft.Event[ft.Button]], Any],
     ) -> ft.Control:
-        """Filled INK button used for dialog confirm/dismiss actions.
-
-        Built from a Container so the explicit bgcolor lands without
-        Material's surface-tint blending swallowing it (which is what
-        ``ft.FilledButton`` does by default in Flet 0.84). INK on PAPER
-        gives roughly 13:1 contrast, well above WCAG AA's 4.5:1 floor.
-        Wrapped in ``ft.Semantics(button=True, label=...)`` so screen
-        readers announce it as a button, matching the rest of the
-        accessibility contract.
-        """
-        text = ft.Text(
-            label,
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=14,
-                weight=ft.FontWeight.W_600,
-                color=tokens.PAPER,
-                height=1.2,
-            ),
-        )
-        button = ft.Container(
-            content=text,
-            bgcolor=tokens.INK,
-            padding=ft.Padding.symmetric(horizontal=18, vertical=10),
-            border_radius=ft.BorderRadius.all(6),
-            on_click=on_click,
-            on_hover=self._on_dismiss_button_hover,
-            tooltip=label,
-        )
-        return ft.Semantics(button=True, label=label, content=button)
-
-    def _on_dismiss_button_hover(self, e: ft.Event[ft.Container]) -> None:
-        """INK to INK_2 on hover. Subtle lift, same dark family."""
-        is_in = e.data == "true"
-        e.control.bgcolor = tokens.INK_2 if is_in else tokens.INK
-        try:
-            e.control.update()
-        except (RuntimeError, AssertionError):
-            pass
+        """INK-filled dialog confirm/dismiss action (shared focusable button)."""
+        return ink_button(label, on_click=on_click)
 
     def _build_cc_billing_card(
         self,
@@ -1498,26 +1432,20 @@ class DashboardView(ft.Column):
             value=not is_excluded,
             on_change=lambda e, cid=cc_id: self._on_cc_toggle(cid, e.control.value),
             tooltip=f"{'Exclude' if not is_excluded else 'Include'} {name} from forecast",
-            active_color=tokens.CORAL,
+            active_color=tokens.CORAL_DEEP,
             check_color=tokens.PAPER,
             scale=0.92,
         )
         name_color = tokens.INK_3 if is_excluded else tokens.INK
         name_text = ft.Text(
             name,
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=14,
-                weight=ft.FontWeight.W_600,
-                color=name_color,
-                height=1.3,
-            ),
+            style=tokens.title_style(name_color),
             max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,
         )
         if owed > 0:
             status_text = ft.Text(
-                f"${owed:,.2f} owed",
+                f"{format_money(owed)} owed",
                 style=ft.TextStyle(
                     font_family=tokens.FONT_BODY,
                     size=13,
@@ -1525,7 +1453,7 @@ class DashboardView(ft.Column):
                     color=tokens.INK_3 if is_excluded else tokens.SIGNAL_NEGATIVE,
                     height=1.3,
                 ),
-                semantics_label=f"{name} owes ${owed:,.2f}",
+                semantics_label=f"{name} owes {format_money(owed)}",
             )
         else:
             status_text = ft.Text(
@@ -1572,13 +1500,7 @@ class DashboardView(ft.Column):
                     ),
                     ft.Text(
                         "Leave amount blank for auto-estimate.",
-                        style=ft.TextStyle(
-                            font_family=tokens.FONT_BODY,
-                            size=11,
-                            color=tokens.INK_3,
-                            italic=True,
-                            height=1.4,
-                        ),
+                        style=tokens.body_style(tokens.INK_2),
                     ),
                 ],
                 spacing=12,
@@ -1592,6 +1514,7 @@ class DashboardView(ft.Column):
 
         def toggle(_e: ft.Event[ft.Container]) -> None:
             expanded_state[0] = not expanded_state[0]
+            header_semantics.expanded = expanded_state[0]
             body_column.visible = expanded_state[0]
             chevron.icon = (
                 ft.Icons.KEYBOARD_ARROW_DOWN if expanded_state[0] else ft.Icons.KEYBOARD_ARROW_RIGHT
@@ -1602,6 +1525,7 @@ class DashboardView(ft.Column):
             try:
                 body_column.update()
                 chevron.update()
+                header_semantics.update()
             except (RuntimeError, AssertionError):
                 pass
 
@@ -1644,16 +1568,23 @@ class DashboardView(ft.Column):
             border=ft.Border(top=ft.BorderSide(1, tokens.RULE)) if not is_first else None,
             tooltip=f"Expand {name} billing settings",
         )
+        header_semantics = ft.Semantics(
+            button=True,
+            container=True,
+            label=f"{name} billing settings",
+            expanded=False,
+            content=header_row,
+        )
 
         return ft.Column(
-            controls=[header_row, body_column],
+            controls=[header_semantics, body_column],
             spacing=0,
             tight=True,
         )
 
     def _update_summary(self, account: dict) -> None:
         """Step 6 of bisect: replace the 4 summary cards with a single
-        Fraunces verdict block. Stays inside the existing summary_row
+        Source Serif verdict block. Stays inside the existing summary_row
         (Row wrap=True) so the layout cross-axis behavior the working
         version relied on is preserved.
         """
@@ -1665,7 +1596,7 @@ class DashboardView(ft.Column):
         low_date = f.lowest_balance_date
         breaches = self._safety_threshold > 0 and low < self._safety_threshold
         value_color = tokens.SIGNAL_NEGATIVE if breaches else tokens.SIGNAL_POSITIVE
-        value_text = f"${low:,.2f}"
+        value_text = format_money(low)
         date_str = low_date.strftime("%a, %b %d") if low_date else "today"
         if breaches:
             n_short = len(f.shortfall_dates)
@@ -1685,37 +1616,36 @@ class DashboardView(ft.Column):
             f"Projected low {value_text} on {date_str}{', ' + sr_status if sr_status else ''}"
         )
 
-        # Wrap verdict and ledger in `ft.Card` with explicit widths to
-        # mirror the pre-craft summary cards' structural pattern (which
-        # we've confirmed works without triggering the chart re-mount
-        # bug). The summary_row stays a Row(wrap=True) with both cards
-        # as children — same exact shape as pre-craft, different content.
-        verdict = ft.Card(
-            content=ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Text("PROJECTED LOW", style=tokens.label_style()),
-                        ft.Text(
-                            value_text,
-                            style=tokens.figure_style(value_color),
-                            semantics_label=sr_label,
-                        ),
-                        ft.Text(subtitle, style=tokens.body_style(tokens.INK_2)),
-                    ],
-                    spacing=6,
-                    tight=True,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.symmetric(horizontal=24, vertical=18),
-                width=440,
-                height=132,
+        # Quiet cards: PAPER_2 fill, RULE hairline, 10px radius, no shadow
+        # (Flat-By-Default). Explicit widths and no fixed height, so the
+        # cards grow with larger text. The summary_row stays a
+        # Row(wrap=True) with both cards as children.
+        verdict = ft.Container(
+            bgcolor=tokens.PAPER_2,
+            border=ft.Border.all(1, tokens.RULE),
+            border_radius=10,
+            padding=ft.Padding.symmetric(horizontal=24, vertical=24),
+            width=440,
+            content=ft.Column(
+                controls=[
+                    ft.Text("PROJECTED LOW", style=tokens.label_style()),
+                    ft.Text(
+                        value_text,
+                        style=tokens.figure_style(value_color),
+                        semantics_label=sr_label,
+                    ),
+                    ft.Text(subtitle, style=tokens.body_style(tokens.INK_2)),
+                ],
+                spacing=8,
+                tight=True,
+                alignment=ft.MainAxisAlignment.CENTER,
             ),
         )
 
         net = f.total_income + f.total_expenses
-        net_sign = "+" if net >= 0 else "−"
         net_color = tokens.SIGNAL_POSITIVE if net >= 0 else tokens.SIGNAL_NEGATIVE
-        net_sr = f"Net {'positive' if net >= 0 else 'negative'} {net_sign}${abs(net):,.2f}"
+        net_text = format_money(net, signed=True)
+        net_sr = f"Net {'positive' if net >= 0 else 'negative'} {net_text}"
 
         def _pair(
             label: str,
@@ -1723,43 +1653,40 @@ class DashboardView(ft.Column):
             value_color: str = tokens.INK,
             value_sr: str | None = None,
         ) -> ft.Control:
-            value_style = ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=22,
-                weight=ft.FontWeight.W_600,
-                color=value_color,
-                height=1.1,
-            )
             return ft.Column(
                 controls=[
                     ft.Text(label, style=tokens.label_style()),
-                    ft.Text(value, style=value_style, semantics_label=value_sr),
+                    ft.Text(
+                        value,
+                        style=tokens.figure_secondary_style(value_color),
+                        semantics_label=value_sr,
+                    ),
                 ],
                 spacing=4,
                 tight=True,
             )
 
-        ledger = ft.Card(
-            content=ft.Container(
-                content=ft.Row(
-                    controls=[
-                        _pair("STARTING", f"${account['balance']:,.2f}"),
-                        _pair(
-                            "NET",
-                            f"{net_sign}${abs(net):,.2f}",
-                            value_color=net_color,
-                            value_sr=net_sr,
-                        ),
-                        _pair("ENDING", f"${f.ending_balance:,.2f}"),
-                    ],
-                    spacing=20,
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.symmetric(horizontal=24, vertical=18),
-                width=520,
-                height=132,
-                alignment=ft.Alignment(0, 0),
+        ledger = ft.Container(
+            bgcolor=tokens.PAPER_2,
+            border=ft.Border.all(1, tokens.RULE),
+            border_radius=10,
+            padding=ft.Padding.symmetric(horizontal=24, vertical=24),
+            width=560,
+            alignment=ft.Alignment(0, 0),
+            content=ft.Row(
+                controls=[
+                    _pair("STARTING", format_money(account["balance"])),
+                    _pair(
+                        "NET",
+                        net_text,
+                        value_color=net_color,
+                        value_sr=net_sr,
+                    ),
+                    _pair("ENDING", format_money(f.ending_balance)),
+                ],
+                spacing=24,
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
 
@@ -2085,7 +2012,7 @@ class DashboardView(ft.Column):
                 self._proceed_pending_nav()
             # else: validation error, stay put and let the user fix it
 
-        def discard(_: ft.Event[ft.TextButton]) -> None:
+        def discard(_: ft.Event[ft.Button]) -> None:
             self.page.pop_dialog()
             # Clear dirty state without saving, then rebuild the CC cards
             # immediately — otherwise the fields keep showing the discarded
@@ -2100,7 +2027,7 @@ class DashboardView(ft.Column):
             self._update_cc_info()
             self._proceed_pending_nav()
 
-        def cancel(_: ft.Event[ft.TextButton]) -> None:
+        def cancel(_: ft.Event[ft.Button]) -> None:
             self.page.pop_dialog()
             self._pending_nav_target = None
             # Roll back the visible nav rail selection if it changed.
@@ -2110,9 +2037,9 @@ class DashboardView(ft.Column):
             title=ft.Text("Unsaved credit card changes"),
             content=ft.Text(body + " Save them before switching tabs?"),
             actions=[
-                ft.TextButton("Cancel", on_click=cancel),
-                ft.TextButton("Discard", on_click=discard),
-                ft.FilledButton("Save all", on_click=save_all, autofocus=True),
+                ghost_button("Cancel", on_click=cancel),
+                ghost_button("Discard", on_click=discard),
+                coral_button("Save all", on_click=save_all, autofocus=True),
             ],
         )
         self.page.show_dialog(dialog)
@@ -2195,7 +2122,7 @@ class DashboardView(ft.Column):
             content=ft.Column(
                 [
                     ft.ProgressRing(width=32, height=32),
-                    ft.Text("Loading...", size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("Loading…", style=tokens.body_style(tokens.INK_2)),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12,
@@ -2240,21 +2167,21 @@ class DashboardView(ft.Column):
                 self._show_snackbar("Saved all credit card changes")
                 self._run_task(self._on_refresh_action)
 
-        def discard(_: ft.Event[ft.TextButton]) -> None:
+        def discard(_: ft.Event[ft.Button]) -> None:
             self.page.pop_dialog()
             self._dirty_cc_cards.clear()
             self._run_task(self._on_refresh_action)
 
-        def cancel(_: ft.Event[ft.TextButton]) -> None:
+        def cancel(_: ft.Event[ft.Button]) -> None:
             self.page.pop_dialog()
 
         dialog = ft.AlertDialog(
             title=ft.Text("Unsaved credit card changes"),
             content=ft.Text(body),
             actions=[
-                ft.TextButton("Cancel", on_click=cancel),
-                ft.TextButton("Discard & refresh", on_click=discard),
-                ft.FilledButton("Save & refresh", on_click=save_all, autofocus=True),
+                ghost_button("Cancel", on_click=cancel),
+                ghost_button("Discard & refresh", on_click=discard),
+                coral_button("Save & refresh", on_click=save_all, autofocus=True),
             ],
         )
         self.page.show_dialog(dialog)

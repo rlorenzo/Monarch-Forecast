@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import flet as ft
 
+from src.views import tokens
 from src.views.calendar_popover import show_calendar_popover
 
 
@@ -54,11 +55,11 @@ def _walk(control: Any):
             yield from _walk(value)
 
 
-def _find_day_cell(dialog: Any, day_str: str) -> ft.Container | None:
-    """Return the Container holding the Text(day_str) day-cell, if any."""
+def _find_day_cell(dialog: Any, day_str: str) -> ft.TextButton | None:
+    """Return the focusable TextButton holding the Text(day_str) day-cell."""
     for c in _walk(dialog):
         if (
-            isinstance(c, ft.Container)
+            isinstance(c, ft.TextButton)
             and isinstance(c.content, ft.Text)
             and c.content.value == day_str
             and c.on_click is not None
@@ -114,10 +115,22 @@ class TestDayCellSelection:
         show_calendar_popover(page, initial_date=today, on_pick=lambda _d: None)
         dialog = page.show_dialog.call_args[0][0]
         cell = _find_day_cell(dialog, str(today.day))
-        # Today (which is also the initial selected date) carries the
-        # primary fill colour.
+        # Today (also the initial selected date) carries the CORAL_TINT fill
+        # with CORAL_DEEP text.
         assert cell is not None
-        assert cell.bgcolor is not None
+        assert isinstance(cell.style, ft.ButtonStyle)
+        assert isinstance(cell.style.bgcolor, dict)
+        assert cell.style.bgcolor[ft.ControlState.DEFAULT] == tokens.CORAL_TINT
+        assert isinstance(cell.content, ft.Text)
+        assert cell.content.style is not None
+        assert cell.content.style.color == tokens.CORAL_DEEP
+
+    def test_enabled_day_has_semantics_name(self):
+        page = _make_page()
+        show_calendar_popover(page, initial_date=date(2026, 1, 15), on_pick=lambda _d: None)
+        dialog = page.show_dialog.call_args[0][0]
+        labels = [c.label for c in _walk(dialog) if isinstance(c, ft.Semantics)]
+        assert "Pick Tuesday, Jan 20, 2026" in labels
 
 
 class TestRangeBounds:

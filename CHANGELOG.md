@@ -7,6 +7,34 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- Headings and the wordmark use Source Serif 4 instead of Fraunces. Fraunces's
+  curly, playful letterforms (the lowercase f most of all) read as whimsical on
+  a financial verdict; Source Serif 4 keeps the editorial serif voice with
+  plainer shapes. The installer background uses it too.
+- The sign-in screen matches the rest of the app. The blue Material header and
+  its low-contrast white text are gone, and it scrolls when the window is short.
+- Money reads the same everywhere: a true minus before the dollar sign
+  ("−$2,434.80"), never "$-2,434.80" or a plain hyphen.
+- The chart's safety threshold is a dashed amber line with a label, and amber
+  markers show where the balance crosses it. The hover tooltip is a paper tile
+  in the app's own type.
+- Overview cards, the snackbar, the loading overlay and dialogs drop their
+  stock Material shadows and colors for the paper-and-ink palette.
+
+### Fixed
+
+- Every button, nav row, filter chip, the date sort header and the calendar
+  days can now be reached with Tab and pressed with Enter or Space. Most of
+  them used to be mouse-only.
+- Coral text, icons and primary buttons now meet WCAG AA contrast. Plain coral
+  measured 2.8:1 on the page background.
+- Text no longer renders in the system font where a view did not set one, and
+  nothing drops below the 11pt floor (the recurring chip was 10pt, and field
+  labels shrank to about 8pt when they floated).
+- Hover scale animations are gone, so reduce-motion users see no movement.
+
 ## [1.5.1] (2026-09-30)
 
 Credit card payments are forecast much closer to what your card actually

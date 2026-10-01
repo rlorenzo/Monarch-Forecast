@@ -35,9 +35,10 @@ import flet as ft
 
 from src.data.models import ForecastTransaction, RecurringItem
 from src.data.preferences import Preferences
+from src.utils.money import format_money
 from src.views import tokens
 from src.views.calendar_popover import show_calendar_popover
-from src.views.transactions_table import _column_label, _signed_glyph
+from src.views.transactions_table import _column_label
 
 # Formats accepted when a user types a date into the one-off date TextField.
 # Keep the canonical ISO form first so round-trips are stable.
@@ -118,7 +119,7 @@ def _section_header(
     trailing: ft.Control | None = None,
     on_click: Callable[[ft.Event[ft.Container]], Any] | None = None,
 ) -> ft.Control:
-    """Editorial section header: eyebrow + Fraunces headline + Inter subtitle.
+    """Editorial section header: eyebrow + Source Serif headline + Inter subtitle.
 
     ``meta`` (optional) renders as a small pill placed inline just after
     the headline. Earlier attempts to push the chip to the right edge
@@ -174,15 +175,27 @@ def _section_header(
         except (RuntimeError, AssertionError):
             pass
 
-    return ft.Container(
-        content=column,
-        on_click=on_click,
-        on_hover=_on_hover,
-        bgcolor="transparent",
-        padding=ft.Padding.symmetric(horizontal=4, vertical=4),
-        border_radius=ft.BorderRadius.all(6),
-        tooltip="Click to expand or collapse",
+    # Tooltips are not forwarded to screen readers on Flet desktop, so the
+    # accessible name and button role come from Semantics.
+    return ft.Semantics(
+        button=True,
+        label=title,
+        content=ft.Container(
+            content=column,
+            on_click=on_click,
+            on_hover=_on_hover,
+            bgcolor="transparent",
+            padding=ft.Padding.symmetric(horizontal=4, vertical=4),
+            border_radius=ft.BorderRadius.all(6),
+            tooltip="Click to expand or collapse",
+        ),
     )
+
+
+def _strong(style: ft.TextStyle, weight: ft.FontWeight = ft.FontWeight.W_600) -> ft.TextStyle:
+    """Same scale role at a heavier weight (row names, amounts)."""
+    style.weight = weight
+    return style
 
 
 def _section_rule() -> ft.Control:
@@ -194,55 +207,31 @@ def _section_rule() -> ft.Control:
     )
 
 
-def _meta_chip(text: str) -> ft.Control:
-    """Small pill displaying a counted status (e.g. "3 of 12 included").
-
-    Stays PAPER_2 / INK_2 unconditionally — this isn't a signal; it's a
-    quiet status badge.
-    """
+def _chip(content: ft.Control) -> ft.Container:
+    """DESIGN.md chip: PAPER_2 fill, 3px radius, 2x6 padding, no border."""
     return ft.Container(
-        content=ft.Text(
-            text,
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=11,
-                weight=ft.FontWeight.W_600,
-                color=tokens.INK_2,
-                letter_spacing=0.4,
-                height=1.2,
-            ),
-        ),
+        content=content,
         bgcolor=tokens.PAPER_2,
-        padding=ft.Padding.symmetric(horizontal=10, vertical=4),
-        border_radius=ft.BorderRadius.all(999),
-        border=ft.Border.all(1, tokens.RULE),
+        padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+        border_radius=ft.BorderRadius.all(3),
     )
+
+
+def _meta_chip(text: str) -> ft.Control:
+    """Chip displaying a counted status (e.g. "3 of 12 included").
+
+    Stays PAPER_2 / INK_2 unconditionally; it isn't a signal.
+    """
+    return _chip(ft.Text(text.upper(), style=tokens.label_style(tokens.INK_2)))
 
 
 def _frequency_chip(label: str) -> ft.Control:
-    """Pill used as a tag on a recurring row (monthly, biweekly, etc.).
+    """Chip used as a tag on a recurring row (monthly, biweekly, etc.).
 
-    Always quiet: PAPER_2 fill, INK_2 text, no border. Matches DESIGN.md
-    ``chip-recurring`` token: not a signal, just a small typographic
-    badge — kept distinct from the filter chips on the Transactions tab
-    which are interactive.
+    Always quiet: PAPER_2 fill, INK_2 text, no border (DESIGN.md
+    ``chip-recurring``). Not a signal, just a small typographic badge.
     """
-    return ft.Container(
-        content=ft.Text(
-            label.upper(),
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=10,
-                weight=ft.FontWeight.W_600,
-                color=tokens.INK_2,
-                letter_spacing=0.6,
-                height=1.2,
-            ),
-        ),
-        bgcolor=tokens.PAPER_2,
-        padding=ft.Padding.symmetric(horizontal=8, vertical=3),
-        border_radius=ft.BorderRadius.all(3),
-    )
+    return _chip(ft.Text(label.upper(), style=tokens.label_style(tokens.INK_2)))
 
 
 def _ledger_field(
@@ -289,21 +278,11 @@ def _ledger_field(
         color=tokens.INK,
         text_size=13,
         border_color=border_color if border_color is not None else tokens.RULE,
-        focused_border_color=tokens.CORAL,
+        focused_border_color=tokens.CORAL_DEEP,
         border_width=border_width if border_width is not None else 1,
         focused_border_width=2,
-        label_style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_500,
-            color=tokens.INK_2,
-            letter_spacing=0.4,
-        ),
-        hint_style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=13,
-            color=tokens.INK_3,
-        ),
+        label_style=tokens.field_label_style(),
+        hint_style=tokens.body_style(tokens.INK_3),
         content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
     )
 
@@ -327,59 +306,107 @@ def _ledger_dropdown(
         color=tokens.INK,
         text_size=13,
         border_color=tokens.RULE,
-        focused_border_color=tokens.CORAL,
+        focused_border_color=tokens.CORAL_DEEP,
         border_width=1,
         focused_border_width=2,
-        label_style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_500,
-            color=tokens.INK_2,
-            letter_spacing=0.4,
-        ),
+        label_style=tokens.field_label_style(),
         content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
     )
+
+
+def _button_style(
+    *,
+    bgcolor: str,
+    hover_bgcolor: str,
+    color: str,
+    padding_h: int,
+    focus_ring: str = tokens.CORAL_DEEP,
+) -> ft.ButtonStyle:
+    """Shared ``ButtonStyle`` for the editorial buttons.
+
+    The surface rides on ``ButtonStyle`` (Material honours it; a
+    control-level ``bgcolor`` gets swallowed by tonal elevation). A real
+    ``ft.Button`` takes keyboard focus and fires on Enter/Space, which the
+    old Container-based buttons could not. Focus shows as a 2px ring.
+    """
+    return ft.ButtonStyle(
+        shadow_color="transparent",
+        bgcolor={
+            ft.ControlState.HOVERED: hover_bgcolor,
+            ft.ControlState.PRESSED: hover_bgcolor,
+            ft.ControlState.DEFAULT: bgcolor,
+        },
+        color=color,
+        overlay_color="transparent",
+        elevation=0,
+        padding=ft.Padding.symmetric(horizontal=padding_h, vertical=10),
+        shape=ft.RoundedRectangleBorder(radius=6),
+        side={
+            ft.ControlState.FOCUSED: ft.BorderSide(2, focus_ring),
+            ft.ControlState.DEFAULT: ft.BorderSide(0, "transparent"),
+        },
+        text_style=tokens.button_style(color),
+    )
+
+
+def _editorial_button(
+    label: str,
+    *,
+    on_click: Callable[[ft.Event[ft.Button]], Any],
+    style: ft.ButtonStyle,
+    color: str,
+    icon: ft.IconData | None = None,
+    tooltip: str | None = None,
+    sr_label: str | None = None,
+    autofocus: bool = False,
+) -> ft.Control:
+    """A focusable button wrapped in ``Semantics`` carrying its accessible
+    name (``sr_label`` lets a generic "Save" announce what it saves)."""
+    text = ft.Text(label, style=tokens.button_style(color))
+    content: ft.Control = text
+    if icon is not None:
+        content = ft.Row(
+            controls=[ft.Icon(icon, size=18, color=color), text],
+            spacing=8,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+    button = ft.Button(
+        content=content,
+        on_click=on_click,
+        autofocus=autofocus,
+        tooltip=tooltip or label,
+        style=style,
+    )
+    return ft.Semantics(button=True, label=sr_label or tooltip or label, content=button)
 
 
 def dialog_action_button(
     label: str,
     *,
     on_click: Callable[[ft.Event[ft.Button]], Any],
-    bgcolor: str = tokens.CORAL,
-    hover_bgcolor: str = tokens.CORAL_DEEP,
+    bgcolor: str = tokens.CORAL_DEEP,
+    hover_bgcolor: str = tokens.CORAL_INK,
     color: str = tokens.PAPER,
     autofocus: bool = False,
-) -> ft.Button:
-    """A dialog action built on a real button, so it can hold focus.
+) -> ft.Control:
+    """A dialog action in any surface colour, able to pull focus.
 
-    ``coral_button`` renders a Container, and a Container cannot take
-    focus. AGENTS.md asks every dialog to pull focus into the modal —
-    through a first TextField, or failing that through an action button —
-    so dialogs with no fields use this instead. The surface colour rides
-    on ``ButtonStyle``, which Material honours; a control-level
-    ``bgcolor`` gets swallowed by ``ft.FilledButton``'s tonal elevation.
-    A real button also announces itself to screen readers without the
-    ``Semantics`` wrapper the Container version needs.
+    AGENTS.md asks every dialog to move focus inside it, through a first
+    TextField or failing that an action button; dialogs with no fields
+    pass ``autofocus=True`` here.
     """
-    return ft.Button(
+    return _editorial_button(
         label,
         on_click=on_click,
         autofocus=autofocus,
-        tooltip=label,
-        style=ft.ButtonStyle(
-            bgcolor={
-                ft.ControlState.HOVERED: hover_bgcolor,
-                ft.ControlState.DEFAULT: bgcolor,
-            },
+        color=color,
+        style=_button_style(
+            bgcolor=bgcolor,
+            hover_bgcolor=hover_bgcolor,
             color=color,
-            elevation=0,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-            shape=ft.RoundedRectangleBorder(radius=6),
-            text_style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=14,
-                weight=ft.FontWeight.W_600,
-            ),
+            padding_h=16,
+            focus_ring=tokens.INK,
         ),
     )
 
@@ -388,139 +415,77 @@ def coral_button(
     label: str,
     *,
     icon: ft.IconData | None = None,
-    on_click: Callable[[ft.Event[ft.Container]], Any],
+    on_click: Callable[[ft.Event[ft.Button]], Any],
     tooltip: str | None = None,
     sr_label: str | None = None,
+    autofocus: bool = False,
 ) -> ft.Control:
-    """Coral primary CTA — paper text, 6px radius, Container-based.
+    """Primary CTA: CORAL_DEEP fill, PAPER text (5.7:1), CORAL_INK hover.
 
-    Built from a Container so Material's tonal-elevation chrome doesn't
-    swallow the explicit bgcolor (which it does on ``ft.FilledButton``).
-    Wrapped in Semantics so screen readers announce a button with the
-    given accessible name.
+    CORAL_DEEP rather than CORAL because paper text on plain coral is only
+    2.8:1, under WCAG AA.
     """
-    text = ft.Text(
+    return _editorial_button(
         label,
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=14,
-            weight=ft.FontWeight.W_600,
+        on_click=on_click,
+        icon=icon,
+        tooltip=tooltip,
+        sr_label=sr_label,
+        autofocus=autofocus,
+        color=tokens.PAPER,
+        style=_button_style(
+            bgcolor=tokens.CORAL_DEEP,
+            hover_bgcolor=tokens.CORAL_INK,
             color=tokens.PAPER,
-            height=1.2,
+            padding_h=16,
+            focus_ring=tokens.INK,
         ),
     )
-    body: ft.Control
-    if icon is not None:
-        body = ft.Row(
-            controls=[ft.Icon(icon, size=18, color=tokens.PAPER), text],
-            spacing=8,
-            tight=True,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-    else:
-        body = text
-
-    def _on_hover(e: ft.Event[ft.Container]) -> None:
-        is_in = e.data == "true"
-        e.control.bgcolor = tokens.CORAL_DEEP if is_in else tokens.CORAL
-        try:
-            e.control.update()
-        except (RuntimeError, AssertionError):
-            pass
-
-    button = ft.Container(
-        content=body,
-        bgcolor=tokens.CORAL,
-        padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-        border_radius=ft.BorderRadius.all(6),
-        on_click=on_click,
-        on_hover=_on_hover,
-        tooltip=tooltip or label,
-        animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT_QUART),
-    )
-    return ft.Semantics(button=True, label=sr_label or tooltip or label, content=button)
 
 
 def ghost_button(
     label: str,
     *,
-    on_click: Callable[[ft.Event[ft.Container]], Any],
+    on_click: Callable[[ft.Event[ft.Button]], Any],
     tooltip: str | None = None,
 ) -> ft.Control:
-    """Quiet text button — transparent fill, INK_2 text, PAPER_2 hover."""
-    text = ft.Text(
+    """Quiet text button: transparent fill, INK_2 text, PAPER_2 hover."""
+    return _editorial_button(
         label,
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=14,
-            weight=ft.FontWeight.W_600,
+        on_click=on_click,
+        tooltip=tooltip,
+        color=tokens.INK_2,
+        style=_button_style(
+            bgcolor="transparent",
+            hover_bgcolor=tokens.PAPER_2,
             color=tokens.INK_2,
-            height=1.2,
+            padding_h=14,
         ),
     )
-
-    def _on_hover(e: ft.Event[ft.Container]) -> None:
-        is_in = e.data == "true"
-        e.control.bgcolor = tokens.PAPER_2 if is_in else "transparent"
-        try:
-            e.control.update()
-        except (RuntimeError, AssertionError):
-            pass
-
-    button = ft.Container(
-        content=text,
-        bgcolor="transparent",
-        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-        border_radius=ft.BorderRadius.all(6),
-        on_click=on_click,
-        on_hover=_on_hover,
-        tooltip=tooltip or label,
-    )
-    return ft.Semantics(button=True, label=label, content=button)
 
 
 def ink_button(
     label: str,
     *,
-    on_click: Callable[[ft.Event[ft.Container]], Any],
+    on_click: Callable[[ft.Event[ft.Button]], Any],
     tooltip: str | None = None,
+    autofocus: bool = False,
 ) -> ft.Control:
-    """Ink-on-paper button used for dialog confirm/dismiss actions.
-
-    INK fill at rest, INK_2 on hover. ~13:1 contrast on PAPER text — well
-    above WCAG AA's 4.5:1. Used as the dialog "Cancel" partner to the
-    coral "Save" so the action axis stays calm without lapsing into
-    Material's TextButton chrome.
-    """
-    text = ft.Text(
+    """Ink-on-paper button: INK fill at rest, INK_2 on hover, PAPER text
+    (12.7:1). The calm partner to a coral primary."""
+    return _editorial_button(
         label,
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=14,
-            weight=ft.FontWeight.W_600,
+        on_click=on_click,
+        tooltip=tooltip,
+        autofocus=autofocus,
+        color=tokens.PAPER,
+        style=_button_style(
+            bgcolor=tokens.INK,
+            hover_bgcolor=tokens.INK_2,
             color=tokens.PAPER,
-            height=1.2,
+            padding_h=18,
         ),
     )
-
-    def _on_hover(e: ft.Event[ft.Container]) -> None:
-        is_in = e.data == "true"
-        e.control.bgcolor = tokens.INK_2 if is_in else tokens.INK
-        try:
-            e.control.update()
-        except (RuntimeError, AssertionError):
-            pass
-
-    button = ft.Container(
-        content=text,
-        bgcolor=tokens.INK,
-        padding=ft.Padding.symmetric(horizontal=18, vertical=10),
-        border_radius=ft.BorderRadius.all(6),
-        on_click=on_click,
-        on_hover=_on_hover,
-        tooltip=tooltip or label,
-    )
-    return ft.Semantics(button=True, label=label, content=button)
 
 
 def _calendar_icon_button(
@@ -545,12 +510,7 @@ def _dialog_error_text() -> ft.Text:
     """Empty error Text styled in signal-negative; updated in place."""
     return ft.Text(
         "",
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=12,
-            color=tokens.SIGNAL_NEGATIVE,
-            height=1.3,
-        ),
+        style=tokens.body_style(tokens.SIGNAL_NEGATIVE),
     )
 
 
@@ -563,7 +523,7 @@ def _error_live_region(error_text: ft.Text) -> ft.Control:
     """
     return ft.Semantics(
         live_region=True,
-        content=ft.Container(content=error_text, height=18),
+        content=ft.Container(content=error_text, height=20),
     )
 
 
@@ -573,7 +533,7 @@ def _error_live_region(error_text: ft.Text) -> ft.Control:
 
 
 def _dialog_title(text: str) -> ft.Control:
-    """Fraunces 24pt headline used as an AlertDialog title."""
+    """Source Serif 24pt headline used as an AlertDialog title."""
     return ft.Text(text, style=tokens.headline_style(tokens.INK))
 
 
@@ -604,11 +564,7 @@ def show_amount_edit_dialog(
         label="AMOUNT",
         prefix=ft.Text(
             "$",
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=13,
-                color=tokens.INK_2,
-            ),
+            style=tokens.body_style(tokens.INK_2),
         ),
         value=f"{current_amount:.2f}",
         keyboard_type=ft.KeyboardType.NUMBER,
@@ -617,7 +573,7 @@ def show_amount_edit_dialog(
     )
     error_text = _dialog_error_text()
 
-    def handle_save(_: ft.Event[ft.Container]) -> None:
+    def handle_save(_: ft.Event[ft.Button]) -> None:
         raw = (amount_field.value or "").replace(",", "").replace("$", "").strip()
         try:
             value = float(raw)
@@ -634,12 +590,12 @@ def show_amount_edit_dialog(
         page.pop_dialog()
         on_save(value)
 
-    def handle_reset(_: ft.Event[ft.Container]) -> None:
+    def handle_reset(_: ft.Event[ft.Button]) -> None:
         page.pop_dialog()
         if on_reset is not None:
             on_reset()
 
-    def handle_cancel(_: ft.Event[ft.Container]) -> None:
+    def handle_cancel(_: ft.Event[ft.Button]) -> None:
         page.pop_dialog()
 
     actions: list[ft.Control] = [ghost_button("Cancel", on_click=handle_cancel)]
@@ -781,7 +737,7 @@ def show_add_one_off_dialog(
         label="AMOUNT",
         prefix=ft.Text(
             "$",
-            style=ft.TextStyle(font_family=tokens.FONT_BODY, size=13, color=tokens.INK_2),
+            style=tokens.body_style(tokens.INK_2),
         ),
         keyboard_type=ft.KeyboardType.NUMBER,
         width=160,
@@ -796,7 +752,7 @@ def show_add_one_off_dialog(
     date_display, calendar_button, picked_date = _build_one_off_date_field(page, default_date)
     error_text = _dialog_error_text()
 
-    def handle_save(_: ft.Event[ft.Container]) -> None:
+    def handle_save(_: ft.Event[ft.Button]) -> None:
         result = _validate_one_off_fields(
             page,
             name_field=name_field,
@@ -812,7 +768,7 @@ def show_add_one_off_dialog(
         page.pop_dialog()
         on_save(new_name, value, picked_date[0], is_expense)
 
-    def handle_cancel(_: ft.Event[ft.Container]) -> None:
+    def handle_cancel(_: ft.Event[ft.Button]) -> None:
         page.pop_dialog()
 
     dialog = ft.AlertDialog(
@@ -838,7 +794,7 @@ def show_add_one_off_dialog(
                 ),
                 _error_live_region(error_text),
             ],
-            spacing=10,
+            spacing=8,
             tight=True,
         ),
         actions=[
@@ -869,7 +825,7 @@ def show_edit_one_off_dialog(
         label="AMOUNT",
         prefix=ft.Text(
             "$",
-            style=ft.TextStyle(font_family=tokens.FONT_BODY, size=13, color=tokens.INK_2),
+            style=tokens.body_style(tokens.INK_2),
         ),
         value=f"{abs(existing.amount):.2f}",
         keyboard_type=ft.KeyboardType.NUMBER,
@@ -879,7 +835,7 @@ def show_edit_one_off_dialog(
     date_display, calendar_button, picked_date = _build_one_off_date_field(page, existing.date)
     error_text = _dialog_error_text()
 
-    def handle_save(_: ft.Event[ft.Container]) -> None:
+    def handle_save(_: ft.Event[ft.Button]) -> None:
         result = _validate_one_off_fields(
             page,
             name_field=name_field,
@@ -894,7 +850,7 @@ def show_edit_one_off_dialog(
         page.pop_dialog()
         on_save(new_name, value, picked_date[0])
 
-    def handle_cancel(_: ft.Event[ft.Container]) -> None:
+    def handle_cancel(_: ft.Event[ft.Button]) -> None:
         page.pop_dialog()
 
     dialog = ft.AlertDialog(
@@ -913,7 +869,7 @@ def show_edit_one_off_dialog(
                 ),
                 _error_live_region(error_text),
             ],
-            spacing=10,
+            spacing=8,
             tight=True,
         ),
         actions=[
@@ -987,11 +943,7 @@ class AdjustmentsPanel(ft.Column):
             label="AMOUNT",
             prefix=ft.Text(
                 "$",
-                style=ft.TextStyle(
-                    font_family=tokens.FONT_BODY,
-                    size=13,
-                    color=tokens.INK_2,
-                ),
+                style=tokens.body_style(tokens.INK_2),
             ),
             width=140,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -1019,13 +971,7 @@ class AdjustmentsPanel(ft.Column):
         self._oneoff_empty_state = ft.Container(
             content=ft.Text(
                 "No one-offs yet. Add a future expense or income above to model it.",
-                style=ft.TextStyle(
-                    font_family=tokens.FONT_BODY,
-                    size=12,
-                    color=tokens.INK_3,
-                    italic=True,
-                    height=1.4,
-                ),
+                style=tokens.body_style(tokens.INK_3),
             ),
             padding=ft.Padding.symmetric(vertical=12),
         )
@@ -1036,23 +982,9 @@ class AdjustmentsPanel(ft.Column):
         # ``_rebuild_override_rows`` can update the count without traversing
         # the chip's ``content`` (which ty can't narrow through the union).
         self._recurring_meta_text = ft.Text(
-            "0 of 0 included",
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=11,
-                weight=ft.FontWeight.W_600,
-                color=tokens.INK_2,
-                letter_spacing=0.4,
-                height=1.2,
-            ),
+            "0 OF 0 INCLUDED", style=tokens.label_style(tokens.INK_2)
         )
-        self._recurring_meta_chip = ft.Container(
-            content=self._recurring_meta_text,
-            bgcolor=tokens.PAPER_2,
-            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
-            border_radius=ft.BorderRadius.all(999),
-            border=ft.Border.all(1, tokens.RULE),
-        )
+        self._recurring_meta_chip = _chip(self._recurring_meta_text)
         self._recurring_other_account_note = ft.Container()
 
         # --- Section builders -------------------------------------------
@@ -1096,15 +1028,15 @@ class AdjustmentsPanel(ft.Column):
                     sr_label="Add one-off transaction",
                 ),
             ],
-            spacing=10,
+            spacing=8,
             wrap=True,
-            run_spacing=10,
+            run_spacing=8,
             vertical_alignment=ft.CrossAxisAlignment.END,
         )
 
         form_container = ft.Container(
             content=form_row,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=12),
             bgcolor=tokens.PAPER_2,
             border=ft.Border.all(1, tokens.RULE),
             border_radius=ft.BorderRadius.all(10),
@@ -1135,7 +1067,7 @@ class AdjustmentsPanel(ft.Column):
                 form_container,
                 ft.Semantics(
                     live_region=True,
-                    content=ft.Container(content=self._oneoff_error, height=18),
+                    content=ft.Container(content=self._oneoff_error, height=20),
                 ),
                 ft.Container(height=12),
                 ledger_header,
@@ -1268,7 +1200,7 @@ class AdjustmentsPanel(ft.Column):
             self._oneoff_date_display.value = parsed.strftime("%Y-%m-%d")
             self._oneoff_date_display.update()
 
-    def _add_one_off(self, _e: ft.Event[ft.Container]) -> None:
+    def _add_one_off(self, _e: ft.Event[ft.Button]) -> None:
         name = (self._oneoff_name.value or "").strip()
         amount_str = (self._oneoff_amount.value or "").strip()
 
@@ -1442,14 +1374,7 @@ class AdjustmentsPanel(ft.Column):
         date_cell = ft.Container(
             content=ft.Text(
                 txn.date.strftime("%b %d").upper(),
-                style=ft.TextStyle(
-                    font_family=tokens.FONT_BODY,
-                    size=11,
-                    weight=ft.FontWeight.W_600,
-                    color=tokens.INK_2,
-                    letter_spacing=0.66,
-                    height=1.2,
-                ),
+                style=_strong(tokens.label_style(tokens.INK_2), ft.FontWeight.W_600),
             ),
             width=_OFF_DATE_W,
             alignment=ft.Alignment(-1, 0),
@@ -1466,14 +1391,8 @@ class AdjustmentsPanel(ft.Column):
         )
         amount_cell = ft.Container(
             content=ft.Text(
-                f"{_signed_glyph(txn.amount)} ${abs(txn.amount):,.2f}",
-                style=ft.TextStyle(
-                    font_family=tokens.FONT_BODY,
-                    size=13,
-                    weight=ft.FontWeight.W_600,
-                    color=amount_color,
-                    height=1.3,
-                ),
+                format_money(txn.amount, signed=True),
+                style=_strong(tokens.body_style(amount_color), ft.FontWeight.W_600),
                 semantics_label=(f"{'minus' if is_expense else 'plus'} ${abs(txn.amount):,.2f}"),
             ),
             width=_OFF_AMOUNT_W,
@@ -1516,7 +1435,7 @@ class AdjustmentsPanel(ft.Column):
 
         return ft.Container(
             content=row,
-            padding=ft.Padding.symmetric(vertical=10),
+            padding=ft.Padding.symmetric(vertical=8),
             border=ft.Border(top=ft.BorderSide(1, tokens.RULE)) if idx > 0 else None,
         )
 
@@ -1609,7 +1528,7 @@ class AdjustmentsPanel(ft.Column):
             value=not is_excluded,
             on_change=lambda e, it=item: self._on_exclude_toggle(e, it),
             tooltip=f"{'Exclude' if not is_excluded else 'Include'} {item.name} from forecast",
-            active_color=tokens.CORAL,
+            active_color=tokens.CORAL_DEEP,
             check_color=tokens.PAPER,
             scale=0.92,
         )
@@ -1623,13 +1542,7 @@ class AdjustmentsPanel(ft.Column):
 
         name_text = ft.Text(
             item.name,
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=13,
-                weight=ft.FontWeight.W_600,
-                color=name_color,
-                height=1.3,
-            ),
+            style=_strong(tokens.body_style(name_color), ft.FontWeight.W_600),
             max_lines=1,
             overflow=ft.TextOverflow.ELLIPSIS,
         )
@@ -1643,13 +1556,7 @@ class AdjustmentsPanel(ft.Column):
         next_text = ft.Container(
             content=ft.Text(
                 f"Next {next_date_str}" if next_date_str != "–" else next_date_str,
-                style=ft.TextStyle(
-                    font_family=tokens.FONT_BODY,
-                    size=12,
-                    weight=ft.FontWeight.W_500,
-                    color=tokens.INK_3,
-                    height=1.3,
-                ),
+                style=_strong(tokens.body_style(tokens.INK_3), ft.FontWeight.W_500),
             ),
             width=_RC_NEXT_W,
             alignment=ft.Alignment(-1, 0),
@@ -1670,7 +1577,7 @@ class AdjustmentsPanel(ft.Column):
         )
         amount_text = ft.Container(
             content=ft.Text(
-                f"{_signed_glyph(item.amount)} ${abs(item.amount):,.2f}",
+                format_money(item.amount, signed=True),
                 style=amount_text_style,
                 semantics_label=amount_sr,
                 tooltip=(
@@ -1701,13 +1608,13 @@ class AdjustmentsPanel(ft.Column):
                 if is_overridden
                 else f"Override {item.name} amount for this period"
             ),
-            border_color=tokens.CORAL if is_overridden else None,
+            border_color=tokens.CORAL_DEEP if is_overridden else None,
             border_width=2 if is_overridden else None,
         )
         override_field.visible = not is_excluded
         override_field.prefix = ft.Text(
             "$",
-            style=ft.TextStyle(font_family=tokens.FONT_BODY, size=12, color=tokens.INK_2),
+            style=tokens.body_style(tokens.INK_2),
         )
 
         reset_btn = ft.Semantics(
@@ -1744,7 +1651,7 @@ class AdjustmentsPanel(ft.Column):
 
         return ft.Container(
             content=row,
-            padding=ft.Padding.symmetric(vertical=10),
+            padding=ft.Padding.symmetric(vertical=8),
             border=ft.Border(top=ft.BorderSide(1, tokens.RULE)) if index > 0 else None,
         )
 
@@ -1794,13 +1701,7 @@ class AdjustmentsPanel(ft.Column):
                 ft.Container(
                     content=ft.Text(
                         "No recurring items detected for this account yet.",
-                        style=ft.TextStyle(
-                            font_family=tokens.FONT_BODY,
-                            size=12,
-                            color=tokens.INK_3,
-                            italic=True,
-                            height=1.4,
-                        ),
+                        style=tokens.body_style(tokens.INK_3),
                     ),
                     padding=ft.Padding.symmetric(vertical=16),
                 )
@@ -1808,7 +1709,7 @@ class AdjustmentsPanel(ft.Column):
 
         # Meta pill (e.g. "3 of 12 included") on the section header.
         total_matching = len(matching)
-        self._recurring_meta_text.value = f"{included_count} of {total_matching} included"
+        self._recurring_meta_text.value = f"{included_count} of {total_matching} included".upper()
         try:
             self._recurring_meta_text.update()
         except (RuntimeError, AssertionError):
@@ -1820,13 +1721,7 @@ class AdjustmentsPanel(ft.Column):
             self._recurring_other_account_note.content = ft.Container(
                 content=ft.Text(
                     f"{n} item{'s' if n != 1 else ''} from other accounts are hidden.",
-                    style=ft.TextStyle(
-                        font_family=tokens.FONT_BODY,
-                        size=12,
-                        color=tokens.INK_3,
-                        italic=True,
-                        height=1.4,
-                    ),
+                    style=tokens.body_style(tokens.INK_3),
                 ),
                 padding=ft.Padding.only(top=12),
             )

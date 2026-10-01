@@ -85,13 +85,13 @@ def _field(card: ft.Control, label: str) -> ft.TextField:
 def _find_save_handler(card: ft.Control, cc_name: str):
     """``coral_button`` wraps the save handler in
     ``ft.Semantics(label=f"Save billing settings for {cc_name}")``.
-    Drill in and return the inner Container's ``on_click``.
+    Drill in and return the inner Button's ``on_click``.
     """
     sr_label = f"Save billing settings for {cc_name}"
     for c in _walk(card):
         if isinstance(c, ft.Semantics) and c.label == sr_label:
             inner = c.content
-            if isinstance(inner, ft.Container) and inner.on_click is not None:
+            if isinstance(inner, ft.Button) and inner.on_click is not None:
                 return inner.on_click
     return None
 

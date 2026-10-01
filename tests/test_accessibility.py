@@ -306,3 +306,68 @@ def _walk_with_ancestors(control, ancestors=()):
         for child in children:
             if child is not None:
                 yield from _walk_with_ancestors(child, (*ancestors, control))
+
+
+def _clickable_containers_without_button_semantics(root: ft.Control) -> list[str]:
+    """Clickable Containers can't take keyboard focus, and screen readers
+    don't announce them as buttons. Prefer a real ``ft.Button``; where a
+    Container stays clickable it must sit under ``Semantics(button=True,
+    label=...)``."""
+    missing: list[str] = []
+    for node, ancestors in _walk_with_ancestors(root):
+        if isinstance(node, ft.Container) and node.on_click is not None:
+            announced = any(isinstance(a, ft.Semantics) and a.button and a.label for a in ancestors)
+            if not announced:
+                missing.append(f"tooltip={node.tooltip!r}")
+    return missing
+
+
+class TestClickableContainersAreAnnouncedButtons:
+    """Extends the IconButton contract to clickable Containers, which the
+    IconButton walk above cannot see."""
+
+    def test_adjustments_panel(self):
+        from src.data.models import RecurringItem
+        from src.views.adjustments import AdjustmentsPanel
+
+        items = [
+            RecurringItem(
+                name="Netflix",
+                amount=-15.99,
+                frequency="monthly",
+                base_date=date(2026, 1, 15),
+                category="Entertainment",
+            ),
+        ]
+        panel = AdjustmentsPanel(recurring_items=items, on_change=lambda: None)
+        panel._rebuild_override_rows()
+        assert _clickable_containers_without_button_semantics(panel) == []
+
+    def test_transactions_table(self):
+        from src.views.transactions_table import build_transactions_table
+
+        table = build_transactions_table(
+            _make_forecast(),
+            on_edit_cc=lambda _t: None,
+            on_edit_oneoff=lambda _t: None,
+            on_edit_recurring=lambda _t: None,
+        )
+        assert _clickable_containers_without_button_semantics(table) == []
+
+    def test_dashboard(self, patched_session_manager):
+        from src.views.dashboard import DashboardView
+
+        dashboard = DashboardView(
+            session_manager=patched_session_manager, on_logout=lambda _notice: None
+        )
+        assert _clickable_containers_without_button_semantics(dashboard) == []
+
+    def test_login_view(self, patched_session_manager):
+        from src.auth.login_view import LoginView
+
+        view = LoginView(
+            session_manager=patched_session_manager,
+            on_login_success=lambda: None,
+            on_demo=lambda: None,
+        )
+        assert _clickable_containers_without_button_semantics(view) == []

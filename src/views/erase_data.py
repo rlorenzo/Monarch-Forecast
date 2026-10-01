@@ -29,7 +29,7 @@ ERASE_ITEMS = (
     "Your Monarch Money email and password, from this computer's keychain",
     "The saved sign-in session",
     "The cached copy of your accounts and transactions",
-    "Your adjustments — excluded recurring items, amount overrides, and one-offs",
+    "Your adjustments: excluded recurring items, amount overrides, and one-offs",
     "Your settings, including the selected account and the forecast window",
 )
 
@@ -97,7 +97,7 @@ def show_erase_data_dialog(
                 "Erase everything",
                 on_click=handle_erase,
                 bgcolor=tokens.SIGNAL_NEGATIVE,
-                hover_bgcolor=tokens.CORAL_DEEP,
+                hover_bgcolor=tokens.INK,
             ),
         ],
     )

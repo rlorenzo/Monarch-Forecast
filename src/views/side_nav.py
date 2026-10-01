@@ -4,7 +4,7 @@
 ``ft.NavigationRail``. Material defaults are the explicit anti-reference in
 PRODUCT.md, so the rail is built from primitives:
 
-- A typographic wordmark (Inter caps eyebrow + Fraunces serif) instead of a
+- A typographic wordmark (Inter caps eyebrow + Source Serif) instead of a
   pictorial logo. The mark IS the type.
 - A `PAGES` section listing destinations as left-aligned text rows. Active
   state is a 2px coral vertical rule on the left edge of the row — no filled
@@ -64,24 +64,50 @@ RAIL_WIDTH = 184
 _ROW_HEIGHT = 40
 # Leading offset inside a row before the icon: gutter + selection rail + gap.
 # Destination rows lay this out as three Containers; action rows reproduce it
-# with a single 20px container so the icon column lines up.
-_ROW_ICON_OFFSET = 20
+# with a single 16px container so the icon column lines up.
+_ROW_ICON_OFFSET = 16
 # Logo "seal" sizes. The 80px image floats on a 96px paper-3 disc (8px
-# halo ring). 1.04x hover scale stays well within the 96px halo footprint
-# so neighbouring content never reflows.
+# halo ring).
 _LOGO_SIZE = 80
 _LOGO_HALO_SIZE = 96
 
 
 def _caption_style() -> ft.TextStyle:
     """11pt INK_3 — last-refresh timestamp and the truncated footer email."""
-    return ft.TextStyle(
-        font_family=tokens.FONT_BODY,
-        size=11,
-        weight=ft.FontWeight.W_400,
-        color=tokens.INK_3,
-        height=1.3,
+    style = tokens.label_style(tokens.INK_3)
+    style.weight = ft.FontWeight.W_400
+    style.letter_spacing = None
+    return style
+
+
+def _row_style() -> ft.ButtonStyle:
+    """Shared ``ButtonStyle`` for rail rows: transparent at rest, PAPER_2 on
+    hover, a 2px CORAL_DEEP ring on keyboard focus. Real buttons take Tab
+    focus and fire on Enter/Space; the old clickable Containers could not."""
+    return ft.ButtonStyle(
+        shadow_color="transparent",
+        bgcolor={
+            ft.ControlState.HOVERED: tokens.PAPER_2,
+            ft.ControlState.DEFAULT: "transparent",
+        },
+        overlay_color="transparent",
+        elevation=0,
+        padding=ft.Padding.only(right=8),
+        alignment=ft.Alignment(-1, 0),
+        shape=ft.RoundedRectangleBorder(radius=3),
+        side={
+            ft.ControlState.FOCUSED: ft.BorderSide(2, tokens.CORAL_DEEP),
+            ft.ControlState.DEFAULT: ft.BorderSide(0, "transparent"),
+        },
     )
+
+
+def _eyebrow_style() -> ft.TextStyle:
+    """The wordmark's MONARCH eyebrow: label role, tracked wide."""
+    style = tokens.label_style(tokens.INK_3)
+    style.letter_spacing = 2.4
+    style.height = 1.0
+    return style
 
 
 def _format_last_refresh(when: datetime | None, now: datetime) -> tuple[str, bool]:
@@ -153,7 +179,8 @@ class _DestParts:
     icon: ft.Icon
     label: ft.Text
     rail: ft.Container
-    container: ft.Container = field(repr=False)
+    container: ft.Button = field(repr=False)
+    semantics: ft.Semantics = field(repr=False)
 
 
 class SideNav(ft.Container):
@@ -190,47 +217,34 @@ class SideNav(ft.Container):
         # --- Wordmark ---------------------------------------------------
         # The logo is the publisher's seal: an 80px chart-in-paper disc
         # seated on a slightly warmer paper-3 halo (tonal layering, no
-        # shadows). Hovering scales it gently and reveals a coral hairline
-        # around the halo — a small delight that signals interactivity.
-        # Clicking the logo navigates home to Overview (the familiar
+        # shadows). Clicking the logo navigates home to Overview (the familiar
         # "logo as home" product pattern). Beneath the seal sits the
-        # Inter caps eyebrow, the Fraunces serif wordmark, and the short
+        # Inter caps eyebrow, the Source Serif wordmark, and the short
         # coral underscore that closes the title block.
         wordmark_children: list[ft.Control] = []
-        self._logo_seal: ft.Container | None = None
+        self._logo_seal: ft.Button | None = None
         if icon_path:
             wordmark_children.append(self._build_logo_seal(icon_path))
         wordmark_children.extend(
             [
                 ft.Text(
                     "MONARCH",
-                    style=ft.TextStyle(
-                        font_family=tokens.FONT_BODY,
-                        size=11,
-                        weight=ft.FontWeight.W_500,
-                        letter_spacing=2.4,
-                        color=tokens.INK_3,
-                        height=1.0,
-                    ),
+                    style=_eyebrow_style(),
                     semantics_label="Monarch Forecast",
                 ),
+                # Display (38) is the wordmark's role in DESIGN.md; it fits
+                # the 184px rail (about 140px wide) so it stays on one line.
                 ft.Text(
                     "Forecast",
-                    style=ft.TextStyle(
-                        font_family=tokens.FONT_DISPLAY,
-                        font_family_fallback=["Source Serif Pro", "Georgia", "serif"],
-                        size=28,
-                        weight=ft.FontWeight.W_500,
-                        letter_spacing=-0.4,
-                        color=tokens.INK,
-                        height=1.0,
-                    ),
+                    style=tokens.display_style(tokens.INK),
+                    no_wrap=True,
                 ),
+                # Decorative brand mark: plain CORAL is fine here.
                 ft.Container(
                     width=24,
                     height=2,
                     bgcolor=tokens.CORAL,
-                    margin=ft.Margin.only(top=10),
+                    margin=ft.Margin.only(top=8),
                 ),
             ]
         )
@@ -325,30 +339,30 @@ class SideNav(ft.Container):
             controls=[
                 ft.Container(
                     content=wordmark,
-                    padding=ft.Padding.only(left=20, right=16, top=20, bottom=24),
+                    padding=ft.Padding.only(left=16, right=8, top=16, bottom=24),
                 ),
                 ft.Container(
                     content=pages_eyebrow,
-                    padding=ft.Padding.only(left=20, right=16, bottom=6),
+                    padding=ft.Padding.only(left=16, right=16, bottom=8),
                 ),
-                *(p.container for p in self._dest_parts),
+                *(p.semantics for p in self._dest_parts),
                 # Spacer pushes the actions block to the bottom.
                 ft.Container(expand=True),
                 ft.Container(
                     content=actions_eyebrow,
-                    padding=ft.Padding.only(left=20, right=16, bottom=6, top=16),
+                    padding=ft.Padding.only(left=16, right=16, bottom=8, top=16),
                 ),
                 refresh_row,
                 ft.Container(
                     content=self._last_refresh_text,
-                    padding=ft.Padding.only(left=46, right=16, bottom=4),
+                    padding=ft.Padding.only(left=42, right=16, bottom=4),
                 ),
                 about_row,
                 logout_row,
                 erase_row,
                 ft.Container(
                     content=footer_email,
-                    padding=ft.Padding.only(left=20, right=16, top=8, bottom=16),
+                    padding=ft.Padding.only(left=16, right=16, top=8, bottom=16),
                 ),
             ],
             spacing=0,
@@ -428,10 +442,10 @@ class SideNav(ft.Container):
     def _build_logo_seal(self, icon_path: str) -> ft.Semantics:
         """The 80px chart-in-paper logo, seated on a paper-3 halo.
 
-        Hover scales it 1.04x and ringings the halo with a coral hairline;
-        click routes to the first destination ("home"). The whole thing
-        is wrapped in a Semantics node so screen-reader users hear it as
-        a button with a clear accessible name.
+        A real button (Tab-focusable, Enter/Space) that routes to the first
+        destination ("home"). Hover/focus draw a CORAL_DEEP ring; there is
+        no scale animation, per the reduce-motion contract. Wrapped in a
+        Semantics node so screen-reader users hear a labelled button.
         """
         logo_image = ft.Image(
             src=icon_path,
@@ -439,18 +453,25 @@ class SideNav(ft.Container):
             height=_LOGO_SIZE,
             semantics_label=None,  # the outer Semantics handles the name
         )
-        seal = ft.Container(
+        seal = ft.Button(
             content=logo_image,
             width=_LOGO_HALO_SIZE,
             height=_LOGO_HALO_SIZE,
-            bgcolor=tokens.PAPER_3,
-            border_radius=ft.BorderRadius.all(_LOGO_HALO_SIZE // 2),
-            alignment=ft.Alignment(0, 0),
-            border=ft.Border.all(1, "transparent"),
-            animate_scale=ft.Animation(180, ft.AnimationCurve.EASE_OUT_QUART),
-            on_hover=self._on_logo_hover,
             on_click=self._on_logo_click,
             tooltip="Go to Overview",
+            style=ft.ButtonStyle(
+                shadow_color="transparent",
+                bgcolor=tokens.PAPER_3,
+                overlay_color="transparent",
+                elevation=0,
+                padding=ft.Padding.all(0),
+                shape=ft.CircleBorder(),
+                side={
+                    ft.ControlState.FOCUSED: ft.BorderSide(2, tokens.CORAL_DEEP),
+                    ft.ControlState.HOVERED: ft.BorderSide(1, tokens.CORAL_DEEP),
+                    ft.ControlState.DEFAULT: ft.BorderSide(1, "transparent"),
+                },
+            ),
         )
         self._logo_seal = seal
         return ft.Semantics(
@@ -458,21 +479,11 @@ class SideNav(ft.Container):
             label="Monarch Forecast logo. Click to go to Overview.",
             content=ft.Container(
                 content=seal,
-                margin=ft.Margin.only(bottom=14),
+                margin=ft.Margin.only(bottom=12),
             ),
         )
 
-    def _on_logo_hover(self, e: ft.Event[ft.Container]) -> None:
-        is_in = e.data == "true"
-        seal = e.control
-        seal.scale = ft.Scale(scale=1.04 if is_in else 1.0)
-        seal.border = ft.Border.all(1, tokens.CORAL if is_in else "transparent")
-        try:
-            seal.update()
-        except (RuntimeError, AssertionError):
-            pass  # Control not mounted yet — first paint will pick it up.
-
-    def _on_logo_click(self, _e: ft.Event[ft.Container]) -> None:
+    def _on_logo_click(self, _e: ft.Event[ft.Button]) -> None:
         # Logo-as-home: route to the first destination, honouring the
         # same callback path as a destination row click. Dashboard's
         # dirty-CC-card guard runs as expected.
@@ -482,21 +493,15 @@ class SideNav(ft.Container):
     def _build_destination_row(self, index: int, dest: NavDestination) -> _DestParts:
         """One destination row, returned as a typed bundle.
 
-        The row is a Container with a fixed-width left "rail" column that
-        holds a 2px coral rectangle when selected and stays transparent
-        otherwise. Keeping the rail width fixed means selection doesn't
-        shift the icon or label horizontally.
+        The row is a focusable ``ft.Button`` with a fixed-width left "rail"
+        column that holds a 2px CORAL_DEEP rectangle when selected and stays
+        transparent otherwise. Keeping the rail width fixed means selection
+        doesn't shift the icon or label horizontally.
         """
         icon = ft.Icon(dest.icon, size=18)
-        label = ft.Text(
-            dest.label,
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=13,
-                weight=ft.FontWeight.W_600,
-                height=1.2,
-            ),
-        )
+        label_style = tokens.body_style()
+        label_style.weight = ft.FontWeight.W_600
+        label = ft.Text(dest.label, style=label_style)
         rail = ft.Container(
             width=2,
             height=_ROW_HEIGHT - 12,
@@ -505,30 +510,38 @@ class SideNav(ft.Container):
 
         body = ft.Row(
             controls=[
-                # 6px gutter, 2px rail, 12px to icon, 10px to label.
-                ft.Container(width=6),
+                # 2px gutter, 2px rail, 12px to icon, 8px to label.
+                ft.Container(width=2),
                 rail,
                 ft.Container(width=12),
                 icon,
-                ft.Container(width=10),
+                ft.Container(width=8),
                 label,
             ],
             spacing=0,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        def handle_click(_e: ft.Event[ft.Container]) -> None:
+        def handle_click(_e: ft.Event[ft.Button]) -> None:
             self._on_select(index)
 
-        container = ft.Container(
+        container = ft.Button(
             content=body,
+            width=RAIL_WIDTH - 1,
             height=_ROW_HEIGHT,
-            padding=ft.Padding.only(right=8),
             on_click=handle_click,
-            ink=False,
             tooltip=dest.label,
+            style=_row_style(),
         )
-        parts = _DestParts(dest=dest, icon=icon, label=label, rail=rail, container=container)
+        semantics = ft.Semantics(button=True, label=dest.label, content=container)
+        parts = _DestParts(
+            dest=dest,
+            icon=icon,
+            label=label,
+            rail=rail,
+            container=container,
+            semantics=semantics,
+        )
         self._paint_destination(parts, is_selected=index == self._selected_index)
         return parts
 
@@ -537,13 +550,15 @@ class SideNav(ft.Container):
 
         Single source of truth for the active/inactive paint — both the
         initial build and ``_repaint_destinations`` route through here so
-        the two paths can't drift.
+        the two paths can't drift. CORAL_DEEP (not plain CORAL) because the
+        icon and rail need 3:1 and the label 4.5:1 on PAPER.
         """
         parts.icon.icon = parts.dest.selected_icon if is_selected else parts.dest.icon
-        parts.icon.color = tokens.CORAL if is_selected else tokens.INK_3
+        parts.icon.color = tokens.CORAL_DEEP if is_selected else tokens.INK_3
         if parts.label.style is not None:
-            parts.label.style.color = tokens.CORAL if is_selected else tokens.INK
-        parts.rail.bgcolor = tokens.CORAL if is_selected else "transparent"
+            parts.label.style.color = tokens.CORAL_DEEP if is_selected else tokens.INK
+        parts.rail.bgcolor = tokens.CORAL_DEEP if is_selected else "transparent"
+        parts.semantics.selected = is_selected
 
     def _build_action_row(
         self,
@@ -560,25 +575,18 @@ class SideNav(ft.Container):
         never carry the coral selection treatment.
         """
 
-        def handle_click(_e: ft.Event[ft.Container]) -> None:
+        def handle_click(_e: ft.Event[ft.Button]) -> None:
             on_click()
 
+        text_style = tokens.body_style(tokens.INK_2)
+        text_style.weight = ft.FontWeight.W_500
         body = ft.Row(
             controls=[
                 # Matches the destination row's leading: gutter + rail + gap.
                 ft.Container(width=_ROW_ICON_OFFSET),
                 ft.Icon(icon, size=18, color=tokens.INK_2),
-                ft.Container(width=10),
-                ft.Text(
-                    label,
-                    style=ft.TextStyle(
-                        font_family=tokens.FONT_BODY,
-                        size=13,
-                        weight=ft.FontWeight.W_500,
-                        color=tokens.INK_2,
-                        height=1.2,
-                    ),
-                ),
+                ft.Container(width=8),
+                ft.Text(label, style=text_style),
             ],
             spacing=0,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -587,13 +595,13 @@ class SideNav(ft.Container):
         return ft.Semantics(
             button=True,
             label=sr_label,
-            content=ft.Container(
+            content=ft.Button(
                 content=body,
+                width=RAIL_WIDTH - 1,
                 height=_ROW_HEIGHT,
-                padding=ft.Padding.only(right=8),
                 on_click=handle_click,
-                ink=False,
                 tooltip=label,
+                style=_row_style(),
             ),
         )
 

@@ -69,37 +69,18 @@ def _walk(control: Any):
             yield from _walk(value)
 
 
-def _find_text_button(dialog: Any, label: str) -> ft.TextButton | None:
-    for c in _walk(dialog):
-        if isinstance(c, ft.TextButton):
-            content = getattr(c, "content", None)
-            if content == label:
-                return c
-            if isinstance(content, ft.Text) and content.value == label:
-                return c
-    return None
-
-
-def _find_filled_button(dialog: Any, label: str) -> ft.FilledButton | None:
-    for c in _walk(dialog):
-        if isinstance(c, ft.FilledButton):
-            content = getattr(c, "content", None)
-            if content == label:
-                return c
-            if isinstance(content, ft.Text) and content.value == label:
-                return c
-    return None
-
-
-def _find_semantics_button(dialog: Any, label: str) -> ft.Container | None:
-    """The Got-it style buttons are coral/ink Containers wrapped in
-    ``ft.Semantics(label=...)``. Return the clickable Container."""
+def _find_semantics_button(dialog: Any, label: str) -> ft.Button | None:
+    """Dialog actions are shared ``ft.Button``s wrapped in
+    ``ft.Semantics(label=...)``. Return the clickable Button."""
     for c in _walk(dialog):
         if isinstance(c, ft.Semantics) and c.label == label:
             inner = c.content
-            if isinstance(inner, ft.Container) and inner.on_click is not None:
+            if isinstance(inner, ft.Button) and inner.on_click is not None:
                 return inner
     return None
+
+
+_find_text_button = _find_filled_button = _find_semantics_button
 
 
 def _with_mock_page(page: MagicMock):
@@ -130,8 +111,8 @@ class TestOnboardingDialog:
         with _with_mock_page(fake_page):
             dashboard._maybe_show_onboarding()
         dialog = fake_page.show_dialog.call_args[0][0]
-        # Dialog actions are ``[TextButton("Got it!", ...)]``.
-        got_it = _find_text_button(dialog, "Got it!")
+        # Dialog actions are ``[ink_button("Got it", ...)]``.
+        got_it = _find_text_button(dialog, "Got it")
         assert got_it is not None and got_it.on_click is not None
         with _with_mock_page(fake_page):
             _m(got_it.on_click)(MagicMock())
@@ -154,7 +135,7 @@ class TestThresholdHelpDialog:
         with _with_mock_page(fake_page):
             dashboard._show_threshold_help()
         dialog = fake_page.show_dialog.call_args[0][0]
-        # Got-it is the dashboard's editorial Container-button (Semantics
+        # Got-it is the dashboard's shared Button (Semantics
         # wrapper labeled "Got it").
         btn = _find_semantics_button(dialog, "Got it")
         assert btn is not None and btn.on_click is not None

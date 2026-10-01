@@ -82,7 +82,7 @@ def _find_action_on_click(dialog: ft.AlertDialog, label: str):
         for c in _walk(action):
             if isinstance(c, ft.Semantics) and c.label == label:
                 inner = c.content
-                if isinstance(inner, ft.Container) and inner.on_click is not None:
+                if isinstance(inner, ft.Button) and inner.on_click is not None:
                     return inner.on_click
     return None
 

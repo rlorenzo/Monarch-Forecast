@@ -242,7 +242,7 @@
       "refersTo": "card-quiet",
       "description": "The only card style. Paper fill, 1px rule border, no shadow. Nested cards are forbidden.",
       "html": "<section class=\"ds-card-quiet\"><span class=\"ds-card-eyebrow\">LOWEST POINT</span><h2 class=\"ds-card-headline\">$312.40 on Tue, May 22</h2><p class=\"ds-card-body\">You'll dip below your $500 threshold for two days, then recover Friday after payday.</p></section>",
-      "css": ".ds-card-quiet { background: #faf6f3; color: #392b24; border: 1px solid #d6c5ba; border-radius: 10px; padding: 20px 24px; max-width: 480px; } .ds-card-eyebrow { display: block; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; margin-bottom: 8px; } .ds-card-headline { font-family: 'Fraunces', 'Source Serif Pro', Georgia, serif; font-weight: 500; font-size: 24px; line-height: 1.15; letter-spacing: -0.005em; font-feature-settings: 'tnum', 'lnum'; color: #392b24; margin: 0 0 12px; } .ds-card-body { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; color: #392b24; margin: 0; max-width: 65ch; }"
+      "css": ".ds-card-quiet { background: #faf6f3; color: #392b24; border: 1px solid #d6c5ba; border-radius: 10px; padding: 20px 24px; max-width: 480px; } .ds-card-eyebrow { display: block; font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; margin-bottom: 8px; } .ds-card-headline { font-family: 'Source Serif 4', Georgia, serif; font-weight: 500; font-size: 24px; line-height: 1.15; letter-spacing: -0.005em; font-feature-settings: 'tnum', 'lnum'; color: #392b24; margin: 0 0 12px; } .ds-card-body { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; color: #392b24; margin: 0; max-width: 65ch; }"
     },
     {
       "name": "Tab Strip Item",
@@ -256,16 +256,16 @@
       "name": "Forecast Headline",
       "kind": "custom",
       "refersTo": "signature.headline-balance",
-      "description": "The Overview tab's headline balance — Fraunces display number with a small dated subtitle.",
+      "description": "The Overview tab's headline balance — Source Serif 4 display number with a small dated subtitle.",
       "html": "<div class=\"ds-headline-balance\"><span class=\"ds-headline-eyebrow\">PROJECTED LOW</span><span class=\"ds-headline-number\">$312.40</span><span class=\"ds-headline-subtitle\">on Tue, May 22 — 2 days below your $500 threshold</span></div>",
-      "css": ".ds-headline-balance { display: flex; flex-direction: column; gap: 6px; max-width: 520px; } .ds-headline-eyebrow { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; } .ds-headline-number { font-family: 'Fraunces', 'Source Serif Pro', Georgia, serif; font-weight: 500; font-size: 38px; line-height: 1.05; letter-spacing: -0.01em; font-feature-settings: 'tnum', 'lnum'; color: #d04632; } .ds-headline-subtitle { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; color: #5e4f47; }"
+      "css": ".ds-headline-balance { display: flex; flex-direction: column; gap: 6px; max-width: 520px; } .ds-headline-eyebrow { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 500; font-size: 11px; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: #5e4f47; } .ds-headline-number { font-family: 'Source Serif 4', Georgia, serif; font-weight: 500; font-size: 38px; line-height: 1.05; letter-spacing: -0.01em; font-feature-settings: 'tnum', 'lnum'; color: #d04632; } .ds-headline-subtitle { font-family: 'Inter', 'Helvetica Neue', system-ui, sans-serif; font-weight: 400; font-size: 13px; line-height: 1.5; color: #5e4f47; }"
     }
   ],
   "narrative": {
     "northStar": "The Pocket Almanac",
     "overview": "A small, opinionated, dated book of forward-looking certainties. The almanac has a posture: it tells you what's coming this week and stakes its name on the answer. It does not hedge, it does not advertise to you, it does not gamify your money. The paper is warm. The ink is dark. The typography is editorial — a serif that believes in the verdict it just rendered, paired with a sans that handles the supporting prose without ego.\n\nThis system explicitly rejects every reflex of the 'personal finance dashboard' category. Stock Material 3 with its blue seed and identical elevation reads as an unfinished Flutter app — that is the current state and the thing we are moving away from. No neon-on-black, no gradient text, no number tickers, no glassmorphism, no marketing-style hero cards. No pie charts and no category-explorer bait. The chart is the product; everything else is paper around it.\n\nDensity is high — this is a financial tool, not a magazine landing page — but rhythm holds it together. Section headers in serif. Numbers in tabular figures. Generous-enough breathing room between sections, tight density within them. Color reserved for signal, never for decoration.",
     "keyCharacteristics": [
-      "Editorial serif display (Fraunces) paired with a humanist sans (Inter) for everything else.",
+      "Editorial serif display (Source Serif 4) paired with a humanist sans (Inter) for everything else.",
       "Warm clay-toned neutrals — paper and ink, not gray and white. Neutrals are tinted toward the coral hue (30°) at low chroma (0.005–0.015).",
       "One brand accent: a warm coral. Used on ≤10% of any screen at rest.",
       "Three signal hues — positive (green), negative (red), threshold (amber) — used only for forecast meaning.",
@@ -291,7 +291,7 @@
       },
       {
         "name": "The Verdict Rule",
-        "body": "Fraunces is for the verdict — the headline number, the dated forecast claim, the section title that names the thing. It is never used for body text, helper copy, button labels, or table cells. Sans handles the support.",
+        "body": "Source Serif 4 is for the verdict — the headline number, the dated forecast claim, the section title that names the thing. It is never used for body text, helper copy, button labels, or table cells. Sans handles the support.",
         "section": "typography"
       },
       {

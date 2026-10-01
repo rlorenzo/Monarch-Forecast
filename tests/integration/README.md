@@ -128,7 +128,7 @@ structurally, and says plainly in its own docstring what that cannot prove.
 Run with `-v` and read the Flutter log. It is verbose but truthful — this is
 how the bundled fonts were confirmed:
 
-    Font loaded from file: .../app/assets/fonts/Fraunces.ttf
+    Font loaded from file: .../app/assets/fonts/SourceSerif4.ttf
 
 where it previously read `Font loaded from URL: https://raw.githubusercontent...`.
 Crude, but it answers questions the widget tree cannot.

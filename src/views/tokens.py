@@ -12,10 +12,14 @@ from __future__ import annotations
 import flet as ft
 
 # --- Brand --------------------------------------------------------------
-# Coral is the brand mark. Used on <=10% of any screen at rest per the
-# One Voice Rule in DESIGN.md.
+# Coral is the brand voice, used on <=10% of any screen at rest per the One
+# Voice Rule in DESIGN.md. Plain CORAL is only 2.8:1 on PAPER, so it is
+# reserved for decorative brand marks (logo seal, wordmark underscore).
+# Anything that must be read or seen as a control (text, icons, the active
+# rail, the chart line, filled buttons, focus outlines) uses CORAL_DEEP.
 CORAL = "#d97a64"
-CORAL_DEEP = "#a34431"  # hover / active state for coral surfaces; 4.9:1 on CORAL_TINT
+CORAL_DEEP = "#a34431"  # 5.7:1 on PAPER, 4.9:1 on CORAL_TINT; filled-button fill
+CORAL_INK = "#8a3727"  # filled-button hover/pressed; 7.4:1 under PAPER text
 CORAL_TINT = "#fae3d8"  # light-mode emphasis fills
 
 # --- Signal -------------------------------------------------------------
@@ -26,7 +30,8 @@ CORAL_TINT = "#fae3d8"  # light-mode emphasis fills
 # text, so the 3:1 large-text allowance does not apply.
 SIGNAL_POSITIVE = "#217547"
 SIGNAL_NEGATIVE = "#bd3a27"
-SIGNAL_THRESHOLD = "#d4a657"
+SIGNAL_THRESHOLD = "#d4a657"  # the threshold line itself; 2.1:1, never text
+SIGNAL_THRESHOLD_INK = "#8a6418"  # amber for icons/text that must read; 5.0:1 on PAPER
 
 # --- Light neutrals -----------------------------------------------------
 # Tinted toward hue 30 at chroma 0.005-0.015. No untinted gray, no #fff.
@@ -49,7 +54,7 @@ PAPER_DARK_2 = "#c4b0a3"  # secondary text in dark
 PAPER_DARK_3 = "#907f73"  # tertiary text in dark
 
 # --- Typography ---------------------------------------------------------
-FONT_DISPLAY = "Fraunces"
+FONT_DISPLAY = "Source Serif 4"
 FONT_BODY = "Inter"
 
 # Variable fonts, bundled under assets/fonts/ and served from the app's own
@@ -61,7 +66,7 @@ FONT_BODY = "Inter"
 # Paths are asset-relative, which is what `assets_dir` in main.py's `ft.run`
 # makes resolvable. Licences sit beside the files as required by the OFL.
 FONT_ASSETS: dict[str, str] = {
-    FONT_DISPLAY: "/fonts/Fraunces.ttf",
+    FONT_DISPLAY: "/fonts/SourceSerif4.ttf",
     FONT_BODY: "/fonts/Inter.ttf",
 }
 
@@ -72,18 +77,17 @@ FONT_ASSETS: dict[str, str] = {
 # than when they were fetched over HTTP, but the app should still render
 # readable text rather than tofu. Keep these in sync with DESIGN.md's
 # frontmatter typography fallbacks.
-_DISPLAY_FALLBACK = ["Source Serif Pro", "Georgia", "serif"]
+_DISPLAY_FALLBACK = ["Georgia", "serif"]
 _BODY_FALLBACK = ["Helvetica Neue", "system-ui", "sans-serif"]
 
-# Flet 0.84's TextStyle does not expose font-feature-settings, so we can't
-# enable tabular lining figures at the style level. Inter's proportional
-# figures are narrow enough that small ledgers still read cleanly; the
-# Transactions tab is a follow-up where this matters more (see DESIGN.md
-# "The Tabular Numerals Rule").
+# Flet's TextStyle does not expose font-feature-settings, so tabular lining
+# figures can't be switched on. Money columns stay aligned by right-aligning
+# them in fixed-width cells instead (see DESIGN.md "The Tabular Numerals
+# Rule").
 
 
 def display_style(color: str = INK) -> ft.TextStyle:
-    """38pt Fraunces. Used once or twice per screen, never more.
+    """38pt Source Serif 4. Used once or twice per screen, never more.
 
     Reserved for editorial moments (the wordmark "Forecast", chapter
     titles) where the serif's character belongs. Never use this for
@@ -103,8 +107,8 @@ def display_style(color: str = INK) -> ft.TextStyle:
 def figure_style(color: str = INK) -> ft.TextStyle:
     """38pt Inter 700. The dashboard's hero numerical verdict.
 
-    Inter (not Fraunces) for big ledger figures: Fraunces's wonk/soft
-    axes flatter editorial copy but read informal at headline size,
+    Inter (not the display serif) for big ledger figures: serif
+    numerals flatter editorial copy but read literary at headline size,
     where a financial verdict needs calm authority. Bold weight + tight
     negative tracking give the figure decisive presence, and the minus
     glyph renders as a confident bar rather than a sliver. Pairs with
@@ -123,7 +127,7 @@ def figure_style(color: str = INK) -> ft.TextStyle:
 
 
 def headline_style(color: str = INK) -> ft.TextStyle:
-    """24pt Fraunces. Section titles and alert verdict lines."""
+    """24pt Source Serif 4. Section titles and alert verdict lines."""
     return ft.TextStyle(
         font_family=FONT_DISPLAY,
         font_family_fallback=_DISPLAY_FALLBACK,
@@ -173,3 +177,42 @@ def label_style(color: str = INK_2) -> ft.TextStyle:
         height=1.4,
         color=color,
     )
+
+
+def figure_secondary_style(color: str = INK) -> ft.TextStyle:
+    """24pt Inter 600. Secondary ledger figures (Starting / Net / Ending).
+
+    Same numerical voice as ``figure_style`` one step down the scale, at the
+    headline size so the type scale stays 38 / 24 / 16 / 13 / 11.
+    """
+    return ft.TextStyle(
+        font_family=FONT_BODY,
+        font_family_fallback=_BODY_FALLBACK,
+        size=24,
+        weight=ft.FontWeight.W_600,
+        letter_spacing=-0.4,
+        height=1.15,
+        color=color,
+    )
+
+
+def button_style(color: str = PAPER) -> ft.TextStyle:
+    """Button labels: the title role (16pt Inter 600), defaulting to PAPER
+    for text on a filled CORAL_DEEP button. Pass INK for ghost buttons."""
+    return title_style(color)
+
+
+# Material shrinks a floating field label to 75% of its style size, so an
+# 11pt label floats at ~8pt, under the floor. 11 / 0.75 lands it on 11pt.
+_FLOATING_LABEL_SCALE = 0.75
+
+
+def field_label_style(color: str = INK_2) -> ft.TextStyle:
+    """Label role for TextField / Dropdown ``label_style``: 11pt once floated.
+
+    Resting inside an empty field it shows at ~14.7pt, like a placeholder.
+    """
+    style = label_style(color)
+    style.size = round(11 / _FLOATING_LABEL_SCALE, 2)
+    style.letter_spacing = 0.88
+    return style

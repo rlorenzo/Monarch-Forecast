@@ -145,7 +145,7 @@ class TestUpdateCcInfo:
         ]
         dash._update_cc_info()
         # Walk the rendered content for a Text containing the count.
-        found = _find_text_containing(dash.cc_info_container.content, "1 of 3")
+        found = _find_text_containing(dash.cc_info_container.content, "1 OF 3")
         assert found, "Expected '1 of 3 included' chip in the CC section header"
 
 

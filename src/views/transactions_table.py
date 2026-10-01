@@ -41,6 +41,7 @@ import flet as ft
 
 from src.data.models import ForecastTransaction
 from src.forecast.models import ForecastDay, ForecastResult
+from src.utils.money import format_money
 from src.views import tokens
 
 # Body column widths. The sticky header uses the same widths so columns
@@ -51,7 +52,7 @@ _COL_DESC = 320
 _COL_TYPE = 160
 _COL_AMOUNT = 140
 _COL_BALANCE = 130
-_ROW_VERT_PAD = 9
+_ROW_VERT_PAD = 8
 
 # The ledger's intrinsic width: rows and the sticky header both lay the
 # columns out at these fixed widths, so this is the narrowest the table can
@@ -91,15 +92,8 @@ def _is_cc(txn: ForecastTransaction) -> bool:
 
 
 def _money(amount: float) -> str:
-    """Format a positive amount with thousands separators and 2dp."""
-    return f"${abs(amount):,.2f}"
-
-
-def _signed_glyph(amount: float) -> str:
-    """True minus (U+2212) for negatives, plus for positives. Avoids the
-    hyphen-minus, which renders narrower than the plus and unbalances the
-    column."""
-    return "−" if amount < 0 else "+"
+    """Magnitude only ("$5.00"), for screen-reader labels that spell out the sign."""
+    return format_money(abs(amount))
 
 
 def _schedule_debounced(
@@ -136,15 +130,11 @@ def _amount_cell(amount: float) -> ft.Text:
     is_negative = amount < 0
     color = tokens.SIGNAL_NEGATIVE if is_negative else tokens.SIGNAL_POSITIVE
     sr = f"{'minus' if is_negative else 'plus'} {_money(amount)}"
+    style = tokens.body_style(color)
+    style.weight = ft.FontWeight.W_600
     return ft.Text(
-        f"{_signed_glyph(amount)} {_money(amount)}",
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=13,
-            weight=ft.FontWeight.W_600,
-            color=color,
-            height=1.3,
-        ),
+        format_money(amount, signed=True),
+        style=style,
         semantics_label=sr,
     )
 
@@ -155,21 +145,16 @@ def _balance_cell(balance: float, breach: bool) -> ft.Control:
     weight + signal-negative color together carry the meaning so the
     color-only rule is honored without a decorative warning icon.
     """
-    is_negative = balance < 0
     color = tokens.SIGNAL_NEGATIVE if breach else tokens.INK
-    weight = ft.FontWeight.W_700 if breach else ft.FontWeight.W_500
-    display = f"−${abs(balance):,.2f}" if is_negative else f"${balance:,.2f}"
+    style = tokens.body_style(color)
+    style.weight = ft.FontWeight.W_700 if breach else ft.FontWeight.W_500
+    sign = "minus " if balance < 0 else ""
     return ft.Text(
-        display,
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=13,
-            weight=weight,
-            color=color,
-            height=1.3,
-        ),
+        format_money(balance),
+        style=style,
         semantics_label=(
-            f"running balance ${balance:,.2f}" + (", below safety threshold" if breach else "")
+            f"running balance {sign}{_money(balance)}"
+            + (", below safety threshold" if breach else "")
         ),
         text_align=ft.TextAlign.RIGHT,
     )
@@ -192,14 +177,7 @@ def _type_cell(txn: ForecastTransaction) -> ft.Control:
         label = (txn.category or "RECURRING").upper()
     return ft.Text(
         label,
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_500,
-            color=tokens.INK_3,
-            letter_spacing=0.4,
-            height=1.3,
-        ),
+        style=tokens.label_style(tokens.INK_3),
         max_lines=1,
         overflow=ft.TextOverflow.ELLIPSIS,
     )
@@ -328,34 +306,21 @@ def _day_gutter(
     """The left gutter for a day-block.
 
     Layout: a 2px coral marker (or transparent placeholder), then a Column
-    holding the UPPERCASE month/day label, the Fraunces weekday, and the
+    holding the UPPERCASE month/day label, the Source Serif weekday, and the
     net + count. The marker is reserved by a transparent same-width
     Container on non-today rows so the date never shifts horizontally.
     """
     is_today = day_date == today
 
-    eyebrow = ft.Text(
-        day_date.strftime("%b %d").upper(),
-        style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=11,
-            weight=ft.FontWeight.W_600,
-            color=tokens.CORAL if is_today else tokens.INK_2,
-            letter_spacing=0.66,
-            height=1.2,
-        ),
-    )
+    # CORAL_DEEP, not CORAL: the "today" label is small text (4.5:1 needed).
+    eyebrow_style = tokens.label_style(tokens.CORAL_DEEP if is_today else tokens.INK_2)
+    eyebrow_style.weight = ft.FontWeight.W_600
+    eyebrow = ft.Text(day_date.strftime("%b %d").upper(), style=eyebrow_style)
+    # The day name titles its chapter of the ledger (a section header, not a
+    # table cell), so it takes the Headline role: Source Serif 24.
     weekday = ft.Text(
         day_date.strftime("%a"),
-        style=ft.TextStyle(
-            font_family=tokens.FONT_DISPLAY,
-            font_family_fallback=["Source Serif Pro", "Georgia", "serif"],
-            size=22,
-            weight=ft.FontWeight.W_500,
-            color=tokens.INK if is_today else tokens.INK_2,
-            letter_spacing=-0.2,
-            height=1.05,
-        ),
+        style=tokens.headline_style(tokens.INK if is_today else tokens.INK_2),
     )
 
     # The net summary only appears when the day has multiple transactions
@@ -368,50 +333,32 @@ def _day_gutter(
     else:
         is_neg = visible_net < 0
         net_color = tokens.SIGNAL_NEGATIVE if is_neg else tokens.SIGNAL_POSITIVE
-        net_eyebrow = ft.Text(
-            "NET",
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=11,
-                weight=ft.FontWeight.W_600,
-                color=tokens.INK_3,
-                letter_spacing=0.66,
-                height=1.2,
-            ),
-        )
+        eyebrow_net = tokens.label_style(tokens.INK_3)
+        eyebrow_net.weight = ft.FontWeight.W_600
+        net_eyebrow = ft.Text("NET", style=eyebrow_net)
+        net_style = tokens.body_style(net_color)
+        net_style.weight = ft.FontWeight.W_600
         net_text = ft.Text(
-            f"{_signed_glyph(visible_net)}${abs(visible_net):,.0f}",
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=12,
-                weight=ft.FontWeight.W_600,
-                color=net_color,
-                height=1.2,
-            ),
+            format_money(visible_net, signed=True, cents=False),
+            style=net_style,
             semantics_label=(
-                f"day net {'negative' if is_neg else 'positive'} ${abs(visible_net):,.2f}"
+                f"day net {'negative' if is_neg else 'positive'} {_money(visible_net)}"
             ),
         )
-        count_label = ft.Text(
-            f"{visible_count} txns",
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=11,
-                weight=ft.FontWeight.W_400,
-                color=tokens.INK_3,
-                height=1.2,
-            ),
-        )
+        count_style = tokens.label_style(tokens.INK_3)
+        count_style.weight = ft.FontWeight.W_400
+        count_style.letter_spacing = None
+        count_label = ft.Text(f"{visible_count} txns", style=count_style)
         net_block = ft.Column(
             controls=[net_eyebrow, net_text, count_label],
-            spacing=1,
+            spacing=2,
             tight=True,
         )
 
-    marker_color = tokens.CORAL if is_today else "transparent"
+    marker_color = tokens.CORAL_DEEP if is_today else "transparent"
     marker = ft.Container(
         width=2,
-        height=22,
+        height=24,
         bgcolor=marker_color,
         border_radius=ft.BorderRadius.all(1),
     )
@@ -496,7 +443,7 @@ def _day_block(
             vertical_alignment=ft.CrossAxisAlignment.START,
             expand=True,
         ),
-        padding=ft.Padding.only(top=2, bottom=10),
+        padding=ft.Padding.only(top=2, bottom=12),
         # Top hairline above every block except the first; the ledger
         # header already provides the upper rule for the first one.
         border=(None if is_first else ft.Border(top=ft.BorderSide(1, tokens.RULE))),
@@ -513,14 +460,9 @@ def _column_label_style(color: str) -> ft.TextStyle:
     """Shared type for every ledger column header. Only the ink varies:
     ``INK_3`` for a plain label, ``INK_2`` for the sortable DATE header so
     the one clickable column reads a shade heavier than its neighbours."""
-    return ft.TextStyle(
-        font_family=tokens.FONT_BODY,
-        size=11,
-        weight=ft.FontWeight.W_600,
-        color=color,
-        letter_spacing=0.66,
-        height=1.2,
-    )
+    style = tokens.label_style(color)
+    style.weight = ft.FontWeight.W_600
+    return style
 
 
 def _column_label(text: str, width: int, *, align_right: bool = False) -> ft.Control:
@@ -547,40 +489,32 @@ def _build_search_field(
     """
     return ft.TextField(
         label=label,
-        label_style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=12,
-            color=tokens.INK_2,
-        ),
+        label_style=tokens.field_label_style(),
         hint_text=hint_text,
         prefix_icon=ft.Icons.SEARCH,
         on_change=on_change,
         dense=True,
         border_color=tokens.RULE,
-        focused_border_color=tokens.CORAL,
+        focused_border_color=tokens.CORAL_DEEP,
         border_width=1,
         focused_border_width=2,
         bgcolor=tokens.PAPER,
         color=tokens.INK,
         text_size=13,
-        hint_style=ft.TextStyle(
-            font_family=tokens.FONT_BODY,
-            size=13,
-            color=tokens.INK_3,
-        ),
-        content_padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+        hint_style=tokens.body_style(tokens.INK_3),
+        content_padding=ft.Padding.symmetric(horizontal=12, vertical=8),
         width=width,
         tooltip=tooltip,
     )
 
 
-class _SortableDateLabel(ft.Container):
+class _SortableDateLabel(ft.TextButton):
     """The DATE column label, doubling as the ledger's sort control.
 
-    A Container rather than a Button for the same reason ``_FilterChip``
-    is one: ``on_click`` lands directly and nothing of Material's chrome
-    comes with it, so the control reads as a column header rather than as
-    a widget parked in the header.
+    A ``TextButton`` so it takes Tab focus and fires on Enter/Space; the
+    style strips Material's chrome so it still reads as a column header.
+    The label ink shifts to CORAL_DEEP on hover; keyboard focus draws a
+    2px CORAL_DEEP ring.
     """
 
     def __init__(self, *, newest_first: bool, on_toggle: Callable[[], None]) -> None:
@@ -595,20 +529,32 @@ class _SortableDateLabel(ft.Container):
         super().__init__(
             content=self._label,
             width=_GUTTER_WIDTH,
-            alignment=ft.Alignment(-1, 0),
             on_click=self._handle_click,
-            on_hover=self._handle_hover,
             tooltip=(
-                "Sorted newest first — click for oldest first"
+                "Sorted newest first. Click for oldest first."
                 if newest_first
-                else "Sorted oldest first — click for newest first"
+                else "Sorted oldest first. Click for newest first."
             ),
+            style=ft.ButtonStyle(
+                shadow_color="transparent",
+                bgcolor="transparent",
+                overlay_color="transparent",
+                elevation=0,
+                padding=ft.Padding.all(0),
+                alignment=ft.Alignment(-1, 0),
+                shape=ft.RoundedRectangleBorder(radius=3),
+                side={
+                    ft.ControlState.FOCUSED: ft.BorderSide(2, tokens.CORAL_DEEP),
+                    ft.ControlState.DEFAULT: ft.BorderSide(0, "transparent"),
+                },
+            ),
+            on_hover=self._handle_hover,
         )
 
-    def _handle_click(self, _e: ft.Event[ft.Container]) -> None:
+    def _handle_click(self, _e: ft.Event[ft.TextButton]) -> None:
         self._on_toggle()
 
-    def _handle_hover(self, e: ft.Event[ft.Container]) -> None:
+    def _handle_hover(self, e: ft.Event[ft.TextButton]) -> None:
         # Swap the whole style rather than setting ``Text.color``: the
         # color lives inside ``style``, and a bare ``color=`` alongside a
         # style that also carries one is ambiguous on Flet's Dart side.
@@ -673,7 +619,7 @@ def build_ledger_header(
             spacing=0,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         ),
-        padding=ft.Padding.only(bottom=10, top=4),
+        padding=ft.Padding.only(bottom=8, top=4),
         border=ft.Border(bottom=ft.BorderSide(1, tokens.RULE)),
     )
 
@@ -697,7 +643,7 @@ def _empty_state(headline: str, hint: str) -> ft.Control:
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             tight=True,
         ),
-        padding=ft.Padding.symmetric(vertical=72),
+        padding=ft.Padding.symmetric(vertical=48),
         alignment=ft.Alignment(0, 0),
     )
 
@@ -802,13 +748,13 @@ def build_transactions_table(
 # ---------------------------------------------------------------------------
 
 
-class _FilterChip(ft.Container):
-    """A toggle-able filter chip styled per DESIGN.md ``chip-recurring``.
+class _FilterChip(ft.Button):
+    """A toggle-able filter chip: radius 3, ``paper-2`` at rest, ``coral-tint``
+    fill with ``coral-deep`` text when selected (DESIGN.md Chips).
 
-    Container is the right primitive here — ``on_click`` lands directly,
-    bg/text/border can swap on selection, and we avoid pulling in
-    ``ft.Chip``'s Material chrome which clashes with the paper-and-ink
-    palette.
+    A real ``ft.Button`` so the chip is Tab-focusable and fires on
+    Enter/Space; hover and the 2px CORAL_DEEP focus ring ride on the
+    ``ButtonStyle`` (no scale animation, per the reduce-motion contract).
     """
 
     def __init__(
@@ -823,44 +769,35 @@ class _FilterChip(ft.Container):
         self._selected = selected
         self._on_select = on_select
 
-        self._label = ft.Text(
-            label,
-            style=ft.TextStyle(
-                font_family=tokens.FONT_BODY,
-                size=12,
-                weight=ft.FontWeight.W_600,
-                color=tokens.CORAL_DEEP if selected else tokens.INK_2,
-                height=1.2,
-            ),
-        )
+        text_style = tokens.body_style(tokens.CORAL_DEEP if selected else tokens.INK_2)
+        text_style.weight = ft.FontWeight.W_600
+        self._label = ft.Text(label, style=text_style)
 
+        rest = tokens.CORAL_TINT if selected else tokens.PAPER_2
+        hover = tokens.CORAL_TINT if selected else tokens.PAPER_3
         super().__init__(
             content=self._label,
-            bgcolor=tokens.CORAL_TINT if selected else tokens.PAPER,
-            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            border_radius=ft.BorderRadius.all(999),  # pill — small, fine in product
-            border=ft.Border.all(
-                1,
-                "transparent" if selected else tokens.RULE,
-            ),
             on_click=self._handle_click,
-            on_hover=self._handle_hover,
             tooltip=f"Filter: {label}",
-            animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT_QUART),
+            style=ft.ButtonStyle(
+                shadow_color="transparent",
+                bgcolor={
+                    ft.ControlState.HOVERED: hover,
+                    ft.ControlState.DEFAULT: rest,
+                },
+                overlay_color="transparent",
+                elevation=0,
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+                shape=ft.RoundedRectangleBorder(radius=3),
+                side={
+                    ft.ControlState.FOCUSED: ft.BorderSide(2, tokens.CORAL_DEEP),
+                    ft.ControlState.DEFAULT: ft.BorderSide(0, "transparent"),
+                },
+            ),
         )
 
-    def _handle_click(self, _e: ft.Event[ft.Container]) -> None:
+    def _handle_click(self, _e: ft.Event[ft.Button]) -> None:
         self._on_select(self._value)
-
-    def _handle_hover(self, e: ft.Event[ft.Container]) -> None:
-        if self._selected:
-            return
-        is_in = e.data == "true"
-        self.bgcolor = tokens.PAPER_2 if is_in else tokens.PAPER
-        try:
-            self.update()
-        except (RuntimeError, AssertionError):
-            pass
 
 
 def build_filter_chip(
@@ -873,10 +810,8 @@ def build_filter_chip(
 ) -> ft.Control:
     """A ``_FilterChip`` wrapped in labeled ``Semantics``.
 
-    Chips are Containers, which screen readers don't announce as
-    interactive on Flet desktop; the wrapper carries the accessible name
-    and selection state, mirroring the icon-button contract in
-    AGENTS.md. Chips rebuild on every selection change, so the label's
+    The wrapper carries the accessible name and selection state,
+    mirroring the icon-button contract in AGENTS.md. Chips rebuild on every selection change, so the
     ", selected" suffix stays current.
     """
     return ft.Semantics(
