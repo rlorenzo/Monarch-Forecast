@@ -33,3 +33,9 @@ graphify-out/
 agent-review-summary.md
 agent-code-review.md
 PLAN-*
+
+# Local impeccable critique snapshots
+.impeccable/critique/
+
+# Playwright MCP snapshots/screenshots
+.playwright-mcp/
