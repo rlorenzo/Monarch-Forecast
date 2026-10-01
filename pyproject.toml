@@ -40,6 +40,12 @@ integration = [
     "scikit-image>=0.25",
 ]
 
+# jni_flutter 1.0.4 (2026-10-01) declares jni ^1.0.0 but its generated code
+# asserts jni >= 1.1, and Flet 1.0.3's template pins jni 1.0.0, so every
+# `flet build` fails to compile. Drop this once either side is fixed.
+[tool.flet.flutter.pubspec.dependency_overrides]
+jni_flutter = "1.0.3"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
