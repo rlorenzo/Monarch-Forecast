@@ -39,11 +39,6 @@ integration = [
     "pillow>=11.0",
     "scikit-image>=0.25",
 ]
-# CI-only: semgrep is heavy, so it is not in `dev`. Run with
-# `uv run --only-group security semgrep ...`.
-security = [
-    "semgrep>=1.176.0",
-]
 
 [tool.setuptools.packages.find]
 where = ["."]
