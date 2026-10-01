@@ -26,13 +26,16 @@ def get_current_version() -> str:
 
 
 def check_for_update() -> dict[str, Any] | None:
-    """Check GitHub releases for a newer version.
+    """Check GitHub releases for a newer version (Windows/Linux only).
 
     Returns:
         Dict with 'version', 'download_url', 'release_notes' if update available,
-        None if current version is latest or check fails.
+        None if current version is latest, the check fails, or on macOS, where
+        Sparkle handles updates instead.
     """
-    if not _VERSION_KNOWN:
+    # macOS builds embed Sparkle (packaging/macos/patch_build_template.sh),
+    # which shows its own update dialog; a banner too would double-prompt.
+    if not _VERSION_KNOWN or sys.platform == "darwin":
         return None
     try:
         req = Request(

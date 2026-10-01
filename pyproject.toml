@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monarch-forecast"
-version = "1.6.0"
+version = "1.7.0"
 description = "Financial forecasting desktop app powered by Monarch Money"
 license = {text = "MIT"}
 requires-python = ">=3.12"
@@ -45,6 +45,14 @@ integration = [
 # `flet build` fails to compile. Drop this once either side is fixed.
 [tool.flet.flutter.pubspec.dependency_overrides]
 jni_flutter = "1.0.3"
+
+# Sparkle auto-updater (macOS). The feed is the appcast.xml that build.yml
+# attaches to every release; the key is the public half of the EdDSA pair whose
+# private half is the SPARKLE_ED_PRIVATE_KEY secret (packaging/macos/README.md).
+[tool.flet.macos.info]
+SUFeedURL = "https://github.com/rlorenzo/Monarch-Forecast/releases/latest/download/appcast.xml"
+SUPublicEDKey = "bCQHJ/xZGeNj9RMVVTS39g9g2Zhn+iGcDxmY4fY9T/I="
+SUEnableAutomaticChecks = true
 
 [tool.setuptools.packages.find]
 where = ["."]

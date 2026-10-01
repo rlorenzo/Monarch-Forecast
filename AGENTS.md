@@ -70,7 +70,7 @@ User-facing documentation of the accessibility contract lives in the "Accessibil
 ## CI/CD
 
 - **CI** (`ci.yml`): lint, type-check, dead-code (vulture), module boundaries (tach), security (semgrep), copy-paste detection (jscpd, via `npx`), and test on push to main and all PRs. Uses `uv` (jscpd is the one Node-based job).
-- **Build** (`build.yml`): triggered by `v*` tags or manual dispatch. Builds macOS/Windows/Linux desktop apps via `flet build`. Creates draft GitHub release.
+- **Build** (`build.yml`): triggered by `v*` tags or manual dispatch. Builds macOS/Windows/Linux desktop apps via `flet build`. Creates draft GitHub release. On macOS it also EdDSA-signs the DMG and attaches a Sparkle `appcast.xml`; the app's Sparkle updater replaces the update banner there (see `packaging/macos/README.md`).
 - **Versioning**: `pyproject.toml` is the source of truth. `updater.py` reads it via `importlib.metadata.version()` at runtime. **When bumping `version`, run `uv sync` in the same commit so `uv.lock` doesn't drift.** The 1.0.2 release commit missed this step and the lockfile lagged a release behind until 1.0.3.
 
 ## Common pitfalls

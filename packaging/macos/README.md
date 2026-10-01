@@ -160,6 +160,7 @@ The same script runs on the `macos-latest` runner. Required repository secrets:
 | `NOTARY_KEY_P8` | contents of the `AuthKey_XXXX.p8` file |
 | `NOTARY_KEY_ID` | the key's Key ID |
 | `NOTARY_ISSUER` | the App Store Connect Issuer ID |
+| `SPARKLE_ED_PRIVATE_KEY` | Sparkle's EdDSA private key (see below) |
 
 Export the `.p12` from Keychain Access (right-click the **private key** under
 *My Certificates* → Export), then:
@@ -171,3 +172,45 @@ base64 -i DeveloperID.p12 | pbcopy   # paste into the MACOS_CERT_P12 secret
 CI imports the `.p12` into a throwaway keychain, writes the `.p8` to a temp
 file, and calls `sign_notarize.sh` with `NOTARY_KEY`/`NOTARY_KEY_ID`/
 `NOTARY_ISSUER`. See the `Sign & notarize (macOS)` step in `build.yml`.
+
+## In-app updates (Sparkle)
+
+The Mac app updates itself through [Sparkle](https://sparkle-project.org):
+the standard "A new version of Monarch Forecast is available" dialog with
+release notes, Skip / Remind Me Later / Install Update, and an install that
+replaces the app in place and relaunches it. Windows and Linux keep the
+in-app banner (`src/views/update_banner.py`), which is switched off on macOS.
+
+How the pieces fit:
+
+- `patch_build_template.sh` adds the `Sparkle` pod to Flet's template and
+  starts an `SPUStandardUpdaterController` from `AppDelegate`.
+- `[tool.flet.macos.info]` in `pyproject.toml` sets `SUFeedURL` (the
+  `appcast.xml` on the latest release), `SUPublicEDKey`, and turns on
+  automatic checks.
+- The same patch sets `CFBundleVersion` to the app version (e.g. `1.7.0`)
+  instead of Flet's build number, because Sparkle compares the feed's
+  `sparkle:version` against it.
+- `sign_notarize.sh` deletes Sparkle's XPC services, which only sandboxed
+  apps use, before signing.
+- After notarization, `build.yml` signs the DMG with `sign_update` and the
+  release job writes `appcast.xml` with the CHANGELOG notes, then attaches it
+  to the draft release. Publishing the draft is what makes the update
+  visible to installed apps.
+
+### One-time key setup
+
+```bash
+# From Sparkle's release tarball (same version as the pod):
+mkdir -p /tmp/sparkle
+curl -fsSL https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz \
+  | tar -xJ -C /tmp/sparkle
+/tmp/sparkle/bin/generate_keys            # stores the private key in your login keychain,
+                                          # prints the public key -> SUPublicEDKey in pyproject.toml
+/tmp/sparkle/bin/generate_keys -x sparkle_private_key.txt
+gh secret set SPARKLE_ED_PRIVATE_KEY < sparkle_private_key.txt && rm sparkle_private_key.txt
+```
+
+Keep the keychain copy backed up. **Losing the private key means installed
+apps can never verify another update**, and every user has to download a new
+build by hand again.

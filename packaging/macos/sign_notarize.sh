@@ -100,6 +100,12 @@ fi
 # Either way it's build cruft with no runtime purpose, so prune a symlink if it
 # dangles OR its target is absolute. Legitimate bundle symlinks (framework
 # `Versions/Current`) are RELATIVE and internal, so they survive.
+# Sparkle's XPC services exist only for sandboxed apps (this one isn't), and
+# re-signing Downloader.xpc below would strip the sandbox entitlements it needs.
+# Sparkle's docs sanction removing them; the top-level XPCServices symlink then
+# dangles and the loop below prunes it.
+rm -rf "$APP_BUNDLE"/Contents/Frameworks/Sparkle.framework/Versions/*/XPCServices
+
 log "Pruning bundle-escaping / dangling symlinks + .DS_Store"
 while IFS= read -r -d '' link; do
   target="$(readlink "$link")"
