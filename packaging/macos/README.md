@@ -188,8 +188,9 @@ How the pieces fit:
 - `[tool.flet.macos.info]` in `pyproject.toml` sets `SUFeedURL` (the
   `appcast.xml` on the latest release), `SUPublicEDKey`, and turns on
   automatic checks.
-- `build.yml` passes `--build-number` (1.7.0 → 10700), because Sparkle
-  compares the feed's `sparkle:version` against `CFBundleVersion`.
+- The same patch sets `CFBundleVersion` to the app version (e.g. `1.7.0`)
+  instead of Flet's build number, because Sparkle compares the feed's
+  `sparkle:version` against it.
 - `sign_notarize.sh` deletes Sparkle's XPC services, which only sandboxed
   apps use, before signing.
 - After notarization, `build.yml` signs the DMG with `sign_update` and the

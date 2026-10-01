@@ -95,11 +95,6 @@ jobs:
           TEMPLATE_FLAGS=""
           if [ "${{ matrix.platform }}" = "macos" ]; then
             TEMPLATE_FLAGS="--template $(packaging/macos/patch_build_template.sh "$RUNNER_TEMP/flet-template")"
-            # Sparkle compares the appcast's sparkle:version against
-            # CFBundleVersion, which Flet otherwise leaves at 1 forever.
-            # Encode 1.7.0 as 10700; the "Sparkle appcast" step reuses this.
-            # ponytail: assumes minor/patch < 100.
-            TEMPLATE_FLAGS="$TEMPLATE_FLAGS --build-number $(echo "$BUILD_VERSION" | awk -F. '{print $1*10000 + $2*100 + $3}')"
           fi
           # Keep build/dev cruft OUT of the bundled app.zip. Without this,
           # `flet build` sweeps the ENTIRE project directory into app.zip:
@@ -574,15 +569,13 @@ jobs:
           tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
 
           VERSION="$(defaults read "$PWD/build/macos/Monarch Forecast.app/Contents/Info" CFBundleShortVersionString)"
-          BUILD="$(defaults read "$PWD/build/macos/Monarch Forecast.app/Contents/Info" CFBundleVersion)"
           # Prints: sparkle:edSignature="..." length="..."
           SIG_ATTRS="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" \
             | "$RUNNER_TEMP/sparkle/bin/sign_update" --ed-key-file - build/monarch-forecast-macos.dmg)"
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/monarch-forecast-macos.dmg"
           cat > build/sparkle-item.xml <<ITEM
               <title>Version ${VERSION}</title>
-              <sparkle:version>${BUILD}</sparkle:version>
-              <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+              <sparkle:version>${VERSION}</sparkle:version>
               <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
               <enclosure url="${URL}" type="application/octet-stream" ${SIG_ATTRS}/>
           ITEM

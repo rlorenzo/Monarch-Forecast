@@ -8,8 +8,10 @@
 #    flet-dev/flet#6874 ships.
 # 2. Sparkle embedded and started from AppDelegate, so the app shows the
 #    standard macOS "new version available" dialog and installs updates
-#    itself. Its feed URL and public key come from [tool.flet.macos.info]
-#    in pyproject.toml; packaging/macos/README.md covers the release side.
+#    itself. CFBundleVersion becomes the dotted app version so Sparkle can
+#    compare releases. Its feed URL and public key come from
+#    [tool.flet.macos.info] in pyproject.toml; packaging/macos/README.md
+#    covers the release side.
 #
 # Usage: packaging/macos/patch_build_template.sh <out-dir>
 set -euo pipefail
@@ -28,6 +30,11 @@ sed -i.bak "s/^platform :osx, '11.0'/platform :osx, '${MIN}'/" "$MACOS/Podfile"
 # Pods keep their own podspec minimum (FlutterMacOS: 10.15); override it.
 perl -pi -e "s/^(    flutter_additional_macos_build_settings\(target\)\n)/\$1    target.build_configurations.each { |c| c.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '${MIN}' }\n/" "$MACOS/Podfile"
 
+# Sparkle compares the appcast's sparkle:version against CFBundleVersion,
+# which the template sets to the build number (always 1 for us). Use the
+# dotted version instead; Sparkle compares "1.10.0" > "1.9.0" correctly.
+perl -0pi -e 's|(<key>CFBundleVersion</key>\s*<string>)\$\(FLUTTER_BUILD_NUMBER\)|$1\$(FLUTTER_BUILD_NAME)|' "$MACOS/Runner/Info.plist"
+
 # Sparkle: CocoaPods trunk stops at 2.9.x; keep SPARKLE_VERSION in build.yml
 # (the sign_update tool) on the same release.
 perl -pi -e "s/^(  flutter_install_all_macos_pods .*\n)/\$1  pod 'Sparkle', '2.9.6'\n/" "$MACOS/Podfile"
@@ -39,6 +46,8 @@ rm -f "$MACOS"/Podfile.bak "$MACOS"/Runner.xcodeproj/project.pbxproj.bak
 [ "$(grep -c "MACOSX_DEPLOYMENT_TARGET = ${MIN};" "$MACOS/Runner.xcodeproj/project.pbxproj")" -ge 3 ]
 grep -q "platform :osx, '${MIN}'" "$MACOS/Podfile"
 grep -q "build_settings\['MACOSX_DEPLOYMENT_TARGET'\] = '${MIN}'" "$MACOS/Podfile"
+grep -q '<string>$(FLUTTER_BUILD_NAME)</string>' "$MACOS/Runner/Info.plist"
+[ "$(grep -c 'FLUTTER_BUILD_NUMBER' "$MACOS/Runner/Info.plist")" -eq 0 ]
 grep -q "pod 'Sparkle'" "$MACOS/Podfile"
 grep -q "^import Sparkle" "$MACOS/Runner/AppDelegate.swift"
 grep -q "SPUStandardUpdaterController(" "$MACOS/Runner/AppDelegate.swift"
