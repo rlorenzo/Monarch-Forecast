@@ -183,8 +183,10 @@ in-app banner (`src/views/update_banner.py`), which is switched off on macOS.
 
 How the pieces fit:
 
-- `patch_build_template.sh` adds the `Sparkle` pod to Flet's template and
-  starts an `SPUStandardUpdaterController` from `AppDelegate`.
+- `patch_build_template.sh` adds the `Sparkle` pod to Flet's template,
+  starts an `SPUStandardUpdaterController` from `AppDelegate`, and adds
+  **Check for Updates…** to the app menu. Without it, Sparkle only checks
+  once a day.
 - `[tool.flet.macos.info]` in `pyproject.toml` sets `SUFeedURL` (the
   `appcast.xml` on the latest release), `SUPublicEDKey`, and turns on
   automatic checks.
