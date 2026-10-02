@@ -7,6 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.7.1] (2026-10-01)
+
+### Fixed
+
+- Hovering the balance chart shows each day's balance and transactions again.
+  The tooltip rendered nothing, because flet-charts 1.0.3 drops any tooltip
+  that uses styled text spans; it's plain text now. The hint above the chart
+  says to hover the line, since the per-day dots were removed in the design
+  refresh.
+
 ## [1.7.0] (2026-10-01)
 
 ### Added
@@ -487,7 +497,8 @@ re-enter data.
 macOS (Intel and Apple Silicon), Windows, and Linux desktop builds
 are attached below.
 
-[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/rlorenzo/Monarch-Forecast/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.7.1
 [1.7.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.7.0
 [1.6.0]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.6.0
 [1.5.1]: https://github.com/rlorenzo/Monarch-Forecast/releases/tag/v1.5.1

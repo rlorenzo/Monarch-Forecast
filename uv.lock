@@ -768,7 +768,7 @@ wheels = [
 
 [[package]]
 name = "monarch-forecast"
-version = "1.7.0"
+version = "1.7.1"
 source = { editable = "." }
 dependencies = [
     { name = "flet" },

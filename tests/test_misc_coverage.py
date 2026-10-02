@@ -25,7 +25,7 @@ from src.forecast.credit_cards import (
     infer_due_day,
 )
 from src.forecast.models import ForecastDay, ForecastResult
-from src.views.chart import _build_tooltip, build_forecast_chart
+from src.views.chart import _build_tooltip, _build_tooltip_spec, build_forecast_chart
 from src.views.side_nav import NavDestination, SideNav
 
 
@@ -47,6 +47,21 @@ class TestChartEmptyResult:
 
 
 class TestTooltipBuilder:
+    def test_spec_is_plain_text_without_spans(self):
+        """flet-charts 1.0.3 blanks the whole tooltip when text_spans is set,
+        so the hover shows nothing. Pin plain text until upstream fixes it."""
+        day = ForecastDay(
+            date=date(2026, 6, 1),
+            starting_balance=1000.0,
+            transactions=[
+                ForecastTransaction(date=date(2026, 6, 1), name="Rent", amount=-1500.0),
+            ],
+        )
+        spec = _build_tooltip_spec(day)
+        assert not spec.text_spans
+        assert spec.text == _build_tooltip(day)
+        assert "Rent" in spec.text
+
     def test_single_day_tooltip_no_net_line(self):
         day = ForecastDay(
             date=date(2026, 6, 1),
