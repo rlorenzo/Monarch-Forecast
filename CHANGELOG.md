@@ -7,6 +7,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- **Check for Updates…** in the Mac app menu, under About, to look for a new
+  version on demand instead of waiting for the daily check.
+
 ### Fixed
 
 - The Mac app's About panel shows "Copyright (c) 2026 Rex Lorenzo", matching

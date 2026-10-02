@@ -9,9 +9,9 @@
 # 2. Sparkle embedded and started from AppDelegate, so the app shows the
 #    standard macOS "new version available" dialog and installs updates
 #    itself. CFBundleVersion becomes the dotted app version so Sparkle can
-#    compare releases. Its feed URL and public key come from
-#    [tool.flet.macos.info] in pyproject.toml; packaging/macos/README.md
-#    covers the release side.
+#    compare releases, and the app menu gets "Check for Updates…". Its feed
+#    URL and public key come from [tool.flet.macos.info] in pyproject.toml;
+#    packaging/macos/README.md covers the release side.
 # 3. The About panel shows [tool.flet] copyright without the template's
 #    "All rights reserved." suffix, which doesn't fit an MIT license.
 #
@@ -42,6 +42,10 @@ perl -0pi -e 's|(<key>CFBundleVersion</key>\s*<string>)\$\(FLUTTER_BUILD_NUMBER\
 perl -pi -e "s/^(  flutter_install_all_macos_pods .*\n)/\$1  pod 'Sparkle', '2.9.6'\n/" "$MACOS/Podfile"
 perl -pi -e 's/^(import FlutterMacOS\n)/$1import Sparkle\n/' "$MACOS/Runner/AppDelegate.swift"
 perl -pi -e 's/^(class AppDelegate: FlutterAppDelegate \{\n)/$1  \/\/ Polls SUFeedURL in the background (daily) and runs the whole update flow.\n  let updaterController = SPUStandardUpdaterController(\n    startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)\n\n/' "$MACOS/Runner/AppDelegate.swift"
+# App menu > "Check for Updates…" under About, the standard spot. The item
+# targets the first responder; AppDelegate (in the responder chain) handles it.
+perl -0pi -e 's|(<menuItem title="About APP_NAME".*?</menuItem>\n)|$1                            <menuItem title="Check for Updates\xe2\x80\xa6" id="SPK-up-chk">\n                                <modifierMask key="keyEquivalentModifierMask"/>\n                                <connections>\n                                    <action selector="checkForUpdates:" target="-1" id="SPK-up-act"/>\n                                </connections>\n                            </menuItem>\n|s' "$MACOS/Runner/Base.lproj/MainMenu.xib"
+perl -pi -e 's/^(    startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil\)\n)/$1\n  \@IBAction func checkForUpdates(_ sender: Any?) {\n    updaterController.checkForUpdates(sender)\n  }\n/' "$MACOS/Runner/AppDelegate.swift"
 # The template appends ". All rights reserved." to [tool.flet] copyright,
 # which contradicts the MIT license; show the LICENSE line as is.
 sed -i.bak 's/^\(PRODUCT_COPYRIGHT = .*\)\. All rights reserved\.$/\1/' "$MACOS/Runner/Configs/AppInfo.xcconfig"
@@ -57,6 +61,8 @@ grep -q '<string>$(FLUTTER_BUILD_NAME)</string>' "$MACOS/Runner/Info.plist"
 grep -q "pod 'Sparkle'" "$MACOS/Podfile"
 grep -q "^import Sparkle" "$MACOS/Runner/AppDelegate.swift"
 grep -q "SPUStandardUpdaterController(" "$MACOS/Runner/AppDelegate.swift"
+grep -q "func checkForUpdates" "$MACOS/Runner/AppDelegate.swift"
+grep -q 'selector="checkForUpdates:"' "$MACOS/Runner/Base.lproj/MainMenu.xib"
 [ "$(grep -c "All rights reserved" "$MACOS/Runner/Configs/AppInfo.xcconfig")" -eq 0 ]
 
 echo "$OUT/build"
