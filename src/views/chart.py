@@ -207,6 +207,8 @@ def build_forecast_chart(
             border_radius=6,
             border_side=ft.BorderSide(1, tokens.RULE),
             padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            # The default 120px wraps a "-$1,250 Rent payment" line mid-way.
+            max_width=240,
         ),
         # No min/max labels: the padded bounds are arbitrary values
         # (e.g. -643.3) that collide with the nearest interval label.
@@ -241,44 +243,19 @@ def _axis_text(value: str, color: str = tokens.INK_3) -> ft.Text:
 
 
 def _build_tooltip_spec(day) -> LineChartDataPointTooltip:
-    """Tooltip content: date in the serif headline role, balance in figures,
-    delta on its own line in signal color with an explicit +/\u2212 glyph."""
-    date_style = tokens.title_style(tokens.INK)
-    date_style.font_family = tokens.FONT_DISPLAY
-    balance_style = tokens.figure_secondary_style(tokens.INK)
-    spans = [
-        ft.TextSpan(day.date.strftime("%b %d") + "\n", style=date_style),
-        ft.TextSpan(format_money(day.ending_balance), style=balance_style),
-    ]
-    if day.transactions:
-        delta_color = tokens.SIGNAL_POSITIVE if day.net_change >= 0 else tokens.SIGNAL_NEGATIVE
-        spans.append(
-            ft.TextSpan(
-                "\n" + format_money(day.net_change, signed=True),
-                style=tokens.body_style(delta_color),
-            )
-        )
-        for txn in day.transactions[:4]:
-            spans.append(
-                ft.TextSpan(
-                    f"\n{format_money(txn.amount, signed=True, cents=False)} {txn.name[:18]}",
-                    style=tokens.label_style(tokens.INK_2),
-                )
-            )
-        if len(day.transactions) > 4:
-            spans.append(
-                ft.TextSpan(
-                    f"\n+{len(day.transactions) - 4} more",
-                    style=tokens.label_style(tokens.INK_3),
-                )
-            )
+    """Plain-text tooltip. flet-charts 1.0.3 can't render tooltip
+    ``text_spans`` (its Dart side parses them as controls and fails), and any
+    spans blank the whole tooltip, so per-line styling waits on an upstream
+    fix. The +/\u2212 glyphs in the text carry the sign without color."""
     return LineChartDataPointTooltip(
-        text="", text_style=tokens.body_style(tokens.INK), text_spans=spans
+        text=_build_tooltip(day),
+        text_style=tokens.body_style(tokens.INK),
+        text_align=ft.TextAlign.LEFT,
     )
 
 
 def _build_tooltip(day) -> str:
-    """Plain-text form of the tooltip (kept for tests and text fallbacks)."""
+    """Tooltip text: date and balance, up to four transactions, net change."""
     lines = [f"{day.date.strftime('%b %d')}: {format_money(day.ending_balance)}"]
     for txn in day.transactions[:4]:
         lines.append(f"{format_money(txn.amount, signed=True, cents=False)} {txn.name[:18]}")

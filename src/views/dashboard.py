@@ -302,7 +302,7 @@ class DashboardView(ft.Column):
                 ft.Container(height=16),
                 ft.Text("Balance Projection", style=tokens.headline_style(tokens.INK)),
                 ft.Text(
-                    "Hover over data points to see transactions for that day. "
+                    "Hover over the line to see each day's balance and transactions. "
                     "Switch to the Transactions tab for a full text breakdown.",
                     style=tokens.body_style(tokens.INK_2),
                 ),
