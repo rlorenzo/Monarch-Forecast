@@ -40,6 +40,11 @@ integration = [
     "scikit-image>=0.25",
 ]
 
+# Shown in the macOS About panel (NSHumanReadableCopyright) and the Windows
+# file properties; Flet's default is "Your Company". Keep in sync with LICENSE.
+[tool.flet]
+copyright = "Copyright (c) 2026 Rex Lorenzo"
+
 # jni_flutter 1.0.4 (2026-10-01) declares jni ^1.0.0 but its generated code
 # asserts jni >= 1.1, and Flet 1.0.3's template pins jni 1.0.0, so every
 # `flet build` fails to compile. Drop this once either side is fixed.

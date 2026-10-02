@@ -7,6 +7,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Fixed
+
+- The Mac app's About panel shows "Copyright (c) 2026 Rex Lorenzo", matching
+  the MIT LICENSE, instead of Flet's "Your Company" placeholder.
+
 ## [1.7.1] (2026-10-01)
 
 ### Fixed
